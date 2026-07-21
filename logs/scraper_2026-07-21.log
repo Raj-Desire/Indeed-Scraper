@@ -240,3 +240,28 @@
 2026-07-21 18:17:35 | INFO     | main:lifespan:28 | ============================================================
 2026-07-21 18:17:35 | DEBUG    | app.dashboard.websocket:connect:31 | WebSocket connected. Active connections: 1
 2026-07-21 18:17:35 | INFO     | app.services.scraper_service:__init__:38 | ScraperService initialized (simple mode)
+2026-07-21 18:40:16 | INFO     | app.utils.logger:setup_logging:70 | Logging initialized. Log directory: logs
+2026-07-21 18:40:16 | INFO     | main:lifespan:25 | ============================================================
+2026-07-21 18:40:16 | INFO     | main:lifespan:26 | Indeed Job Scraper Application Started
+2026-07-21 18:40:16 | INFO     | main:lifespan:27 | Open Browser: http://127.0.0.1:8000
+2026-07-21 18:40:16 | INFO     | main:lifespan:28 | ============================================================
+2026-07-21 18:40:24 | DEBUG    | app.dashboard.websocket:connect:31 | WebSocket connected. Active connections: 1
+2026-07-21 18:40:24 | INFO     | app.services.scraper_service:__init__:38 | ScraperService initialized (simple mode)
+2026-07-21 18:40:29 | DEBUG    | app.dashboard.websocket:connect:31 | WebSocket connected. Active connections: 2
+2026-07-21 18:40:37 | DEBUG    | app.dashboard.websocket:disconnect:37 | WebSocket disconnected. Active connections: 1
+2026-07-21 18:43:06 | INFO     | app.services.scraper_service:start:64 | Scraper started: country='IN', query='AI Developer', pages=1
+2026-07-21 18:43:11 | DEBUG    | app.filters.dedup_filter:filter:49 | DedupFilter: 1 total duplicates removed so far
+2026-07-21 18:43:11 | DEBUG    | app.filters.dedup_filter:filter:49 | DedupFilter: 1 total duplicates removed so far
+2026-07-21 18:43:11 | DEBUG    | app.filters.dedup_filter:filter:49 | DedupFilter: 1 total duplicates removed so far
+2026-07-21 18:43:11 | DEBUG    | app.filters.dedup_filter:filter:49 | DedupFilter: 1 total duplicates removed so far
+2026-07-21 18:43:11 | DEBUG    | app.filters.dedup_filter:filter:49 | DedupFilter: 1 total duplicates removed so far
+2026-07-21 18:43:11 | DEBUG    | app.filters.dedup_filter:filter:49 | DedupFilter: 1 total duplicates removed so far
+2026-07-21 18:43:11 | DEBUG    | app.filters.dedup_filter:filter:49 | DedupFilter: 1 total duplicates removed so far
+2026-07-21 18:43:11 | DEBUG    | app.filters.dedup_filter:filter:49 | DedupFilter: 1 total duplicates removed so far
+2026-07-21 18:43:11 | DEBUG    | app.filters.dedup_filter:filter:49 | DedupFilter: 1 total duplicates removed so far
+2026-07-21 18:43:11 | DEBUG    | app.filters.dedup_filter:filter:49 | DedupFilter: 1 total duplicates removed so far
+2026-07-21 18:43:11 | DEBUG    | app.filters.dedup_filter:filter:49 | DedupFilter: 1 total duplicates removed so far
+2026-07-21 18:43:11 | DEBUG    | app.filters.dedup_filter:filter:49 | DedupFilter: 1 total duplicates removed so far
+2026-07-21 18:43:15 | INFO     | app.excel.exporter:export:122 | Excel exported: outputs\Indeed_Job_Leads_2026-07-21.xlsx (15 leads)
+2026-07-21 18:43:15 | INFO     | app.services.scraper_service:_run_pipeline:114 | Excel exported to: outputs\Indeed_Job_Leads_2026-07-21.xlsx
+2026-07-21 18:58:15 | DEBUG    | app.dashboard.websocket:disconnect:37 | WebSocket disconnected. Active connections: 0
