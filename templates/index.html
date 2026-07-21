@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+
+{% block content %}
+<!-- Search Parameters Form -->
+<div class="bg-navy-900 border border-navy-800 rounded-2xl p-6 shadow-xl space-y-4">
+    <h2 class="text-white font-bold text-lg">Search Job Leads</h2>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <!-- Target Country Input -->
+        <div>
+            <label class="block text-gray-300 text-xs font-semibold mb-1">Target Country</label>
+            <select id="input-country" class="w-full bg-navy-800 border border-navy-700 rounded-xl px-4 py-3 text-white text-sm focus:border-brand focus:outline-none">
+                {% for c in countries %}
+                <option value="{{ c.code }}" {% if c.code == 'US' %}selected{% endif %}>{{ c.name }} ({{ c.code }})</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Job Role / Query Text Input -->
+        <div>
+            <label class="block text-gray-300 text-xs font-semibold mb-1">Job Role / Keyword</label>
+            <input id="input-query" type="text" value="AI Developer" placeholder="e.g. AI Developer, React Developer, Data Engineer"
+                class="w-full bg-navy-800 border border-navy-700 rounded-xl px-4 py-3 text-white text-sm placeholder-gray-500 focus:border-brand focus:outline-none">
+        </div>
+
+        <!-- Max Pages Selector -->
+        <div>
+            <label class="block text-gray-300 text-xs font-semibold mb-1">Pages to Scrape</label>
+            <select id="input-pages" class="w-full bg-navy-800 border border-navy-700 rounded-xl px-4 py-3 text-white text-sm focus:border-brand focus:outline-none">
+                <option value="1">1 Page (~15 jobs)</option>
+                <option value="2">2 Pages (~30 jobs)</option>
+                <option value="3" selected>3 Pages (~45 jobs)</option>
+                <option value="5">5 Pages (~75 jobs)</option>
+                <option value="10">10 Pages (Deep Search)</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Action Bar -->
+    <div class="flex items-center justify-between border-t border-navy-800 pt-4 mt-4">
+        <div class="flex items-center gap-3">
+            <button id="btn-search" onclick="startSearch()"
+                class="px-6 py-3 bg-gradient-to-r from-brand to-cyan-600 hover:from-brand-dark hover:to-cyan-700 text-white font-bold rounded-xl text-sm transition-all shadow-lg flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                Search Jobs
+            </button>
+            <button id="btn-stop" onclick="stopSearch()" disabled
+                class="px-4 py-3 bg-red-900/60 hover:bg-red-800 border border-red-700/50 disabled:opacity-30 text-white font-medium rounded-xl text-xs">
+                Stop
+            </button>
+        </div>
+        <span id="search-status" class="text-xs text-gray-400 font-medium">Status: Ready</span>
+    </div>
+</div>
+
+<!-- Live Progress -->
+<div id="progress-card" class="bg-navy-900 border border-navy-800 rounded-xl p-4 space-y-2">
+    <div class="flex items-center justify-between text-xs">
+        <div class="flex items-center gap-2">
+            <span id="status-dot" class="w-2.5 h-2.5 rounded-full bg-gray-500"></span>
+            <span id="status-text" class="text-white font-semibold">Idle</span>
+        </div>
+        <div class="text-gray-400 space-x-4">
+            <span>Jobs Found: <strong id="jobs-found" class="text-green-400">0</strong></span>
+            <span>Progress: <strong id="progress-pct" class="text-white">0%</strong></span>
+        </div>
+    </div>
+    <div class="w-full bg-navy-800 rounded-full h-2 overflow-hidden">
+        <div id="progress-bar" class="h-2 rounded-full bg-brand transition-all duration-300" style="width: 0%"></div>
+    </div>
+    <p id="log-text" class="text-xs font-mono text-gray-500 truncate">Ready for search query.</p>
+</div>
+
+<!-- Scraped Results Table -->
+<div class="bg-navy-900 border border-navy-800 rounded-2xl overflow-hidden shadow-xl">
+    <div class="px-6 py-4 border-b border-navy-800 flex items-center justify-between bg-navy-950/50">
+        <h3 class="text-white font-bold text-base">Job Leads (<span id="leads-count">0</span>)</h3>
+        <div class="flex items-center gap-3">
+            <input id="filter-search" type="text" placeholder="Filter title or company..." onkeyup="filterTable()"
+                class="bg-navy-800 border border-navy-700 rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-500 focus:outline-none">
+            <a id="table-download-btn" href="/api/export/excel" class="hidden px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg text-xs transition-colors flex items-center gap-1.5 shadow">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3"/></svg>
+                Download Excel
+            </a>
+        </div>
+    </div>
+
+    <div class="overflow-x-auto max-h-[600px]">
+        <table class="w-full text-sm">
+            <thead class="sticky top-0 bg-navy-950 border-b border-navy-800 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                <tr>
+                    <th class="px-5 py-3 text-left">Job Title & Company</th>
+                    <th class="px-5 py-3 text-left">Location / Country</th>
+                    <th class="px-5 py-3 text-left">Remote</th>
+                    <th class="px-5 py-3 text-left">Salary</th>
+                    <th class="px-5 py-3 text-left">Posted Date</th>
+                    <th class="px-5 py-3 text-left">Link</th>
+                </tr>
+            </thead>
+            <tbody id="leads-body">
+                <tr>
+                    <td colspan="6" class="px-5 py-12 text-center text-gray-500">
+                        Enter your job role above and click <strong>"Search Jobs"</strong> to fetch leads.
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

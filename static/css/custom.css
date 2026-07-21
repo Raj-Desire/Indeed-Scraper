@@ -1,0 +1,136 @@
+/* DIW Job Intelligence Scraper — Custom CSS */
+/* Supplements TailwindCSS with animations, scrollbars, and micro-interactions */
+
+/* ============================================================
+   Custom Scrollbar
+   ============================================================ */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+::-webkit-scrollbar-track {
+    background: #0f1a2e;
+}
+::-webkit-scrollbar-thumb {
+    background: #1e3a5f;
+    border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: #2e86ab;
+}
+
+/* ============================================================
+   Animations
+   ============================================================ */
+@keyframes pulse-glow {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(46, 134, 171, 0.4); }
+    50% { box-shadow: 0 0 0 8px rgba(46, 134, 171, 0); }
+}
+
+@keyframes slide-in-right {
+    from { transform: translateX(20px); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes fade-in-up {
+    from { transform: translateY(10px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes typing-blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+}
+
+/* ============================================================
+   Status Dot
+   ============================================================ */
+.status-running {
+    animation: pulse-glow 1.5s ease-in-out infinite;
+}
+
+/* ============================================================
+   Log Entry Animation
+   ============================================================ */
+.log-entry {
+    animation: fade-in-up 0.2s ease-out forwards;
+}
+
+/* ============================================================
+   Card hover glow
+   ============================================================ */
+.card-glow:hover {
+    box-shadow: 0 0 20px rgba(46, 134, 171, 0.15);
+}
+
+/* ============================================================
+   Table Row Hover
+   ============================================================ */
+.leads-row:hover td {
+    background-color: rgba(46, 134, 171, 0.08) !important;
+}
+
+/* ============================================================
+   Score Badge
+   ============================================================ */
+.score-high { color: #22c55e; }
+.score-medium { color: #f97316; }
+.score-low { color: #6b7280; }
+
+/* ============================================================
+   Priority Pill
+   ============================================================ */
+.priority-high {
+    background: rgba(34, 197, 94, 0.15);
+    color: #86efac;
+    border: 1px solid rgba(34, 197, 94, 0.3);
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+}
+.priority-medium {
+    background: rgba(249, 115, 22, 0.15);
+    color: #fdba74;
+    border: 1px solid rgba(249, 115, 22, 0.3);
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+}
+.priority-low {
+    background: rgba(107, 114, 128, 0.15);
+    color: #9ca3af;
+    border: 1px solid rgba(107, 114, 128, 0.3);
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+/* ============================================================
+   Progress Bar Glow
+   ============================================================ */
+#progress-bar {
+    box-shadow: 0 0 10px rgba(46, 134, 171, 0.5);
+    transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ============================================================
+   Toast Notification
+   ============================================================ */
+.toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: #1e3a5f;
+    border: 1px solid #2e86ab;
+    color: white;
+    padding: 12px 20px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 500;
+    z-index: 9999;
+    animation: slide-in-right 0.3s ease-out;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}

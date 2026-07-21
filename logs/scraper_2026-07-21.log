@@ -1,0 +1,242 @@
+2026-07-21 16:43:12 | INFO     | app.utils.logger:setup_logging:68 | Logging initialized. Log directory: logs
+2026-07-21 16:43:12 | INFO     | main:lifespan:47 | ============================================================
+2026-07-21 16:43:12 | INFO     | main:lifespan:48 | DIW Job Intelligence Scraper starting up
+2026-07-21 16:43:12 | INFO     | main:lifespan:49 | Dashboard: http://127.0.0.1:8000
+2026-07-21 16:43:12 | INFO     | main:lifespan:50 | ============================================================
+2026-07-21 16:43:13 | INFO     | app.services.scheduler_service:start:43 | Scheduler started (timezone=Asia/Kolkata)
+2026-07-21 16:43:13 | INFO     | main:lifespan:55 | Scheduler started
+2026-07-21 16:43:49 | INFO     | app.services.scraper_service:__init__:57 | ScraperService initialized
+2026-07-21 16:43:50 | DEBUG    | app.dashboard.websocket:connect:31 | WebSocket connected. Active connections: 1
+2026-07-21 16:44:02 | DEBUG    | app.dashboard.websocket:connect:31 | WebSocket connected. Active connections: 2
+2026-07-21 16:49:41 | DEBUG    | app.dashboard.websocket:connect:31 | WebSocket connected. Active connections: 3
+2026-07-21 16:49:44 | DEBUG    | app.dashboard.websocket:connect:31 | WebSocket connected. Active connections: 4
+2026-07-21 16:49:47 | DEBUG    | app.dashboard.websocket:disconnect:37 | WebSocket disconnected. Active connections: 3
+2026-07-21 16:49:47 | DEBUG    | app.dashboard.websocket:disconnect:37 | WebSocket disconnected. Active connections: 2
+2026-07-21 16:58:37 | DEBUG    | app.dashboard.websocket:disconnect:37 | WebSocket disconnected. Active connections: 1
+2026-07-21 16:58:37 | DEBUG    | app.dashboard.websocket:disconnect:37 | WebSocket disconnected. Active connections: 0
+2026-07-21 16:58:54 | DEBUG    | app.dashboard.websocket:connect:31 | WebSocket connected. Active connections: 1
+2026-07-21 16:59:13 | INFO     | app.services.scraper_service:start:101 | Scraper started (session=8214d28c)
+2026-07-21 16:59:13 | INFO     | app.dashboard.router:api_start_scraper:159 | Scraper started via API. Session: 8214d28c
+2026-07-21 16:59:13 | INFO     | app.scraper.indeed_scraper:_build_search_matrix:229 | Search matrix built: 21 countries × 9 clusters = 189 combinations
+2026-07-21 16:59:14 | DEBUG    | app.scraper.indeed_scraper:_launch_browser:257 | Browser launched (headless=True)
+2026-07-21 16:59:18 | WARNING  | app.scraper.indeed_scraper:_scrape_search_page:379 | Indeed block detected on attempt 1 for URL: https://www.indeed.com/jobs?q=SharePoint+developer&l=remote&start=0&fromage=1&sort=date
+2026-07-21 16:59:28 | WARNING  | app.scraper.indeed_scraper:_scrape_search_page:379 | Indeed block detected on attempt 2 for URL: https://www.indeed.com/jobs?q=SharePoint+developer&l=remote&start=0&fromage=1&sort=date
+2026-07-21 16:59:49 | WARNING  | app.scraper.indeed_scraper:_scrape_search_page:379 | Indeed block detected on attempt 3 for URL: https://www.indeed.com/jobs?q=SharePoint+developer&l=remote&start=0&fromage=1&sort=date
+2026-07-21 16:59:49 | DEBUG    | app.scraper.indeed_scraper:_scrape_combination:337 | No more results for [US/SharePoint Developer] page 1
+2026-07-21 16:59:50 | WARNING  | app.scraper.indeed_scraper:_scrape_search_page:379 | Indeed block detected on attempt 1 for URL: https://www.indeed.com/jobs?q=Power+Platform+developer&l=remote&start=0&fromage=1&sort=date
+2026-07-21 17:00:00 | WARNING  | app.scraper.indeed_scraper:_scrape_search_page:379 | Indeed block detected on attempt 2 for URL: https://www.indeed.com/jobs?q=Power+Platform+developer&l=remote&start=0&fromage=1&sort=date
+2026-07-21 17:00:20 | WARNING  | app.scraper.indeed_scraper:_scrape_search_page:379 | Indeed block detected on attempt 3 for URL: https://www.indeed.com/jobs?q=Power+Platform+developer&l=remote&start=0&fromage=1&sort=date
+2026-07-21 17:00:20 | DEBUG    | app.scraper.indeed_scraper:_scrape_combination:337 | No more results for [US/Power Platform / Power Apps] page 1
+2026-07-21 17:00:22 | WARNING  | app.scraper.indeed_scraper:_scrape_search_page:379 | Indeed block detected on attempt 1 for URL: https://www.indeed.com/jobs?q=Power+BI+developer&l=remote&start=0&fromage=1&sort=date
+2026-07-21 17:00:32 | WARNING  | app.scraper.indeed_scraper:_scrape_search_page:379 | Indeed block detected on attempt 2 for URL: https://www.indeed.com/jobs?q=Power+BI+developer&l=remote&start=0&fromage=1&sort=date
+2026-07-21 17:00:43 | INFO     | app.scraper.indeed_scraper:stop:106 | Scraper stop requested.
+2026-07-21 17:00:46 | DEBUG    | app.dashboard.websocket:connect:31 | WebSocket connected. Active connections: 2
+2026-07-21 17:00:48 | DEBUG    | app.dashboard.websocket:connect:31 | WebSocket connected. Active connections: 3
+2026-07-21 17:00:52 | WARNING  | app.scraper.indeed_scraper:_scrape_search_page:379 | Indeed block detected on attempt 3 for URL: https://www.indeed.com/jobs?q=Power+BI+developer&l=remote&start=0&fromage=1&sort=date
+2026-07-21 17:00:52 | DEBUG    | app.scraper.indeed_scraper:_scrape_combination:337 | No more results for [US/Power BI Developer] page 1
+2026-07-21 17:00:52 | INFO     | app.scraper.indeed_scraper:scrape:149 | Scraper stopped by user request.
+2026-07-21 17:00:52 | INFO     | app.scraper.indeed_scraper:scrape:190 | Scraping complete. Status: ScraperStatus.STOPPED. Jobs found: 0
+2026-07-21 17:00:52 | INFO     | app.services.scraper_service:_run_pipeline:179 | Scraping complete. 0 qualified jobs.
+2026-07-21 17:00:53 | DEBUG    | app.dashboard.websocket:disconnect:37 | WebSocket disconnected. Active connections: 2
+2026-07-21 17:00:53 | DEBUG    | app.dashboard.websocket:connect:31 | WebSocket connected. Active connections: 3
+2026-07-21 17:01:06 | DEBUG    | app.dashboard.websocket:disconnect:37 | WebSocket disconnected. Active connections: 2
+2026-07-21 17:01:06 | DEBUG    | app.dashboard.websocket:disconnect:37 | WebSocket disconnected. Active connections: 1
+2026-07-21 17:02:23 | DEBUG    | app.dashboard.websocket:connect:31 | WebSocket connected. Active connections: 2
+2026-07-21 17:02:54 | DEBUG    | app.dashboard.websocket:disconnect:37 | WebSocket disconnected. Active connections: 1
+2026-07-21 17:03:21 | DEBUG    | app.dashboard.websocket:disconnect:37 | WebSocket disconnected. Active connections: 0
+2026-07-21 17:03:24 | DEBUG    | app.dashboard.websocket:connect:31 | WebSocket connected. Active connections: 1
+2026-07-21 17:03:38 | INFO     | app.services.scraper_service:start:101 | Scraper started (session=6a56fe11)
+2026-07-21 17:03:38 | INFO     | app.dashboard.router:api_start_scraper:159 | Scraper started via API. Session: 6a56fe11
+2026-07-21 17:03:38 | INFO     | app.scraper.indeed_scraper:_build_search_matrix:229 | Search matrix built: 1 countries × 1 clusters = 1 combinations
+2026-07-21 17:03:38 | DEBUG    | app.scraper.indeed_scraper:_launch_browser:257 | Browser launched (headless=True)
+2026-07-21 17:03:40 | WARNING  | app.scraper.indeed_scraper:_scrape_search_page:379 | Indeed block detected on attempt 1 for URL: https://www.indeed.com/jobs?q=SharePoint+developer&l=remote&start=0&fromage=1&sort=date
+2026-07-21 17:03:50 | WARNING  | app.scraper.indeed_scraper:_scrape_search_page:379 | Indeed block detected on attempt 2 for URL: https://www.indeed.com/jobs?q=SharePoint+developer&l=remote&start=0&fromage=1&sort=date
+2026-07-21 17:04:10 | WARNING  | app.scraper.indeed_scraper:_scrape_search_page:379 | Indeed block detected on attempt 3 for URL: https://www.indeed.com/jobs?q=SharePoint+developer&l=remote&start=0&fromage=1&sort=date
+2026-07-21 17:04:10 | DEBUG    | app.scraper.indeed_scraper:_scrape_combination:337 | No more results for [US/SharePoint Developer] page 1
+2026-07-21 17:04:10 | INFO     | app.scraper.indeed_scraper:scrape:190 | Scraping complete. Status: ScraperStatus.COMPLETED. Jobs found: 0
+2026-07-21 17:04:10 | INFO     | app.services.scraper_service:_run_pipeline:179 | Scraping complete. 0 qualified jobs.
+2026-07-21 17:06:06 | DEBUG    | app.dashboard.websocket:disconnect:37 | WebSocket disconnected. Active connections: 0
+2026-07-21 17:06:35 | INFO     | app.utils.logger:setup_logging:68 | Logging initialized. Log directory: logs
+2026-07-21 17:06:35 | INFO     | main:lifespan:47 | ============================================================
+2026-07-21 17:06:35 | INFO     | main:lifespan:48 | DIW Job Intelligence Scraper starting up
+2026-07-21 17:06:35 | INFO     | main:lifespan:49 | Dashboard: http://127.0.0.1:8000
+2026-07-21 17:06:35 | INFO     | main:lifespan:50 | ============================================================
+2026-07-21 17:06:35 | INFO     | app.services.scheduler_service:start:43 | Scheduler started (timezone=Asia/Kolkata)
+2026-07-21 17:06:35 | INFO     | main:lifespan:55 | Scheduler started
+2026-07-21 17:06:43 | INFO     | app.services.scraper_service:__init__:57 | ScraperService initialized
+2026-07-21 17:07:54 | DEBUG    | app.dashboard.websocket:connect:31 | WebSocket connected. Active connections: 1
+2026-07-21 17:08:20 | INFO     | app.services.scraper_service:start:101 | Scraper started (session=a6fd586e)
+2026-07-21 17:08:20 | INFO     | app.dashboard.router:api_start_scraper:159 | Scraper started via API. Session: a6fd586e
+2026-07-21 17:08:20 | INFO     | app.scraper.indeed_scraper:_build_search_matrix:229 | Search matrix built: 1 countries × 1 clusters = 1 combinations
+2026-07-21 17:08:21 | DEBUG    | app.scraper.indeed_scraper:_launch_browser:257 | Browser launched (headless=True)
+2026-07-21 17:08:22 | WARNING  | app.scraper.indeed_scraper:_scrape_search_page:379 | Indeed block detected on attempt 1 for URL: https://www.indeed.com/jobs?q=SharePoint+developer&l=remote&start=0&fromage=1&sort=date
+2026-07-21 17:08:33 | WARNING  | app.scraper.indeed_scraper:_scrape_search_page:379 | Indeed block detected on attempt 2 for URL: https://www.indeed.com/jobs?q=SharePoint+developer&l=remote&start=0&fromage=1&sort=date
+2026-07-21 17:08:53 | WARNING  | app.scraper.indeed_scraper:_scrape_search_page:379 | Indeed block detected on attempt 3 for URL: https://www.indeed.com/jobs?q=SharePoint+developer&l=remote&start=0&fromage=1&sort=date
+2026-07-21 17:08:53 | DEBUG    | app.scraper.indeed_scraper:_scrape_combination:337 | No more results for [US/SharePoint Developer] page 1
+2026-07-21 17:08:53 | INFO     | app.scraper.indeed_scraper:scrape:190 | Scraping complete. Status: ScraperStatus.COMPLETED. Jobs found: 0
+2026-07-21 17:08:53 | INFO     | app.services.scraper_service:_run_pipeline:179 | Scraping complete. 0 qualified jobs.
+2026-07-21 17:11:57 | INFO     | app.utils.logger:setup_logging:68 | Logging initialized. Log directory: logs
+2026-07-21 17:11:57 | INFO     | main:lifespan:47 | ============================================================
+2026-07-21 17:11:57 | INFO     | main:lifespan:48 | DIW Job Intelligence Scraper starting up
+2026-07-21 17:11:57 | INFO     | main:lifespan:49 | Dashboard: http://127.0.0.1:8000
+2026-07-21 17:11:57 | INFO     | main:lifespan:50 | ============================================================
+2026-07-21 17:11:57 | INFO     | app.services.scheduler_service:start:43 | Scheduler started (timezone=Asia/Kolkata)
+2026-07-21 17:11:57 | INFO     | main:lifespan:55 | Scheduler started
+2026-07-21 17:11:57 | DEBUG    | app.dashboard.websocket:connect:31 | WebSocket connected. Active connections: 1
+2026-07-21 17:11:57 | INFO     | app.services.scraper_service:__init__:57 | ScraperService initialized
+2026-07-21 17:12:05 | INFO     | app.services.scraper_service:start:101 | Scraper started (session=37f0f46a)
+2026-07-21 17:12:05 | INFO     | app.dashboard.router:api_start_scraper:159 | Scraper started via API. Session: 37f0f46a
+2026-07-21 17:12:05 | INFO     | app.scraper.indeed_scraper:_build_search_matrix:229 | Search matrix built: 1 countries × 1 clusters = 1 combinations
+2026-07-21 17:12:06 | DEBUG    | app.scraper.indeed_scraper:_launch_browser:257 | Browser launched (headless=True)
+2026-07-21 17:12:08 | WARNING  | app.scraper.indeed_scraper:_scrape_search_page:379 | Indeed block detected on attempt 1 for URL: https://www.indeed.com/jobs?q=SharePoint+developer&l=remote&start=0&sort=date
+2026-07-21 17:12:18 | WARNING  | app.scraper.indeed_scraper:_scrape_search_page:379 | Indeed block detected on attempt 2 for URL: https://www.indeed.com/jobs?q=SharePoint+developer&l=remote&start=0&sort=date
+2026-07-21 17:12:38 | INFO     | app.utils.logger:setup_logging:68 | Logging initialized. Log directory: logs
+2026-07-21 17:12:38 | INFO     | main:lifespan:47 | ============================================================
+2026-07-21 17:12:38 | INFO     | main:lifespan:48 | DIW Job Intelligence Scraper starting up
+2026-07-21 17:12:38 | INFO     | main:lifespan:49 | Dashboard: http://127.0.0.1:8000
+2026-07-21 17:12:38 | INFO     | main:lifespan:50 | ============================================================
+2026-07-21 17:12:38 | INFO     | app.services.scheduler_service:start:43 | Scheduler started (timezone=Asia/Kolkata)
+2026-07-21 17:12:38 | INFO     | main:lifespan:55 | Scheduler started
+2026-07-21 17:12:39 | DEBUG    | app.dashboard.websocket:connect:31 | WebSocket connected. Active connections: 1
+2026-07-21 17:12:39 | INFO     | app.services.scraper_service:__init__:57 | ScraperService initialized
+2026-07-21 17:12:44 | INFO     | app.services.scraper_service:start:101 | Scraper started (session=1bfffe66)
+2026-07-21 17:12:44 | INFO     | app.dashboard.router:api_start_scraper:159 | Scraper started via API. Session: 1bfffe66
+2026-07-21 17:12:44 | INFO     | app.scraper.indeed_scraper:_build_search_matrix:229 | Search matrix built: 1 countries × 1 clusters = 1 combinations
+2026-07-21 17:12:45 | DEBUG    | app.scraper.indeed_scraper:_launch_browser:257 | Browser launched (headless=True)
+2026-07-21 17:12:48 | DEBUG    | app.parser.job_parser:parse_search_results:72 | Parsed 16 job cards from page
+2026-07-21 17:12:48 | DEBUG    | app.scraper.indeed_scraper:_scrape_search_page:414 | [US/SharePoint Developer] Page scraped: 16 jobs (16 new)
+2026-07-21 17:12:48 | DEBUG    | app.filters.date_filter:filter:55 | DateFilter: 1 passed, 1 ambiguous, 0 discarded
+2026-07-21 17:12:48 | DEBUG    | app.filters.relevance_filter:filter:48 | RelevanceFilter: 1/1 jobs qualified
+2026-07-21 17:12:48 | DEBUG    | app.filters.date_filter:filter:55 | DateFilter: 1 passed, 1 ambiguous, 0 discarded
+2026-07-21 17:12:48 | DEBUG    | app.filters.relevance_filter:filter:48 | RelevanceFilter: 1/1 jobs qualified
+2026-07-21 17:12:48 | DEBUG    | app.filters.date_filter:filter:55 | DateFilter: 1 passed, 1 ambiguous, 0 discarded
+2026-07-21 17:12:48 | DEBUG    | app.filters.relevance_filter:filter:48 | RelevanceFilter: 1/1 jobs qualified
+2026-07-21 17:12:48 | DEBUG    | app.filters.date_filter:filter:55 | DateFilter: 1 passed, 1 ambiguous, 0 discarded
+2026-07-21 17:12:48 | DEBUG    | app.filters.relevance_filter:filter:48 | RelevanceFilter: 1/1 jobs qualified
+2026-07-21 17:12:48 | DEBUG    | app.filters.date_filter:filter:55 | DateFilter: 1 passed, 1 ambiguous, 0 discarded
+2026-07-21 17:12:48 | DEBUG    | app.filters.relevance_filter:filter:48 | RelevanceFilter: 1/1 jobs qualified
+2026-07-21 17:12:48 | DEBUG    | app.filters.date_filter:filter:55 | DateFilter: 1 passed, 1 ambiguous, 0 discarded
+2026-07-21 17:12:48 | DEBUG    | app.filters.relevance_filter:filter:48 | RelevanceFilter: 1/1 jobs qualified
+2026-07-21 17:12:48 | DEBUG    | app.filters.date_filter:filter:55 | DateFilter: 1 passed, 1 ambiguous, 0 discarded
+2026-07-21 17:12:48 | DEBUG    | app.filters.relevance_filter:filter:48 | RelevanceFilter: 1/1 jobs qualified
+2026-07-21 17:12:48 | DEBUG    | app.filters.date_filter:filter:55 | DateFilter: 1 passed, 1 ambiguous, 0 discarded
+2026-07-21 17:12:48 | DEBUG    | app.filters.relevance_filter:filter:48 | RelevanceFilter: 1/1 jobs qualified
+2026-07-21 17:12:48 | DEBUG    | app.filters.date_filter:filter:55 | DateFilter: 1 passed, 1 ambiguous, 0 discarded
+2026-07-21 17:12:48 | DEBUG    | app.filters.relevance_filter:filter:48 | RelevanceFilter: 1/1 jobs qualified
+2026-07-21 17:12:48 | DEBUG    | app.filters.date_filter:filter:55 | DateFilter: 1 passed, 1 ambiguous, 0 discarded
+2026-07-21 17:12:48 | DEBUG    | app.filters.relevance_filter:filter:48 | RelevanceFilter: 1/1 jobs qualified
+2026-07-21 17:12:48 | DEBUG    | app.filters.date_filter:filter:55 | DateFilter: 1 passed, 1 ambiguous, 0 discarded
+2026-07-21 17:12:48 | DEBUG    | app.filters.relevance_filter:filter:48 | RelevanceFilter: 1/1 jobs qualified
+2026-07-21 17:12:48 | DEBUG    | app.filters.date_filter:filter:55 | DateFilter: 1 passed, 1 ambiguous, 0 discarded
+2026-07-21 17:12:48 | DEBUG    | app.filters.dedup_filter:filter:49 | DedupFilter: 1 total duplicates removed so far
+2026-07-21 17:12:48 | DEBUG    | app.filters.date_filter:filter:55 | DateFilter: 1 passed, 1 ambiguous, 0 discarded
+2026-07-21 17:12:48 | DEBUG    | app.filters.dedup_filter:filter:49 | DedupFilter: 1 total duplicates removed so far
+2026-07-21 17:12:48 | DEBUG    | app.filters.relevance_filter:filter:48 | RelevanceFilter: 1/1 jobs qualified
+2026-07-21 17:12:48 | DEBUG    | app.filters.date_filter:filter:55 | DateFilter: 1 passed, 1 ambiguous, 0 discarded
+2026-07-21 17:12:48 | DEBUG    | app.filters.dedup_filter:filter:49 | DedupFilter: 1 total duplicates removed so far
+2026-07-21 17:12:48 | DEBUG    | app.filters.relevance_filter:filter:48 | RelevanceFilter: 1/1 jobs qualified
+2026-07-21 17:12:48 | DEBUG    | app.filters.date_filter:filter:55 | DateFilter: 1 passed, 1 ambiguous, 0 discarded
+2026-07-21 17:12:48 | DEBUG    | app.filters.dedup_filter:filter:49 | DedupFilter: 1 total duplicates removed so far
+2026-07-21 17:12:48 | DEBUG    | app.filters.relevance_filter:filter:48 | RelevanceFilter: 1/1 jobs qualified
+2026-07-21 17:12:48 | DEBUG    | app.filters.date_filter:filter:55 | DateFilter: 1 passed, 1 ambiguous, 0 discarded
+2026-07-21 17:12:48 | DEBUG    | app.filters.dedup_filter:filter:49 | DedupFilter: 1 total duplicates removed so far
+2026-07-21 17:12:48 | DEBUG    | app.filters.relevance_filter:filter:48 | RelevanceFilter: 1/1 jobs qualified
+2026-07-21 17:12:50 | INFO     | app.scraper.indeed_scraper:scrape:190 | Scraping complete. Status: ScraperStatus.COMPLETED. Jobs found: 16
+2026-07-21 17:12:50 | INFO     | app.services.scraper_service:_run_pipeline:179 | Scraping complete. 15 qualified jobs.
+2026-07-21 17:12:50 | INFO     | app.excel.exporter:export:143 | Excel exported: outputs\DIW_Job_Leads_2026-07-21.xlsx (15 leads)
+2026-07-21 17:12:50 | INFO     | app.services.scraper_service:_run_pipeline:242 | Excel exported to: outputs\DIW_Job_Leads_2026-07-21.xlsx
+2026-07-21 17:12:50 | INFO     | app.sharepoint.placeholder:sync_leads:48 | SharePoint sync skipped (not configured). 15 jobs would have been synced.
+2026-07-21 17:13:37 | DEBUG    | app.dashboard.websocket:connect:31 | WebSocket connected. Active connections: 2
+2026-07-21 17:14:55 | DEBUG    | app.dashboard.websocket:connect:31 | WebSocket connected. Active connections: 3
+2026-07-21 17:14:57 | INFO     | app.excel.exporter:export:143 | Excel exported: outputs\DIW_Job_Leads_2026-07-21.xlsx (15 leads)
+2026-07-21 17:15:51 | DEBUG    | app.dashboard.websocket:disconnect:37 | WebSocket disconnected. Active connections: 2
+2026-07-21 17:15:51 | DEBUG    | app.dashboard.websocket:connect:31 | WebSocket connected. Active connections: 3
+2026-07-21 17:16:06 | DEBUG    | app.dashboard.websocket:disconnect:37 | WebSocket disconnected. Active connections: 2
+2026-07-21 17:16:43 | DEBUG    | app.dashboard.websocket:connect:31 | WebSocket connected. Active connections: 3
+2026-07-21 17:55:19 | INFO     | app.utils.logger:setup_logging:70 | Logging initialized. Log directory: logs
+2026-07-21 17:55:19 | INFO     | main:lifespan:25 | ============================================================
+2026-07-21 17:55:19 | INFO     | main:lifespan:26 | Indeed Job Scraper Application Started
+2026-07-21 17:55:19 | INFO     | main:lifespan:27 | Open Browser: http://127.0.0.1:8000
+2026-07-21 17:55:19 | INFO     | main:lifespan:28 | ============================================================
+2026-07-21 17:55:19 | DEBUG    | app.dashboard.websocket:connect:31 | WebSocket connected. Active connections: 1
+2026-07-21 17:55:19 | INFO     | app.services.scraper_service:__init__:38 | ScraperService initialized (simple mode)
+2026-07-21 17:55:22 | DEBUG    | app.dashboard.websocket:connect:31 | WebSocket connected. Active connections: 2
+2026-07-21 17:55:29 | INFO     | app.services.scraper_service:start:64 | Scraper started: country='US', query='AI Developer', pages=1
+2026-07-21 17:55:35 | DEBUG    | app.parser.job_parser:parse_search_results:60 | Failed to parse job card: name 'DateStatus' is not defined
+2026-07-21 17:55:35 | DEBUG    | app.parser.job_parser:parse_search_results:60 | Failed to parse job card: name 'DateStatus' is not defined
+2026-07-21 17:55:35 | DEBUG    | app.parser.job_parser:parse_search_results:60 | Failed to parse job card: name 'DateStatus' is not defined
+2026-07-21 17:55:35 | DEBUG    | app.parser.job_parser:parse_search_results:60 | Failed to parse job card: name 'DateStatus' is not defined
+2026-07-21 17:55:35 | DEBUG    | app.parser.job_parser:parse_search_results:60 | Failed to parse job card: name 'DateStatus' is not defined
+2026-07-21 17:55:35 | DEBUG    | app.parser.job_parser:parse_search_results:60 | Failed to parse job card: name 'DateStatus' is not defined
+2026-07-21 17:55:35 | DEBUG    | app.parser.job_parser:parse_search_results:60 | Failed to parse job card: name 'DateStatus' is not defined
+2026-07-21 17:55:35 | DEBUG    | app.parser.job_parser:parse_search_results:60 | Failed to parse job card: name 'DateStatus' is not defined
+2026-07-21 17:55:35 | DEBUG    | app.parser.job_parser:parse_search_results:60 | Failed to parse job card: name 'DateStatus' is not defined
+2026-07-21 17:55:35 | DEBUG    | app.parser.job_parser:parse_search_results:60 | Failed to parse job card: name 'DateStatus' is not defined
+2026-07-21 17:55:35 | DEBUG    | app.parser.job_parser:parse_search_results:60 | Failed to parse job card: name 'DateStatus' is not defined
+2026-07-21 17:55:35 | DEBUG    | app.parser.job_parser:parse_search_results:60 | Failed to parse job card: name 'DateStatus' is not defined
+2026-07-21 17:55:35 | DEBUG    | app.parser.job_parser:parse_search_results:60 | Failed to parse job card: name 'DateStatus' is not defined
+2026-07-21 17:55:35 | DEBUG    | app.parser.job_parser:parse_search_results:60 | Failed to parse job card: name 'DateStatus' is not defined
+2026-07-21 17:55:35 | DEBUG    | app.parser.job_parser:parse_search_results:60 | Failed to parse job card: name 'DateStatus' is not defined
+2026-07-21 17:55:35 | DEBUG    | app.parser.job_parser:parse_search_results:60 | Failed to parse job card: name 'DateStatus' is not defined
+2026-07-21 17:56:22 | INFO     | app.utils.logger:setup_logging:70 | Logging initialized. Log directory: logs
+2026-07-21 17:56:22 | INFO     | main:lifespan:25 | ============================================================
+2026-07-21 17:56:22 | INFO     | main:lifespan:26 | Indeed Job Scraper Application Started
+2026-07-21 17:56:22 | INFO     | main:lifespan:27 | Open Browser: http://127.0.0.1:8000
+2026-07-21 17:56:22 | INFO     | main:lifespan:28 | ============================================================
+2026-07-21 17:56:22 | DEBUG    | app.dashboard.websocket:connect:31 | WebSocket connected. Active connections: 1
+2026-07-21 17:56:22 | INFO     | app.services.scraper_service:__init__:38 | ScraperService initialized (simple mode)
+2026-07-21 17:56:22 | DEBUG    | app.dashboard.websocket:connect:31 | WebSocket connected. Active connections: 2
+2026-07-21 17:56:30 | INFO     | app.services.scraper_service:start:64 | Scraper started: country='US', query='AI Developer', pages=1
+2026-07-21 17:56:33 | DEBUG    | app.parser.job_parser:parse_search_results:60 | Failed to parse job card: name 'DateStatus' is not defined
+2026-07-21 17:56:33 | DEBUG    | app.parser.job_parser:parse_search_results:60 | Failed to parse job card: name 'DateStatus' is not defined
+2026-07-21 17:56:33 | DEBUG    | app.parser.job_parser:parse_search_results:60 | Failed to parse job card: name 'DateStatus' is not defined
+2026-07-21 17:56:33 | DEBUG    | app.parser.job_parser:parse_search_results:60 | Failed to parse job card: name 'DateStatus' is not defined
+2026-07-21 17:56:33 | DEBUG    | app.parser.job_parser:parse_search_results:60 | Failed to parse job card: name 'DateStatus' is not defined
+2026-07-21 17:56:33 | DEBUG    | app.parser.job_parser:parse_search_results:60 | Failed to parse job card: name 'DateStatus' is not defined
+2026-07-21 17:56:33 | DEBUG    | app.parser.job_parser:parse_search_results:60 | Failed to parse job card: name 'DateStatus' is not defined
+2026-07-21 17:56:33 | DEBUG    | app.parser.job_parser:parse_search_results:60 | Failed to parse job card: name 'DateStatus' is not defined
+2026-07-21 17:56:33 | DEBUG    | app.parser.job_parser:parse_search_results:60 | Failed to parse job card: name 'DateStatus' is not defined
+2026-07-21 17:56:33 | DEBUG    | app.parser.job_parser:parse_search_results:60 | Failed to parse job card: name 'DateStatus' is not defined
+2026-07-21 17:56:33 | DEBUG    | app.parser.job_parser:parse_search_results:60 | Failed to parse job card: name 'DateStatus' is not defined
+2026-07-21 17:56:33 | DEBUG    | app.parser.job_parser:parse_search_results:60 | Failed to parse job card: name 'DateStatus' is not defined
+2026-07-21 17:56:33 | DEBUG    | app.parser.job_parser:parse_search_results:60 | Failed to parse job card: name 'DateStatus' is not defined
+2026-07-21 17:56:33 | DEBUG    | app.parser.job_parser:parse_search_results:60 | Failed to parse job card: name 'DateStatus' is not defined
+2026-07-21 17:56:33 | DEBUG    | app.parser.job_parser:parse_search_results:60 | Failed to parse job card: name 'DateStatus' is not defined
+2026-07-21 17:56:33 | DEBUG    | app.parser.job_parser:parse_search_results:60 | Failed to parse job card: name 'DateStatus' is not defined
+2026-07-21 17:58:22 | INFO     | app.utils.logger:setup_logging:70 | Logging initialized. Log directory: logs
+2026-07-21 17:58:22 | INFO     | main:lifespan:25 | ============================================================
+2026-07-21 17:58:22 | INFO     | main:lifespan:26 | Indeed Job Scraper Application Started
+2026-07-21 17:58:22 | INFO     | main:lifespan:27 | Open Browser: http://127.0.0.1:8000
+2026-07-21 17:58:22 | INFO     | main:lifespan:28 | ============================================================
+2026-07-21 17:58:22 | DEBUG    | app.dashboard.websocket:connect:31 | WebSocket connected. Active connections: 1
+2026-07-21 17:58:22 | INFO     | app.services.scraper_service:__init__:38 | ScraperService initialized (simple mode)
+2026-07-21 17:58:25 | DEBUG    | app.dashboard.websocket:connect:31 | WebSocket connected. Active connections: 2
+2026-07-21 17:58:29 | INFO     | app.services.scraper_service:start:64 | Scraper started: country='US', query='AI Developer', pages=1
+2026-07-21 17:58:33 | DEBUG    | app.filters.dedup_filter:filter:49 | DedupFilter: 1 total duplicates removed so far
+2026-07-21 17:58:33 | DEBUG    | app.filters.dedup_filter:filter:49 | DedupFilter: 1 total duplicates removed so far
+2026-07-21 17:58:33 | DEBUG    | app.filters.dedup_filter:filter:49 | DedupFilter: 1 total duplicates removed so far
+2026-07-21 17:58:33 | DEBUG    | app.filters.dedup_filter:filter:49 | DedupFilter: 1 total duplicates removed so far
+2026-07-21 17:58:36 | INFO     | app.excel.exporter:export:122 | Excel exported: outputs\Indeed_Job_Leads_2026-07-21.xlsx (15 leads)
+2026-07-21 17:58:36 | INFO     | app.services.scraper_service:_run_pipeline:114 | Excel exported to: outputs\Indeed_Job_Leads_2026-07-21.xlsx
+2026-07-21 17:59:08 | DEBUG    | app.dashboard.websocket:connect:31 | WebSocket connected. Active connections: 3
+2026-07-21 18:00:04 | DEBUG    | app.dashboard.websocket:connect:31 | WebSocket connected. Active connections: 4
+2026-07-21 18:06:13 | INFO     | app.utils.logger:setup_logging:70 | Logging initialized. Log directory: logs
+2026-07-21 18:06:13 | INFO     | main:lifespan:25 | ============================================================
+2026-07-21 18:06:13 | INFO     | main:lifespan:26 | Indeed Job Scraper Application Started
+2026-07-21 18:06:13 | INFO     | main:lifespan:27 | Open Browser: http://127.0.0.1:8000
+2026-07-21 18:06:13 | INFO     | main:lifespan:28 | ============================================================
+2026-07-21 18:06:13 | DEBUG    | app.dashboard.websocket:connect:31 | WebSocket connected. Active connections: 1
+2026-07-21 18:06:13 | INFO     | app.services.scraper_service:__init__:38 | ScraperService initialized (simple mode)
+2026-07-21 18:06:13 | DEBUG    | app.dashboard.websocket:connect:31 | WebSocket connected. Active connections: 2
+2026-07-21 18:06:14 | DEBUG    | app.dashboard.websocket:connect:31 | WebSocket connected. Active connections: 3
+2026-07-21 18:06:40 | DEBUG    | app.dashboard.websocket:disconnect:37 | WebSocket disconnected. Active connections: 2
+2026-07-21 18:06:40 | DEBUG    | app.dashboard.websocket:connect:31 | WebSocket connected. Active connections: 3
+2026-07-21 18:13:31 | DEBUG    | app.dashboard.websocket:disconnect:37 | WebSocket disconnected. Active connections: 2
+2026-07-21 18:13:35 | DEBUG    | app.dashboard.websocket:disconnect:37 | WebSocket disconnected. Active connections: 1
+2026-07-21 18:17:35 | INFO     | app.utils.logger:setup_logging:70 | Logging initialized. Log directory: logs
+2026-07-21 18:17:35 | INFO     | main:lifespan:25 | ============================================================
+2026-07-21 18:17:35 | INFO     | main:lifespan:26 | Indeed Job Scraper Application Started
+2026-07-21 18:17:35 | INFO     | main:lifespan:27 | Open Browser: http://127.0.0.1:8000
+2026-07-21 18:17:35 | INFO     | main:lifespan:28 | ============================================================
+2026-07-21 18:17:35 | DEBUG    | app.dashboard.websocket:connect:31 | WebSocket connected. Active connections: 1
+2026-07-21 18:17:35 | INFO     | app.services.scraper_service:__init__:38 | ScraperService initialized (simple mode)
