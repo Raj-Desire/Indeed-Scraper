@@ -1,11 +1,3 @@
-"""
-DIW Indeed Job Scraper — Main Application
-=========================================
-Starts the FastAPI web application server.
-Run with:
-    python main.py
-"""
-
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -34,9 +26,9 @@ app = FastAPI(
     title="Indeed Job Scraper",
     description="Simple Indeed Job Sourcing Application",
     version="2.0.0",
-    lifespan=lifespan,
-    docs_url=None,
-    redoc_url=None,
+    lifespan=lifespan, # Run this function when the application starts and when it shuts down
+    docs_url=None, # disable swagger ui bcz we use custom ui
+    redoc_url=None, # disable redoc ui bcz we use custom ui
 )
 
 # Static files

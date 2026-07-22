@@ -265,3 +265,6 @@
 2026-07-21 18:43:15 | INFO     | app.excel.exporter:export:122 | Excel exported: outputs\Indeed_Job_Leads_2026-07-21.xlsx (15 leads)
 2026-07-21 18:43:15 | INFO     | app.services.scraper_service:_run_pipeline:114 | Excel exported to: outputs\Indeed_Job_Leads_2026-07-21.xlsx
 2026-07-21 18:58:15 | DEBUG    | app.dashboard.websocket:disconnect:37 | WebSocket disconnected. Active connections: 0
+2026-07-21 19:21:03 | DEBUG    | app.dashboard.websocket:connect:31 | WebSocket connected. Active connections: 1
+2026-07-21 19:28:46 | DEBUG    | app.dashboard.websocket:disconnect:37 | WebSocket disconnected. Active connections: 0
+2026-07-21 19:28:46 | INFO     | main:lifespan:30 | Indeed Job Scraper Stopped

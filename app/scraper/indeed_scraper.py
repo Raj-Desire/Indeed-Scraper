@@ -108,7 +108,7 @@ class IndeedScraper:
                     url = get_indeed_search_url(
                         country_input=country,
                         query=query,
-                        location="remote",
+                        location="remote", # change
                         page=page_num,
                     )
 
