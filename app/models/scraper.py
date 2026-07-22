@@ -59,6 +59,7 @@ class RunConfig(BaseModel):
     country: str = Field(default="US", description="Target country code or name")
     query: str = Field(default="AI Developer", description="Role or keyword to search")
     max_pages: int = Field(default=3, description="Number of pages to scrape")
+    location_type: str = Field(default="all", description="Location filter type (all, remote, onsite, hybrid)")
     headless: Optional[bool] = Field(default=None, description="Run in background")
 
 

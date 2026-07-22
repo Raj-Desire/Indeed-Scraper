@@ -93,6 +93,8 @@ class IndeedScraper:
         )
         self._emit_progress()
 
+        location_param = "remote" if run_config.location_type.lower() == "remote" else ""
+
         async with async_playwright() as pw:
             browser = await self._launch_browser(pw, run_config.headless)
             context = await self._create_context(browser)
@@ -108,7 +110,7 @@ class IndeedScraper:
                     url = get_indeed_search_url(
                         country_input=country,
                         query=query,
-                        location="remote", # change
+                        location=location_param,
                         page=page_num,
                     )
 
@@ -122,6 +124,15 @@ class IndeedScraper:
                         break
 
                     for job in jobs:
+                        # Post-scrape location type filter
+                        loc_filter = run_config.location_type.lower()
+                        if loc_filter != "all":
+                            if loc_filter == "remote" and job.remote_type.value != "Fully Remote":
+                                continue
+                            elif loc_filter == "onsite" and job.remote_type.value != "On-Site":
+                                continue
+                            elif loc_filter == "hybrid" and job.remote_type.value != "Hybrid":
+                                continue
                         yield job
 
                     await self._random_delay()

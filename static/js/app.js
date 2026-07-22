@@ -8,6 +8,7 @@ let allLeads = [];
 async function startSearch() {
     const country = document.getElementById('input-country')?.value || 'US';
     const query = document.getElementById('input-query')?.value || 'AI Developer';
+    const locationType = document.getElementById('input-location')?.value || 'all';
     const pages = parseInt(document.getElementById('input-pages')?.value || '3');
 
     if (!query.trim()) {
@@ -19,7 +20,7 @@ async function startSearch() {
         const res = await fetch('/api/scraper/start', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ country, query, max_pages: pages }),
+            body: JSON.stringify({ country, query, location_type: locationType, max_pages: pages }),
         });
         const data = await res.json();
 
