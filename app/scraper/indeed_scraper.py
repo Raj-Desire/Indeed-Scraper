@@ -22,7 +22,7 @@ from app.config.settings import get_settings
 from app.models.job import JobPosting
 from app.models.scraper import ScraperProgress, ScraperStatus, RunConfig
 from app.parser.job_parser import JobParser
-from app.utils.helpers import get_indeed_search_url
+from app.utils.helpers import get_indeed_search_url, is_job_matching_query
 from app.utils.logger import logger
 
 
@@ -128,11 +128,25 @@ class IndeedScraper:
                         loc_filter = run_config.location_type.lower()
                         if loc_filter != "all":
                             if loc_filter == "remote" and job.remote_type.value != "Fully Remote":
-                                continue
+                                                    continue
                             elif loc_filter == "onsite" and job.remote_type.value != "On-Site":
-                                continue
+                                                    continue
                             elif loc_filter == "hybrid" and job.remote_type.value != "Hybrid":
+                                                    continue
+
+                        # Strict job role / keyword match filter
+                        if run_config.query and run_config.query.strip():
+                            if not is_job_matching_query(
+                                job_title=job.job_title,
+                                company=job.company,
+                                location=job.location,
+                                description=job.job_description,
+                                query=run_config.query,
+                            ):
                                 continue
+
+                        self._progress.jobs_found += 1
+                        self._emit_progress()
                         yield job
 
                     await self._random_delay()
@@ -208,9 +222,7 @@ class IndeedScraper:
                         if job.indeed_job_id:
                             self._seen_job_ids.add(job.indeed_job_id)
                         new_jobs.append(job)
-                        self._progress.jobs_found += 1
 
-                self._emit_progress()
                 return new_jobs
 
             except Exception as exc:

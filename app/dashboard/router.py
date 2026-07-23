@@ -23,6 +23,12 @@ templates = Jinja2Templates(directory="templates")
 settings = get_settings()
 
 
+@router.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    """Silence browser default 404 favicon request."""
+    return HTMLResponse(content="", status_code=204)
+
+
 @router.get("/", response_class=HTMLResponse)
 async def home_page(request: Request):
     """Serve the single-page application interface."""

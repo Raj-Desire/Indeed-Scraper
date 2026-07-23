@@ -258,7 +258,7 @@ def get_indeed_search_url(
     domain = resolve_country_domain(country_input)
     start = page * 10
     params = {
-        "q": query,
+        "q": query.strip(),
         "l": location,
         "start": start,
         "sort": "date",
@@ -330,3 +330,50 @@ def generate_job_fingerprint(title: str, company: str) -> str:
     """
     normalized = f"{title.lower().strip()}|{company.lower().strip()}"
     return hashlib.md5(normalized.encode()).hexdigest()
+
+
+STOP_WORDS = {"in", "of", "for", "the", "a", "an", "at", "by", "on", "with", "and", "or", "to", "all", "is", "are"}
+
+ROLE_SYNONYMS = {
+    "developer": [r"developer", r"engineer", r"programmer", r"architect", r"specialist", r"coder", r"lead", r"consultant"],
+    "engineer": [r"engineer", r"developer", r"programmer", r"architect", r"specialist", r"coder", r"lead", r"consultant"],
+    "ai": [r"\bai\b", r"artificial\s+intelligence", r"genai", r"generative\s+ai", r"llm", r"large\s+language\s+model", r"machine\s+learning", r"deep\s+learning", r"neural", r"nlp", r"chatgpt", r"gpt"],
+    "ml": [r"\bml\b", r"machine\s+learning", r"deep\s+learning", r"data\s+science", r"data\s+scientist"],
+}
+
+
+def is_job_matching_query(job_title: str, company: str, location: str, description: str, query: str) -> bool:
+    """
+    Check if a job posting matches the search query.
+    Ensures short tech acronyms (e.g. 'AI', 'ML') match on word boundaries or domain synonyms,
+    and requires all non-stopword query tokens to match.
+    """
+    cleaned_query = query.lower().replace('"', '').strip()
+    if not cleaned_query:
+        return True
+
+    tokens = [t.strip() for t in cleaned_query.replace(",", " ").split() if t.strip()]
+    meaningful_tokens = [t for t in tokens if t not in STOP_WORDS]
+
+    if not meaningful_tokens:
+        return True
+
+    combined_text = f"{job_title} {company} {location} {description}".lower()
+
+    for token in meaningful_tokens:
+        patterns = []
+        if token in ROLE_SYNONYMS:
+            patterns.extend(ROLE_SYNONYMS[token])
+        else:
+            escaped = re.escape(token)
+            if len(token) <= 2:
+                patterns.append(rf"\b{escaped}\b")
+            else:
+                patterns.append(rf"\b{escaped}\b" if token.isalnum() else escaped)
+
+        token_matched = any(re.search(pat, combined_text, re.IGNORECASE) for pat in patterns)
+        if not token_matched:
+            return False
+
+    return True
+

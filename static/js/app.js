@@ -146,8 +146,26 @@ function connectWebSocket() {
             statusDot.className = `w-2.5 h-2.5 rounded-full ${colors[p.status] || 'bg-gray-500'}`;
         }
         if (statusText) statusText.textContent = p.status ? p.status.charAt(0).toUpperCase() + p.status.slice(1) : 'Idle';
-        if (bar) bar.style.width = `${p.progress_percent || 0}%`;
-        if (pctEl) pctEl.textContent = `${(p.progress_percent || 0).toFixed(0)}%`;
+
+        // Calculate progress percentage with fallbacks
+        let pct = 0;
+        if (p.status === 'completed') {
+            pct = 100;
+        } else if (p.progress_percent !== undefined && p.progress_percent !== null) {
+            pct = p.progress_percent;
+        } else if (p.max_pages > 0 && p.current_page > 0) {
+            pct = Math.min(99, Math.round(((p.current_page - 0.5) / p.max_pages) * 100));
+        }
+
+        if (bar) {
+            bar.style.width = `${pct}%`;
+            if (p.status === 'running') {
+                bar.classList.add('animate-pulse');
+            } else {
+                bar.classList.remove('animate-pulse');
+            }
+        }
+        if (pctEl) pctEl.textContent = `${pct.toFixed(0)}%`;
         if (jobsFoundEl) jobsFoundEl.textContent = p.jobs_found || 0;
 
         if (p.log_messages && p.log_messages.length > 0) {

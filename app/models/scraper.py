@@ -7,7 +7,7 @@ Pydantic models for run configuration and live progress tracking.
 from datetime import datetime
 from enum import Enum
 from typing import Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, computed_field
 
 
 class ScraperStatus(str, Enum):
@@ -34,12 +34,30 @@ class ScraperProgress(BaseModel):
     log_messages: list[str] = Field(default_factory=list)
     last_error: str = Field(default="")
 
+    @computed_field
     @property
     def progress_percent(self) -> float:
-        """Percentage of requested pages processed."""
-        if self.max_pages == 0:
+        """Granular percentage of requested pages processed."""
+        if self.status == ScraperStatus.COMPLETED:
+            return 100.0
+        if self.max_pages <= 0:
             return 0.0
-        return min(100.0, (self.current_page / self.max_pages) * 100)
+        if self.status in (ScraperStatus.IDLE, ScraperStatus.STOPPED, ScraperStatus.ERROR) and self.current_page == 0:
+            return 0.0
+
+        page_weight = 100.0 / self.max_pages
+        completed_pages = max(0, self.current_page - 1)
+        base_pct = completed_pages * page_weight
+
+        active_page_ratio = 0.25
+        if self.jobs_found > 0:
+            jobs_on_page = self.jobs_found % 15
+            if jobs_on_page == 0:
+                jobs_on_page = 15
+            active_page_ratio += min(0.65, (jobs_on_page / 15.0) * 0.65)
+
+        total_pct = base_pct + (page_weight * active_page_ratio)
+        return round(min(99.0, max(0.0, total_pct)), 1)
 
     def add_log(self, message: str, max_messages: int = 50) -> None:
         """Append log message."""

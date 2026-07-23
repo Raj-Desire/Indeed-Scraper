@@ -32,3 +32,27 @@
 
 2026-07-21 17:12:18 | WARNING  | app.scraper.indeed_scraper:_scrape_search_page:379 | Indeed block detected on attempt 2 for URL: https://www.indeed.com/jobs?q=SharePoint+developer&l=remote&start=0&sort=date
 
+2026-07-22 19:40:31 | WARNING  | app.scraper.indeed_scraper:_scrape_page:184 | Indeed bot check on attempt 1 for URL: https://in.indeed.com/jobs?q=N8n+developer&l=&start=10&sort=date
+
+2026-07-22 19:40:34 | WARNING  | app.scraper.indeed_scraper:_scrape_page:184 | Indeed bot check on attempt 2 for URL: https://in.indeed.com/jobs?q=N8n+developer&l=&start=10&sort=date
+
+2026-07-22 19:40:37 | WARNING  | app.scraper.indeed_scraper:_scrape_page:184 | Indeed bot check on attempt 3 for URL: https://in.indeed.com/jobs?q=N8n+developer&l=&start=10&sort=date
+
+2026-07-23 10:50:41 | WARNING  | app.scraper.indeed_scraper:_scrape_page:184 | Indeed bot check on attempt 1 for URL: https://in.indeed.com/jobs?q=Sharepoint&l=&start=10&sort=date
+
+2026-07-23 10:50:44 | WARNING  | app.scraper.indeed_scraper:_scrape_page:184 | Indeed bot check on attempt 2 for URL: https://in.indeed.com/jobs?q=Sharepoint&l=&start=10&sort=date
+
+2026-07-23 10:50:47 | WARNING  | app.scraper.indeed_scraper:_scrape_page:184 | Indeed bot check on attempt 3 for URL: https://in.indeed.com/jobs?q=Sharepoint&l=&start=10&sort=date
+
+2026-07-23 10:56:43 | WARNING  | app.scraper.indeed_scraper:_scrape_page:184 | Indeed bot check on attempt 1 for URL: https://in.indeed.com/jobs?q=%22Sharepoint%22&l=&start=10&sort=date
+
+2026-07-23 10:56:46 | WARNING  | app.scraper.indeed_scraper:_scrape_page:184 | Indeed bot check on attempt 2 for URL: https://in.indeed.com/jobs?q=%22Sharepoint%22&l=&start=10&sort=date
+
+2026-07-23 10:56:49 | WARNING  | app.scraper.indeed_scraper:_scrape_page:184 | Indeed bot check on attempt 3 for URL: https://in.indeed.com/jobs?q=%22Sharepoint%22&l=&start=10&sort=date
+
+2026-07-23 11:12:38 | WARNING  | app.scraper.indeed_scraper:_scrape_page:194 | Indeed bot check on attempt 1 for URL: https://in.indeed.com/jobs?q=%22sharepoint%22&l=&start=10&sort=date
+
+2026-07-23 11:12:41 | WARNING  | app.scraper.indeed_scraper:_scrape_page:194 | Indeed bot check on attempt 2 for URL: https://in.indeed.com/jobs?q=%22sharepoint%22&l=&start=10&sort=date
+
+2026-07-23 11:12:44 | WARNING  | app.scraper.indeed_scraper:_scrape_page:194 | Indeed bot check on attempt 3 for URL: https://in.indeed.com/jobs?q=%22sharepoint%22&l=&start=10&sort=date
+

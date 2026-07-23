@@ -141,8 +141,21 @@ class JobParser:
         ])
         posted_date, is_ambiguous = parse_indeed_relative_date(date_raw)
 
+        # --- Job Snippet / Description ---
+        snippet = self._extract_text(card, [
+            "[data-testid='job-snippet']",
+            ".job-snippet",
+            ".underCardSnippet",
+            ".jobCardShelfContainer",
+            ".css-92a849",
+            "ul.heading6",
+            "div.heading6",
+            "div.job-snippet ul",
+        ])
+        clean_snippet = clean_text(snippet)
+
         # --- Remote Type ---
-        remote_str = detect_remote_type(title, location, "")
+        remote_str = detect_remote_type(title, location, clean_snippet)
         remote_type = RemoteType(remote_str)
 
         return JobPosting(
@@ -155,7 +168,7 @@ class JobParser:
             salary_range=clean_text(salary) if salary else "Not listed",
             posted_date_raw=date_raw or "",
             posted_date=posted_date,
-            job_description="",  # Populated separately if needed
+            job_description=clean_snippet,
             job_url=job_url,
             apply_url=job_url,
             country=country,

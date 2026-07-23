@@ -43,7 +43,7 @@ class ScraperService:
             raise RuntimeError("A scraping run is already in progress.")
 
         config = run_config or RunConfig()
-        session_id = str(uuid4())[:8]
+        session_id = str(uuid4())[:8] #generate unique id 
 
         self._dedup_filter.reset()
         self._results = []
