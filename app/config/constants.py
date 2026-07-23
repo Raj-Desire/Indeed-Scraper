@@ -30,6 +30,16 @@ COMMON_COUNTRIES: tuple[Country, ...] = (
     Country("SG", "Singapore", "sg.indeed.com"),
     Country("IE", "Ireland", "ie.indeed.com"),
     Country("NZ", "New Zealand", "nz.indeed.com"),
+    Country("CH", "Switzerland", "ch.indeed.com"),
+    Country("SE", "Sweden", "se.indeed.com"),
+    Country("NO", "Norway", "no.indeed.com"),
+    Country("DK", "Denmark", "dk.indeed.com"),
+    Country("FI", "Finland", "fi.indeed.com"),
+    Country("BE", "Belgium", "be.indeed.com"),
+    Country("FR", "France", "fr.indeed.com"),
+    Country("SA", "Saudi Arabia", "sa.indeed.com"),
+    Country("JP", "Japan", "jp.indeed.com"),
+    Country("KR", "South Korea", "kr.indeed.com"),
 )
 
 # Map ISO country codes to domain

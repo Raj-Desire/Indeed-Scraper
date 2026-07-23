@@ -103,6 +103,9 @@ class ScraperService:
                     continue
 
                 self._results.extend(deduped)
+                # Sync progress.jobs_found with active unique results count
+                self._scraper.progress.jobs_found = len(self._results)
+                self._on_progress_update(self._scraper.progress)
 
             if self._results:
                 excel_path = self._exporter.export(

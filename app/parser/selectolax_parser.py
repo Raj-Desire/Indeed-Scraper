@@ -1,11 +1,8 @@
 """
-Job HTML Parser
-===============
-Uses BeautifulSoup4 to extract structured job data from Indeed's
+Selectolax HTML Parser
+======================
+Uses selectolax (Lexbor engine) to extract structured job data from Indeed's
 search results pages and job detail pages.
-
-Indeed's HTML structure changes occasionally. This module isolates
-all parsing logic in one place for easy maintenance.
 """
 
 import re
@@ -13,7 +10,7 @@ from datetime import datetime, timezone
 from typing import Optional
 from uuid import uuid4
 
-from bs4 import BeautifulSoup, Tag
+from selectolax.lexbor import LexborHTMLParser
 
 from app.config.constants import resolve_country_domain
 from app.models.job import JobPosting, RemoteType
@@ -28,9 +25,9 @@ from app.utils.helpers import (
 from app.utils.logger import logger
 
 
-class BeautifulSoupParser(BaseJobParser):
+class SelectolaxParser(BaseJobParser):
     """
-    Parses HTML from Indeed search results and job detail pages using BeautifulSoup4.
+    Parses HTML from Indeed search results and job detail pages using Selectolax.
     All methods return empty/default values rather than raising exceptions
     to ensure the pipeline stays resilient to partial HTML failures.
     """
@@ -44,8 +41,8 @@ class BeautifulSoupParser(BaseJobParser):
         """
         Parse all job cards from an Indeed search results page.
         """
-        soup = BeautifulSoup(html, "lxml")
-        job_cards = self._find_job_cards(soup)
+        tree = LexborHTMLParser(html)
+        job_cards = self._find_job_cards(tree)
 
         if not job_cards:
             logger.debug("No job cards found in HTML (country={}, search_query={})", country, search_query)
@@ -62,34 +59,34 @@ class BeautifulSoupParser(BaseJobParser):
 
         return jobs
 
-    def _find_job_cards(self, soup: BeautifulSoup) -> list[Tag]:
+    def _find_job_cards(self, tree: LexborHTMLParser) -> list:
         """
         Find all job card elements on the page.
-        Tries multiple selectors to handle Indeed's A/B tested layouts.
+        Tries multiple CSS selectors to handle Indeed's A/B tested layouts.
         """
         # Find all li tags containing job card markers
         cards = []
-        for li in soup.find_all("li"):
-            if li.find(class_=re.compile("job_seen_beacon|cardOutline|resultContent")) or li.find(attrs={"data-jk": True}):
+        for li in tree.css("li"):
+            if li.css_first('div[class*="job_seen_beacon"], div[class*="cardOutline"], div[class*="resultContent"], div[data-jk]'):
                 cards.append(li)
         if cards:
             return cards
 
         selectors = [
-            ("div", {"class": re.compile(r"job_seen_beacon|cardOutline|resultContent")}),
-            ("li", {"class": re.compile(r"job_seen_beacon|cardOutline")}),
-            ("div", {"data-jk": True}),
-            ("td", {"class": re.compile(r"resultContent")}),
+            'div[class*="job_seen_beacon"], div[class*="cardOutline"], div[class*="resultContent"]',
+            'li[class*="job_seen_beacon"], li[class*="cardOutline"]',
+            'div[data-jk]',
+            'td[class*="resultContent"]',
         ]
-        for tag, attrs in selectors:
-            c = soup.find_all(tag, attrs)
+        for selector in selectors:
+            c = tree.css(selector)
             if c:
                 return c
         return []
 
     def _parse_job_card(
         self,
-        card: Tag,
+        card,
         country: str,
         search_query: str,
     ) -> Optional[JobPosting]:
@@ -203,7 +200,7 @@ class BeautifulSoupParser(BaseJobParser):
         )
 
     def _extract_job_url(
-        self, card: Tag, country_input: str
+        self, card, country_input: str
     ) -> tuple[str, str]:
         """
         Extract the job URL and job ID from a card element.
@@ -212,48 +209,41 @@ class BeautifulSoupParser(BaseJobParser):
         base = f"https://{domain}"
 
         # Try data-jk attribute first (most reliable)
-        job_id = card.get("data-jk", "")
+        job_id = card.attributes.get("data-jk", "")
         if not job_id:
-            jk_el = card.find(attrs={"data-jk": True})
+            jk_el = card.css_first("[data-jk]")
             if jk_el:
-                job_id = jk_el.get("data-jk", "")
+                job_id = jk_el.attributes.get("data-jk", "")
                 
         if job_id:
             return f"{base}/viewjob?jk={job_id}", job_id
 
         # Try anchor tags
-        for anchor in card.find_all("a", href=True):
-            href = anchor.get("href", "")
+        for anchor in card.css("a[href]"):
+            href = anchor.attributes.get("href", "")
             if "/viewjob" in href or "/rc/clk" in href or "jk=" in href or "/pagead" in href:
                 full_url = href if href.startswith("http") else base + href
                 extracted_id = extract_indeed_job_id(full_url) or str(uuid4())[:12]
                 return full_url, extracted_id
 
         # Fallback anchor tag if no specific href matches
-        first_a = card.find("a", href=True)
+        first_a = card.css_first("a[href]")
         if first_a:
-            href = first_a.get("href", "")
+            href = first_a.attributes.get("href", "")
             full_url = href if href.startswith("http") else base + href
             return full_url, str(uuid4())[:12]
 
         return "", str(uuid4())[:12]
 
-    def _extract_text(self, element: Tag, selectors: list[str]) -> str:
+    def _extract_text(self, element, selectors: list[str]) -> str:
         """
         Try CSS selectors in order and return the first match's text.
-
-        Args:
-            element: BeautifulSoup Tag to search within.
-            selectors: CSS selector strings to try in order.
-
-        Returns:
-            Cleaned text string or empty string.
         """
         for selector in selectors:
             try:
-                found = element.select_one(selector)
+                found = element.css_first(selector)
                 if found:
-                    return found.get_text(separator=" ", strip=True)
+                    return found.text(deep=True, separator=" ", strip=True)
             except Exception:
                 continue
         return ""
@@ -264,15 +254,8 @@ class BeautifulSoupParser(BaseJobParser):
         """
         Enrich an existing JobPosting with a full job description.
         Used when loading the job detail page separately.
-
-        Args:
-            job: Existing JobPosting to enrich.
-            description_html: HTML content of the job description.
-
-        Returns:
-            Updated JobPosting with description populated.
         """
-        soup = BeautifulSoup(description_html, "lxml")
+        tree = LexborHTMLParser(description_html)
 
         # Find the main description container
         desc_selectors = [
@@ -282,9 +265,9 @@ class BeautifulSoupParser(BaseJobParser):
             "[data-testid='jobDescription']",
         ]
         for sel in desc_selectors:
-            container = soup.select_one(sel)
+            container = tree.css_first(sel)
             if container:
-                job.job_description = clean_text(container.get_text(separator="\n"))
+                job.job_description = clean_text(container.text(deep=True, separator="\n", strip=True))
                 break
 
         # Enrich salary if not already found

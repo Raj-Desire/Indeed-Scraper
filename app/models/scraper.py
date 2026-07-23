@@ -79,6 +79,7 @@ class RunConfig(BaseModel):
     max_pages: int = Field(default=3, description="Number of pages to scrape")
     location_type: str = Field(default="all", description="Location filter type (all, remote, onsite, hybrid)")
     headless: Optional[bool] = Field(default=None, description="Run in background")
+    parser_engine: str = Field(default="beautifulsoup", description="Parser engine to use (beautifulsoup, selectolax)")
 
 
 class ScraperSession(BaseModel):

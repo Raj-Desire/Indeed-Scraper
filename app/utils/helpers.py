@@ -151,6 +151,9 @@ def extract_salary_range(text: str) -> str:
         r"\$[\d,]+(?:\s*[-–]\s*\$[\d,]+)?(?:\s*(?:per\s*)?(?:year|yr|annum|pa|hour|hr|day))?",
         r"£[\d,]+(?:\s*[-–]\s*£[\d,]+)?(?:\s*(?:per\s*)?(?:year|yr|annum|pa|hour|hr|day))?",
         r"€[\d,]+(?:\s*[-–]\s*€[\d,]+)?(?:\s*(?:per\s*)?(?:year|yr|annum|pa|hour|hr|day))?",
+        r"₹\s*[\d,]+(?:\s*[-–]\s*₹?\s*[\d,]+)?(?:\s*(?:per\s*)?(?:year|yr|annum|pa|hour|hr|day|month|mo|lakh|lpa))?",
+        r"Rs\.?\s*[\d,]+(?:\s*[-–]\s*Rs\.?\s*[\d,]+)?(?:\s*(?:per\s*)?(?:year|yr|annum|pa|hour|hr|day|month|mo|lakh|lpa))?",
+        r"[\d,.]+\s*(?:Lakh|LPA|Lakhs)\s*[-–]\s*[\d,.]+\s*(?:Lakh|LPA|Lakhs)?",
         r"[\d,]+k?\s*[-–]\s*[\d,]+k?\s*(?:USD|GBP|EUR|AUD|CAD)",
     ]
     for pattern in patterns:

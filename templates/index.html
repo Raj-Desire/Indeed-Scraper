@@ -5,7 +5,7 @@
 <div class="bg-navy-900 border border-navy-800 rounded-2xl p-6 shadow-xl space-y-4">
     <h2 class="text-white font-bold text-lg">Search Job Leads</h2>
 
-    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
         <!-- Target Country Input -->
         <div>
             <label class="block text-gray-300 text-xs font-semibold mb-1">Target Country</label>
@@ -43,6 +43,15 @@
                 <option value="3" selected>3 Pages (~45 jobs)</option>
                 <option value="5">5 Pages (~75 jobs)</option>
                 <option value="10">10 Pages (Deep Search)</option>
+            </select>
+        </div>
+
+        <!-- Parser Engine Selector -->
+        <div>
+            <label class="block text-gray-300 text-xs font-semibold mb-1">Parser Engine</label>
+            <select id="input-parser" class="w-full bg-navy-800 border border-navy-700 rounded-xl px-4 py-3 text-white text-sm focus:border-brand focus:outline-none">
+                <option value="beautifulsoup" selected>BeautifulSoup (Default)</option>
+                <option value="selectolax">Selectolax</option>
             </select>
         </div>
     </div>

@@ -10,6 +10,7 @@ async function startSearch() {
     const query = document.getElementById('input-query')?.value || 'AI Developer';
     const locationType = document.getElementById('input-location')?.value || 'all';
     const pages = parseInt(document.getElementById('input-pages')?.value || '3');
+    const parserEngine = document.getElementById('input-parser')?.value || 'beautifulsoup';
 
     if (!query.trim()) {
         alert('Please enter a job role or keyword.');
@@ -20,7 +21,13 @@ async function startSearch() {
         const res = await fetch('/api/scraper/start', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ country, query, location_type: locationType, max_pages: pages }),
+            body: JSON.stringify({
+                country,
+                query,
+                location_type: locationType,
+                max_pages: pages,
+                parser_engine: parserEngine
+            }),
         });
         const data = await res.json();
 

@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     scraper_delay_max: float = Field(default=5.0, description="Max request delay (s)")
     scraper_max_pages: int = Field(default=3, description="Default max pages per search")
     scraper_retry_attempts: int = Field(default=3, description="Retry attempts on failure")
+    scraper_parser_engine: str = Field(default="beautifulsoup", description="Default parser engine")
 
     # Filtering
     filter_max_age_hours: int = Field(default=720, description="Max job age in hours (30 days)")

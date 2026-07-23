@@ -21,15 +21,23 @@ from playwright.async_api import (
 from app.config.settings import get_settings
 from app.models.job import JobPosting
 from app.models.scraper import ScraperProgress, ScraperStatus, RunConfig
-from app.parser.job_parser import JobParser
+from app.parser import get_parser
 from app.utils.helpers import get_indeed_search_url, is_job_matching_query
 from app.utils.logger import logger
 
 
 USER_AGENTS = [
+    # Chrome on Windows
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+    # Chrome on Mac
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
+    # Firefox on Windows
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0",
+    # Edge on Windows
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 Edg/126.0.0.0",
 ]
 
 
@@ -41,7 +49,7 @@ class IndeedScraper:
         progress_callback: Optional[Callable[[ScraperProgress], None]] = None,
     ) -> None:
         self._settings = get_settings()
-        self._parser = JobParser()
+        self._parser = None  # Will be dynamically instantiated per run
         self._progress_callback = progress_callback
         self._progress = ScraperProgress()
         self._seen_job_ids: set[str] = set()
@@ -91,6 +99,10 @@ class IndeedScraper:
             max_pages=max_pages,
             started_at=datetime.now(tz=timezone.utc),
         )
+        # Instantiate parser dynamically based on configuration
+        parser_engine = run_config.parser_engine or self._settings.scraper_parser_engine
+        self._parser = get_parser(parser_engine)
+        self._progress.add_log(f"Using parser engine: {self._parser.__class__.__name__}")
         self._emit_progress()
 
         location_param = "remote" if run_config.location_type.lower() == "remote" else ""
@@ -127,11 +139,12 @@ class IndeedScraper:
                         # Post-scrape location type filter
                         loc_filter = run_config.location_type.lower()
                         if loc_filter != "all":
-                            if loc_filter == "remote" and job.remote_type.value != "Fully Remote":
+                            remote_val = job.remote_type.value if hasattr(job.remote_type, "value") else job.remote_type
+                            if loc_filter == "remote" and remote_val != "Fully Remote":
                                                     continue
-                            elif loc_filter == "onsite" and job.remote_type.value != "On-Site":
+                            elif loc_filter == "onsite" and remote_val != "On-Site":
                                                     continue
-                            elif loc_filter == "hybrid" and job.remote_type.value != "Hybrid":
+                            elif loc_filter == "hybrid" and remote_val != "Hybrid":
                                                     continue
 
                         # Strict job role / keyword match filter
@@ -177,9 +190,26 @@ class IndeedScraper:
             user_agent=user_agent,
             viewport={"width": 1920, "height": 1080},
             locale="en-US",
+            timezone_id="UTC",
         )
+        # Apply anti-detection injections
         await context.add_init_script("""
+            // Pass webdriver test
             Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+            // Mock Chrome runtime properties
+            window.chrome = { runtime: {} };
+            // Mock languages
+            Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
+            // Mock plugins
+            Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
+            // Pass permissions check
+            const originalQuery = typeof Symbol !== 'undefined' ? Symbol.toStringTag : undefined;
+            if (originalQuery) {
+                const originalPermissionsQuery = Permissions.prototype.query;
+                Permissions.prototype.query = (query) => query.name === 'notifications' ? 
+                    Promise.resolve({ state: Notification.permission }) : 
+                    originalPermissionsQuery(query);
+            }
         """)
         return context
 
@@ -208,6 +238,17 @@ class IndeedScraper:
                     )
                 except PlaywrightTimeout:
                     return []
+
+                # Human-like scrolling to trigger lazy-loaded assets and bypass scroll monitoring bot detection
+                try:
+                    await page.evaluate("window.scrollTo(0, document.body.scrollHeight / 3)")
+                    await asyncio.sleep(random.uniform(0.4, 0.8))
+                    await page.evaluate("window.scrollTo(0, document.body.scrollHeight / 1.8)")
+                    await asyncio.sleep(random.uniform(0.4, 0.8))
+                    await page.evaluate("window.scrollTo(0, 0)")
+                    await asyncio.sleep(random.uniform(0.2, 0.5))
+                except Exception:
+                    pass
 
                 html = await page.content()
                 jobs = self._parser.parse_search_results(

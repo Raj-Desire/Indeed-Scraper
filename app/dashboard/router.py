@@ -49,6 +49,8 @@ async def api_start_scraper(request: Request):
             country=body.get("country", "US"),
             query=body.get("query", "AI Developer"),
             max_pages=int(body.get("max_pages", 3)),
+            location_type=body.get("location_type", "all"),
+            parser_engine=body.get("parser_engine", settings.scraper_parser_engine),
         )
 
         session_id = await service.start(run_config)
