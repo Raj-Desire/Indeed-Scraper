@@ -1,15 +1,12 @@
-# DIW Job Intelligence Scraper
+# Indeed Job Lead Scraper
 
-> **Desire Infoweb Pvt. Ltd.** — Automated Microsoft-stack job lead generation
->
-> Scrapes Indeed across 21 countries × 9 keyword clusters, scores leads with AI,
-> and exports professional Excel reports — all controlled from a modern web dashboard.
-
-> 📖 **New Developers & Employees:** Read [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md) for a complete step-by-step code architecture walkthrough, file directory map, and extension instructions.
+> **Automated Global Job Lead Generation Platform**
+> 
+> Scrapes Indeed across **21+ countries**, applies **smart regex keyword & synonym matching**, deduplicates leads, and generates formatted Excel reports — all managed via an interactive, real-time web dashboard.
 
 ---
 
-## Quick Start (5 Minutes)
+## ⚡ Quick Start (3 Steps)
 
 ### 1. Install Dependencies
 
@@ -24,199 +21,145 @@ playwright install chromium
 copy .env.example .env
 ```
 
-Edit `.env` and set your OpenAI API key:
+*(Defaults in `.env` are ready to run out of the box — no API keys required!)*
 
-```env
-OPENAI_API_KEY=sk-your-key-here
-```
-
-### 3. Run the Application
+### 3. Launch Application
 
 ```powershell
 python main.py
 ```
 
-Open your browser: **http://localhost:8000**
+Open your browser at **[http://localhost:8000](http://localhost:8000)**.
 
 ---
 
-## Dashboard Pages
+## ✨ Key Features
 
-| Page | URL | Description |
-|---|---|---|
-| Dashboard | `/` | KPIs, charts, live status |
-| Scraper | `/scraper` | Start/pause/stop with live log |
-| Leads | `/leads` | Table with search/filter/sort |
-| Configuration | `/configuration` | View all settings |
-| Export | `/export` | One-click Excel download |
+- 🌍 **Multi-Country Search**: Select target countries (India, US, UK, Canada, Australia, Germany, UAE, South Africa, etc.) from an intuitive dropdown.
+- 🎯 **Smart Keyword & Synonym Matching**:
+  - Uses exact regex word boundaries (`\b`) for short 2-letter technical acronyms (`AI`, `ML`, `UI`, `UX`, `QA`, `IT`, `DB`, `C#`).
+  - Automatic synonym expansion for **AI/ML** (`AI`, `Artificial Intelligence`, `GenAI`, `Generative AI`, `LLM`, `Machine Learning`, `Deep Learning`, `NLP`) matching standard roles (`Developer`, `Engineer`, `Specialist`, `Programmer`).
+  - Eliminates false positive matches (e.g. keeps ServiceNow or Frontend Developer jobs out of AI Developer search results).
+- ⚡ **Stealth Scraping Engine**: Built with Playwright Chromium, anti-detection evasions, configurable delays, and automatic retries.
+- 📊 **Real-time Live Dashboard**:
+  - Live WebSocket progress bar (0% to 100%) with animated status indicators.
+  - Interactive lead table with instant client-side title & company search.
+  - Streaming execution logs.
+- 🧹 **Deduplication & Age Filtering**:
+  - Dual-layer deduplication (Indeed Job ID `jk` + MD5 title/company fingerprint).
+  - Filters postings by age window (default: last 30 days / configurable).
+- 📥 **One-Click Excel Download**: Formatted `.xlsx` workbooks with auto-fitted column widths and active Indeed job URL hyperlinks.
 
 ---
 
-## How It Works
+## 🔄 Pipeline Data Flow
 
+```mermaid
+flowchart TD
+    A[User Web Dashboard] -->|Country, Role, Pages| B[REST API /api/scraper/start]
+    B --> C[ScraperService Orchestrator]
+    C --> D[Playwright Chromium Scraper]
+    D -->|Fetch Search Pages| E[JobParser BeautifulSoup4]
+    E -->|Extract Job Cards & Snippets| F[DateFilter Age Window]
+    F --> G[DedupFilter ID & Fingerprint]
+    G --> H[Smart Query Matcher regex & synonyms]
+    H -->|Broadcast Live| I[WebSocket /ws/progress]
+    H -->|Store Results| J[Interactive Results Table]
+    J -->|One-Click Export| K[Excel Exporter .xlsx]
 ```
-Indeed (Playwright + stealth)
-    ↓
-JobParser (BeautifulSoup4)
-    ↓
-DateFilter (last 24 hours only)
-    ↓
-DedupFilter (Indeed job ID + fingerprint)
-    ↓
-RelevanceFilter (DIW service keywords)
-    ↓
-AI Analyzer (OpenAI GPT-4o-mini)
-    ↓ lead score + outreach email + reasoning
-In-Memory State
-    ├── Excel Export (outputs/DIW_Job_Leads_YYYY-MM-DD.xlsx)
-    ├── Dashboard Display
-    └── SharePoint (future — stub ready)
+
+---
+
+## 📁 Repository Structure
+
+```text
+c:\Projects\Indeed Scraper\
+├── main.py                         # Application Entry Point (FastAPI + Uvicorn)
+├── .env.example                    # Configuration Template
+├── .env                            # Active Environment Configuration
+├── requirements.txt                # Python Dependencies
+├── README.md                       # Project Overview & Setup (THIS FILE)
+├── DEVELOPER_GUIDE.md              # Developer Architecture & Directory Guide
+│
+├── app/                            # Core Source Code
+│   ├── config/                     # Settings & Country Mappings
+│   │   ├── constants.py            # Country list & domain resolver
+│   │   └── settings.py             # Pydantic BaseSettings
+│   │
+│   ├── models/                     # Pydantic Data Models
+│   │   ├── job.py                  # JobPosting schema
+│   │   └── scraper.py              # ScraperProgress & RunConfig models
+│   │
+│   ├── scraper/                    # Scraping Engine
+│   │   └── indeed_scraper.py       # Playwright Chromium scraper
+│   │
+│   ├── parser/                     # HTML Parser
+│   │   └── job_parser.py           # BeautifulSoup4 extractor & snippet parser
+│   │
+│   ├── filters/                    # Pipeline Filters
+│   │   ├── date_filter.py          # Date window filter
+│   │   └── dedup_filter.py         # Job ID & MD5 fingerprint deduplication
+│   │
+│   ├── excel/                      # Report Generator
+│   │   └── exporter.py             # Openpyxl Excel exporter with hyperlinks
+│   │
+│   ├── services/                   # Service Layer
+│   │   └── scraper_service.py      # Pipeline Orchestrator
+│   │
+│   ├── dashboard/                  # FastAPI & WebSocket
+│   │   ├── router.py               # REST API & HTML template routes
+│   │   └── websocket.py            # Live progress WebSocket manager
+│   │
+│   └── utils/                      # Utilities
+│       ├── helpers.py              # Query matcher, date parser, URL builder
+│       └── logger.py               # Loguru logging configuration
+│
+├── templates/                      # HTML Interface (Jinja2 + TailwindCSS)
+│   ├── base.html                   # Layout template
+│   └── index.html                  # Single-Page Dashboard Interface
+│
+├── static/                         # Frontend Assets
+│   ├── css/custom.css              # Custom styling & animations
+│   └── js/app.js                   # WebSocket & SPA logic
+│
+├── logs/                           # Log files (ignored in git)
+└── outputs/                        # Exported Excel workbooks (ignored in git)
 ```
 
 ---
 
-## Search Coverage
+## ⚙️ Configuration Reference
 
-| Dimension | Count |
-|---|---|
-| Target Countries | 21 |
-| Keyword Clusters | 9 |
-| Max Combinations | 180 |
-| Max Pages per Search | 3 (configurable) |
-| Age Filter | Last 24 hours |
-
-**Priority Countries** (searched first): US, GB, CA, AU, AE, DE, NL, ZA
-
-**Keyword Clusters:**
-1. SharePoint developer
-2. Power Platform / Power Apps developer
-3. Power BI developer
-4. Dynamics 365 consultant
-5. Microsoft 365 administrator
-6. SPFx developer
-7. Azure AI / Copilot Studio developer
-8. RAG / AI chatbot developer
-9. .NET developer Azure
-
----
-
-## AI Analysis (Per Job)
-
-Each qualified job receives:
-- **Lead Score** (0–100) with dimensional breakdown
-- **Matched DIW Services** from 12 service lines
-- **AI Reasoning** — 2-3 sentence explanation
-- **Outsourcing Opportunity** flag
-- **Priority** (High/Medium/Low)
-- **Personalized Outreach Email** from Yash Shah, DIW
-
----
-
-## Excel Output
-
-File: `outputs/DIW_Job_Leads_YYYY-MM-DD.xlsx`
-
-**Sheet 1: DIW Leads**
-- 23 columns including Job URL (hyperlinks), LinkedIn URL, AI Reasoning, Email
-- Color-coded by priority (green=High, yellow=Medium, orange=Low)
-- Frozen header, auto-filter, auto-width columns
-
-**Sheet 2: Summary**
-- Total leads, avg score, priority breakdown
-- Leads by country + avg score
-- Leads by DIW service
-
----
-
-## Configuration
-
-All settings live in `.env` — no code changes needed:
+All application settings are managed via `.env`:
 
 | Setting | Default | Description |
 |---|---|---|
-| `OPENAI_API_KEY` | — | **Required** |
-| `AI_PROVIDER` | `openai` | `openai`, `groq` |
-| `OPENAI_MODEL` | `gpt-4o-mini` | Model name |
-| `SCRAPER_HEADLESS` | `true` | Hidden browser |
-| `SCRAPER_DELAY_MIN` | `2.0` | Min delay (s) |
-| `SCRAPER_DELAY_MAX` | `5.0` | Max delay (s) |
-| `SCRAPER_MAX_PAGES` | `3` | Pages per search |
-| `FILTER_MAX_AGE_HOURS` | `24` | Job age window |
-| `FILTER_MIN_LEAD_SCORE` | `20` | Score threshold |
-| `DASHBOARD_PORT` | `8000` | Web UI port |
-| `SCHEDULER_DAILY_TIME` | `08:00` | Daily auto-run |
-| `SCHEDULER_TIMEZONE` | `Asia/Kolkata` | Timezone |
+| `SCRAPER_HEADLESS` | `true` | Runs Chromium browser in background mode |
+| `SCRAPER_DELAY_MIN` | `2.0` | Minimum delay (seconds) between page requests |
+| `SCRAPER_DELAY_MAX` | `5.0` | Maximum delay (seconds) between page requests |
+| `SCRAPER_RETRY_ATTEMPTS` | `3` | Max retry attempts per search page |
+| `FILTER_MAX_AGE_HOURS` | `720` | Maximum job posting age in hours (720 = 30 days) |
+| `DASHBOARD_PORT` | `8000` | Local port for FastAPI web interface |
+| `OUTPUT_DIR` | `outputs` | Directory path for generated Excel files |
+| `LOG_DIR` | `logs` | Directory path for rotating log files |
 
 ---
 
-## SharePoint (Future)
+## 🛠️ Technology Stack
 
-The architecture is SharePoint-ready:
-
-1. **Current**: `app/sharepoint/placeholder.py` — logs calls, no-op
-2. **Future**: Implement `app/sharepoint/base.AbstractSharePointService`
-3. **Data**: `AnalyzedJob.to_sharepoint_dict()` provides the flat field mapping
-4. **Guide**: Full column schema and Graph API endpoints documented in `app/sharepoint/base.py`
-
-No application redesign needed — just swap `NoOpSharePointService` for the real implementation.
-
----
-
-## Project Structure
-
-```
-project/
-├── app/
-│   ├── config/          # Settings + business constants
-│   ├── models/          # Pydantic data models
-│   ├── scraper/         # Playwright Indeed scraper
-│   ├── parser/          # BeautifulSoup4 HTML parser
-│   ├── filters/         # Date, relevance, dedup filters
-│   ├── ai/              # LLM analysis pipeline
-│   ├── excel/           # openpyxl export
-│   ├── sharepoint/      # Future SharePoint stub
-│   ├── services/        # Orchestration + scheduler
-│   ├── dashboard/       # FastAPI routes + WebSocket
-│   └── utils/           # Logger + helpers
-├── templates/           # Jinja2 HTML (dark theme)
-├── static/              # CSS + JS
-├── logs/                # Rotating log files
-├── outputs/             # Generated Excel files
-├── main.py              # Entry point
-├── requirements.txt
-└── .env.example
-```
-
----
-
-## Troubleshooting
-
-| Issue | Fix |
+| Layer | Technology |
 |---|---|
-| `playwright not found` | `playwright install chromium` |
-| CAPTCHA / blocked | Set `SCRAPER_HEADLESS=false` to inspect, increase `SCRAPER_DELAY_MIN` |
-| `OPENAI_API_KEY not configured` | Set key in `.env` |
-| Port already in use | Change `DASHBOARD_PORT` in `.env` |
-| Empty results | Indeed may have changed HTML — check `app/parser/job_parser.py` selectors |
-| Rate limit error | Reduce `SCRAPER_MAX_PAGES` or increase delays |
+| **Web Framework** | FastAPI + Uvicorn |
+| **Frontend** | HTML5, JavaScript (ES6), TailwindCSS, Jinja2 Templates |
+| **Real-time Communication** | WebSockets (`/ws/progress`) |
+| **Scraping Engine** | Playwright (Chromium Async API) |
+| **HTML Parsing** | BeautifulSoup4 + lxml |
+| **Excel Export** | openpyxl |
+| **Data Validation** | Pydantic v2 (with `@computed_field`) |
+| **Logging** | Loguru |
 
 ---
 
-## Technology Stack
+## 📄 License
 
-| Component | Technology |
-|---|---|
-| Web Framework | FastAPI + Uvicorn |
-| Frontend | Jinja2 + TailwindCSS + Chart.js |
-| Scraping | Playwright (Chromium, headless) |
-| Parsing | BeautifulSoup4 + lxml |
-| AI Analysis | OpenAI GPT-4o-mini (configurable) |
-| Excel | openpyxl |
-| Scheduling | APScheduler |
-| Logging | loguru |
-| Config | pydantic-settings |
-| Retry | tenacity |
-
----
-
-
+Internal / Business Tool — Desire Infoweb Pvt. Ltd.
