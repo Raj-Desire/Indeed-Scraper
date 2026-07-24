@@ -63,16 +63,15 @@ async function fetchLeads() {
 
         renderTable(allLeads);
 
-        // Show download buttons if leads exist
-        const navBtn = document.getElementById('nav-download-btn');
-        const tblBtn = document.getElementById('table-download-btn');
-        if (allLeads.length > 0) {
-            if (navBtn) navBtn.classList.remove('hidden');
-            if (tblBtn) tblBtn.classList.remove('hidden');
-        } else {
-            if (navBtn) navBtn.classList.add('hidden');
-            if (tblBtn) tblBtn.classList.add('hidden');
-        }
+        // Show download & SharePoint sync buttons if leads exist
+        const navDl = document.getElementById('nav-download-btn');
+        const tblDl = document.getElementById('table-download-btn');
+        const navSp = document.getElementById('nav-sharepoint-btn');
+        const tblSp = document.getElementById('table-sharepoint-btn');
+        const hasLeads = allLeads.length > 0;
+
+        [navDl, tblDl].forEach(b => b && b.classList.toggle('hidden', !hasLeads));
+        [navSp, tblSp].forEach(b => b && b.classList.toggle('hidden', !hasLeads));
     } catch (e) {
         console.error('Error fetching leads:', e);
     }
@@ -192,6 +191,35 @@ function connectWebSocket() {
             }
         }
     };
+}
+
+async function exportSharePoint() {
+    const btns = [
+        document.getElementById('nav-sharepoint-btn'),
+        document.getElementById('table-sharepoint-btn')
+    ].filter(Boolean);
+
+    btns.forEach(b => {
+        b.disabled = true;
+        b.innerHTML = `<svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m0 14v1m8-8h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707"/></svg> Syncing...`;
+    });
+
+    try {
+        const res = await fetch('/api/export/sharepoint', { method: 'POST' });
+        const data = await res.json();
+        if (res.ok) {
+            alert(`🎉 ${data.message}`);
+        } else {
+            alert(`⚠️ SharePoint Sync Error: ${data.detail || data.message || 'Failed to sync'}`);
+        }
+    } catch (e) {
+        alert(`❌ Network Error: ${e.message}`);
+    } finally {
+        btns.forEach(b => {
+            b.disabled = false;
+            b.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg> Sync to SharePoint`;
+        });
+    }
 }
 
 function esc(str) {

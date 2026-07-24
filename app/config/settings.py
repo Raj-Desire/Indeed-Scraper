@@ -35,6 +35,16 @@ class Settings(BaseSettings):
     dashboard_host: str = Field(default="127.0.0.1", description="Server host IP")
     dashboard_port: int = Field(default=8000, description="Server port")
 
+    # SharePoint & Azure AD Graph API Settings
+    azure_tenant_id: str = Field(default="", description="Azure AD Tenant ID")
+    azure_client_id: str = Field(default="", description="Azure AD Application (Client) ID")
+    azure_client_secret: str = Field(default="", description="Azure AD Client Secret")
+    sharepoint_site_id: str = Field(default="t12y7.sharepoint.com,7956234f-8307-408f-a0d7-dc15c34c77d1,9b682a2d-dce1-4fcf-82c6-307b316ce49d", description="SharePoint Site ID")
+    sharepoint_hostname: str = Field(default="", description="SharePoint Tenant Hostname (e.g. yourtenant.sharepoint.com)")
+    sharepoint_site_path: str = Field(default="", description="SharePoint Site Path (e.g. /sites/yourteam)")
+    sharepoint_list_name: str = Field(default="Indeed_Data", description="SharePoint List Name")
+    sharepoint_auto_sync: bool = Field(default=False, description="Auto-upload scraped jobs to SharePoint List")
+
     # Directories
     output_dir: str = Field(default="outputs", description="Excel output directory")
     log_dir: str = Field(default="logs", description="Log file directory")

@@ -116,6 +116,14 @@ class ScraperService:
                     self._current_session.excel_path = str(excel_path)
                 logger.info("Excel exported to: {}", excel_path)
 
+                # Auto-sync to SharePoint if enabled
+                if self._settings.sharepoint_auto_sync:
+                    try:
+                        logger.info("Auto-syncing scraped jobs to SharePoint List via Microsoft Graph API...")
+                        await self.export_sharepoint()
+                    except Exception as sp_err:
+                        logger.error("Auto SharePoint export error: {}", sp_err)
+
             if self._current_session:
                 self._current_session.completed_at = datetime.now(tz=timezone.utc)
                 self._current_session.total_scraped = len(self._results)
@@ -127,6 +135,12 @@ class ScraperService:
                 progress.status = ScraperStatus.ERROR
                 progress.last_error = str(exc)
                 self._broadcast_progress(progress)
+
+    async def export_sharepoint(self) -> int:
+        """Export current session results to SharePoint List via Graph API."""
+        from app.sharepoint.graph_exporter import GraphSharePointExporter
+        sp_exporter = GraphSharePointExporter()
+        return await sp_exporter.export_jobs(self._results)
 
     def _is_running(self) -> bool:
         return self._current_task is not None and not self._current_task.done()

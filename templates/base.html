@@ -37,12 +37,15 @@
                 <h1 class="text-white font-bold text-base leading-none">Indeed Job Scraper</h1>
                 <p class="text-gray-400 text-xs mt-1">Simple Job Lead Sourcing</p>
             </div>
-        </div>
-        <div>
+        <div class="flex items-center gap-3">
             <a id="nav-download-btn" href="/api/export/excel" class="hidden px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg text-xs transition-colors shadow flex items-center gap-2">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                 Download Excel
             </a>
+            <button id="nav-sharepoint-btn" onclick="exportSharePoint()" class="hidden px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-xs transition-colors shadow flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                Sync to SharePoint
+            </button>
         </div>
     </header>
 
@@ -51,6 +54,6 @@
         {% block content %}{% endblock %}
     </main>
 
-    <script src="/static/js/app.js"></script>
+    <script src="/static/js/app.js?v=2.0"></script>
 </body>
 </html>

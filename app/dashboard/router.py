@@ -130,6 +130,26 @@ async def api_export_excel():
     )
 
 
+@router.post("/api/export/sharepoint")
+async def api_export_sharepoint():
+    """Upload scraped job leads directly to SharePoint List via Graph API."""
+    service = get_scraper_service()
+    leads = service.get_results()
+
+    if not leads:
+        raise HTTPException(status_code=400, detail="No job leads to export. Run a search first.")
+
+    try:
+        inserted_count = await service.export_sharepoint()
+        return {
+            "status": "success",
+            "message": f"Successfully exported {inserted_count} jobs to SharePoint List via Microsoft Graph API!",
+            "count": inserted_count,
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"SharePoint Export Error: {str(exc)}")
+
+
 @router.websocket("/ws/progress")
 async def websocket_progress(websocket: WebSocket):
     """WebSocket endpoint for real-time progress bar updates."""
