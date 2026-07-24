@@ -88,7 +88,7 @@ function renderTable(leads) {
     if (!leads || leads.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="6" class="px-5 py-12 text-center text-gray-500">
+                <td colspan="8" class="px-5 py-12 text-center text-gray-500">
                     No leads found yet. Click <strong>"Search Jobs"</strong> above.
                 </td>
             </tr>`;
@@ -97,21 +97,26 @@ function renderTable(leads) {
 
     tbody.innerHTML = leads.map(l => `
         <tr class="border-b border-navy-800/50 hover:bg-navy-800/40 transition-colors">
-            <td class="px-5 py-3">
-                <p class="text-white font-medium leading-tight">${esc(l.job_title)}</p>
-                <p class="text-gray-400 text-xs mt-0.5">${esc(l.company)}</p>
+            <td class="px-5 py-3 text-xs text-white font-medium">
+                ${esc(l.job_title)}
             </td>
             <td class="px-5 py-3 text-xs text-gray-300">
-                ${esc(l.location || l.country)}
+                ${esc(l.company)}
             </td>
-            <td class="px-5 py-3 text-xs text-gray-400">
-                ${esc(l.remote_type || 'Remote')}
+            <td class="px-5 py-3 text-xs text-gray-300">
+                ${esc(l.location_remote_type || l.location || l.remote_type || 'Not listed')}
             </td>
             <td class="px-5 py-3 text-xs text-gray-300">
                 ${esc(l.salary)}
             </td>
+            <td class="px-5 py-3 text-xs text-gray-400">
+                ${esc(l.industry || 'Not listed')}
+            </td>
+            <td class="px-5 py-3 text-xs text-gray-400">
+                ${esc(l.company_size || 'Not listed')}
+            </td>
             <td class="px-5 py-3 text-xs text-gray-500">
-                ${esc(l.posted_date)}
+                ${esc(l.posted_date || 'Not listed')}
             </td>
             <td class="px-5 py-3">
                 ${l.job_url ? `<a href="${esc(l.job_url)}" target="_blank" class="text-xs text-cyan-400 hover:underline">View Indeed ↗</a>` : '—'}

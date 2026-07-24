@@ -33,6 +33,8 @@ class JobPosting(BaseModel):
     search_query: str = Field(default="", description="Role or keyword searched")
     remote_type: RemoteType = Field(default=RemoteType.UNKNOWN)
     salary_range: str = Field(default="Not listed", description="Salary string")
+    industry: str = Field(default="Not listed", description="Industry or business sector")
+    company_size: str = Field(default="Not listed", description="Company workforce size")
     posted_date_raw: str = Field(default="", description="Raw date string")
     posted_date: Optional[datetime] = Field(default=None, description="Parsed posting date")
     job_url: str = Field(default="", description="Full Indeed job URL")
@@ -42,5 +44,20 @@ class JobPosting(BaseModel):
         default_factory=lambda: datetime.now(tz=timezone.utc),
         description="Timestamp when scraped",
     )
+
+    @property
+    def location_remote_type(self) -> str:
+        loc = self.location.strip() if self.location else ""
+        rem = self.remote_type.value if hasattr(self.remote_type, "value") else str(self.remote_type or "")
+        
+        if loc and rem and rem != "Unknown":
+            if loc.lower() == rem.lower() or (loc.lower() == "remote" and "remote" in rem.lower()):
+                return f"Remote ({rem})"
+            return f"{loc} ({rem})"
+        elif loc:
+            return loc
+        elif rem and rem != "Unknown":
+            return rem
+        return "Not listed"
 
     model_config = {"use_enum_values": True}

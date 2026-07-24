@@ -130,9 +130,15 @@ class IndeedScraper:
                     self._progress.add_log(f"Fetching Page {page_num + 1}: {query} ({country})")
                     self._emit_progress()
 
-                    jobs = await self._scrape_page(page, url, country, query)
+                    jobs = await self._scrape_page(browser, context, page, url, country, query)
                     if not jobs:
-                        self._progress.add_log(f"No more results on Page {page_num + 1}")
+                        # Retry page once with a fresh recycled context before giving up
+                        logger.info("Page {} returned 0 jobs. Recalibrating session with fresh context...", page_num + 1)
+                        page, context = await self._recycle_context(browser, context)
+                        jobs = await self._scrape_page(browser, context, page, url, country, query)
+
+                    if not jobs:
+                        self._progress.add_log(f"No more results found on Page {page_num + 1}")
                         break
 
                     for job in jobs:
@@ -165,8 +171,14 @@ class IndeedScraper:
                     await self._random_delay()
 
             finally:
-                await context.close()
-                await browser.close()
+                try:
+                    await context.close()
+                except Exception:
+                    pass
+                try:
+                    await browser.close()
+                except Exception:
+                    pass
 
         final_status = ScraperStatus.STOPPED if self._stop_event.is_set() else ScraperStatus.COMPLETED
         self._progress.status = final_status
@@ -181,6 +193,7 @@ class IndeedScraper:
                 "--no-sandbox",
                 "--disable-dev-shm-usage",
                 "--disable-gpu",
+                "--disable-infobars",
             ],
         )
 
@@ -190,67 +203,95 @@ class IndeedScraper:
             user_agent=user_agent,
             viewport={"width": 1920, "height": 1080},
             locale="en-US",
-            timezone_id="UTC",
+            timezone_id="Asia/Kolkata",
         )
-        # Apply anti-detection injections
+        # Apply anti-detection injections matching navigator properties
         await context.add_init_script("""
-            // Pass webdriver test
+            // Webdriver evasion
             Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+            delete Object.getPrototypeOf(navigator).webdriver;
+
+            // Align navigator UserAgent properties
+            const ua = navigator.userAgent.replace('HeadlessChrome', 'Chrome');
+            Object.defineProperty(navigator, 'userAgent', { get: () => ua });
+            Object.defineProperty(navigator, 'appVersion', { get: () => ua.replace('Mozilla/', '') });
+            Object.defineProperty(navigator, 'platform', { get: () => 'Win32' });
+
             // Mock Chrome runtime properties
-            window.chrome = { runtime: {} };
-            // Mock languages
+            window.chrome = { runtime: {}, loadTimes: function() {}, csi: function() {}, app: {} };
+            // Mock languages & plugins
             Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
-            // Mock plugins
             Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
-            // Pass permissions check
-            const originalQuery = typeof Symbol !== 'undefined' ? Symbol.toStringTag : undefined;
-            if (originalQuery) {
-                const originalPermissionsQuery = Permissions.prototype.query;
-                Permissions.prototype.query = (query) => query.name === 'notifications' ? 
-                    Promise.resolve({ state: Notification.permission }) : 
-                    originalPermissionsQuery(query);
+
+            // WebGL Vendor Spoofing
+            if (typeof WebGLRenderingContext !== 'undefined') {
+                const getParameter = WebGLRenderingContext.prototype.getParameter;
+                WebGLRenderingContext.prototype.getParameter = function(parameter) {
+                    if (parameter === 37445) return 'Google Inc. (NVIDIA)';
+                    if (parameter === 37446) return 'ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 Direct3D11 vs_5_0 ps_5_0, D3D11)';
+                    return getParameter.apply(this, arguments);
+                };
             }
         """)
         return context
 
+    async def _recycle_context(self, browser: Browser, old_context: BrowserContext) -> tuple[Page, BrowserContext]:
+        try:
+            await old_context.close()
+        except Exception:
+            pass
+        new_context = await self._create_context(browser)
+        new_page = await new_context.new_page()
+        return new_page, new_context
+
     async def _scrape_page(
         self,
+        browser: Browser,
+        context: BrowserContext,
         page: Page,
         url: str,
         country: str,
         query: str,
     ) -> list[JobPosting]:
+        current_page = page
+        current_context = context
+
         for attempt in range(self._settings.scraper_retry_attempts):
             try:
-                await page.goto(url, wait_until="domcontentloaded", timeout=30000)
+                await current_page.goto(url, wait_until="domcontentloaded", timeout=30000)
 
-                if await self._is_blocked(page):
-                    logger.warning("Indeed bot check on attempt {} for URL: {}", attempt + 1, url)
+                if await self._is_blocked(current_page):
+                    logger.warning("Indeed bot check on attempt {} for URL: {}. Recycling context...", attempt + 1, url)
                     if attempt < self._settings.scraper_retry_attempts - 1:
-                        await asyncio.sleep(3.0)
+                        current_page, current_context = await self._recycle_context(browser, current_context)
+                        await asyncio.sleep(random.uniform(2.0, 4.0))
                         continue
                     return []
 
                 try:
-                    await page.wait_for_selector(
+                    await current_page.wait_for_selector(
                         '[data-jk], .job_seen_beacon, .jobsearch-ResultsList li',
                         timeout=10000
                     )
                 except PlaywrightTimeout:
+                    if attempt < self._settings.scraper_retry_attempts - 1:
+                        current_page, current_context = await self._recycle_context(browser, current_context)
+                        await asyncio.sleep(2.0)
+                        continue
                     return []
 
-                # Human-like scrolling to trigger lazy-loaded assets and bypass scroll monitoring bot detection
+                # Human-like scrolling
                 try:
-                    await page.evaluate("window.scrollTo(0, document.body.scrollHeight / 3)")
+                    await current_page.evaluate("window.scrollTo(0, document.body.scrollHeight / 3)")
                     await asyncio.sleep(random.uniform(0.4, 0.8))
-                    await page.evaluate("window.scrollTo(0, document.body.scrollHeight / 1.8)")
+                    await current_page.evaluate("window.scrollTo(0, document.body.scrollHeight / 1.8)")
                     await asyncio.sleep(random.uniform(0.4, 0.8))
-                    await page.evaluate("window.scrollTo(0, 0)")
+                    await current_page.evaluate("window.scrollTo(0, 0)")
                     await asyncio.sleep(random.uniform(0.2, 0.5))
                 except Exception:
                     pass
 
-                html = await page.content()
+                html = await current_page.content()
                 jobs = self._parser.parse_search_results(
                     html=html,
                     country=country,
@@ -267,9 +308,10 @@ class IndeedScraper:
                 return new_jobs
 
             except Exception as exc:
-                logger.error("Error scraping page: {}", exc)
+                logger.error("Error scraping page on attempt {}: {}", attempt + 1, exc)
                 if attempt < self._settings.scraper_retry_attempts - 1:
-                    await asyncio.sleep(3.0)
+                    current_page, current_context = await self._recycle_context(browser, current_context)
+                    await asyncio.sleep(2.0)
 
         return []
 

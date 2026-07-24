@@ -21,6 +21,8 @@ from app.utils.helpers import (
     parse_indeed_relative_date,
     detect_remote_type,
     extract_salary_range,
+    extract_industry,
+    extract_company_size,
 )
 from app.utils.logger import logger
 
@@ -181,6 +183,10 @@ class SelectolaxParser(BaseJobParser):
         remote_str = detect_remote_type(title, location, clean_snippet)
         remote_type = RemoteType(remote_str)
 
+        card_full_text = card.text(deep=True, separator=" ", strip=True) if hasattr(card, "text") else ""
+        industry = extract_industry(title + " " + company + " " + clean_snippet + " " + card_full_text)
+        company_size = extract_company_size(card_full_text + " " + clean_snippet)
+
         return JobPosting(
             id=uuid4(),
             indeed_job_id=job_id,
@@ -189,6 +195,8 @@ class SelectolaxParser(BaseJobParser):
             location=clean_text(location),
             remote_type=remote_type,
             salary_range=clean_text(salary) if salary else "Not listed",
+            industry=industry,
+            company_size=company_size,
             posted_date_raw=date_raw or "",
             posted_date=posted_date,
             job_description=clean_snippet,

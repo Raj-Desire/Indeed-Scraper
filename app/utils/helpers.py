@@ -380,3 +380,44 @@ def is_job_matching_query(job_title: str, company: str, location: str, descripti
 
     return True
 
+
+COMMON_INDUSTRIES = [
+    ("Information Technology", [r"\bIT\b", r"software", r"technology", r"computer", r"cloud", r"cybersecurity", r"data science", r"\bai\b", r"machine learning", r"systems"]),
+    ("Healthcare & Life Sciences", [r"health", r"pharma", r"medical", r"clinical", r"biotech", r"hospital", r"nursing", r"healthcare"]),
+    ("Financial Services & Banking", [r"finance", r"financial", r"banking", r"bank\b", r"investment", r"accounting", r"fintech"]),
+    ("Engineering & Construction", [r"engineering", r"engineer\b", r"construction", r"civil", r"mechanical", r"electrical"]),
+    ("Management & Consulting", [r"consulting", r"advisory", r"management consulting", r"\bpmo\b", r"strategy"]),
+    ("Marketing & Advertising", [r"marketing", r"advertising", r"media", r"\bpr\b", r"digital marketing", r"\bseo\b"]),
+    ("Education & Training", [r"education", r"university", r"school", r"teaching", r"academic"]),
+    ("Retail & E-commerce", [r"retail", r"e-commerce", r"ecommerce", r"sales", r"store"]),
+    ("Manufacturing & Logistics", [r"manufacturing", r"logistics", r"supply chain", r"warehouse", r"operations"]),
+]
+
+
+def extract_industry(text: str) -> str:
+    """Extract industry name based on keywords in title, company, or description."""
+    if not text:
+        return "Not listed"
+    for industry_name, patterns in COMMON_INDUSTRIES:
+        for pat in patterns:
+            if re.search(pat, text, re.IGNORECASE):
+                return industry_name
+    return "Not listed"
+
+
+def extract_company_size(text: str) -> str:
+    """Extract company workforce size if mentioned in card text or description."""
+    if not text:
+        return "Not listed"
+
+    match = re.search(r"(\b\d{1,3}(?:,\d{3})*(?:\+|\s*(?:to|-)\s*\d{1,3}(?:,\d{3})*)?\s*employees?\b)", text, re.IGNORECASE)
+    if match:
+        return match.group(1).strip().title()
+
+    match_size = re.search(r"company size:?\s*([\d,+-]+(?:\s*employees)?)", text, re.IGNORECASE)
+    if match_size:
+        return match_size.group(1).strip().title()
+
+    return "Not listed"
+
+

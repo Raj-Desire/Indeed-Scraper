@@ -43,14 +43,12 @@ class ExcelExporter:
         headers = [
             "Job Title",
             "Company",
-            "Location",
-            "Country",
-            "Role Searched",
-            "Remote Type",
+            "Location/Remote Type",
             "Salary Range",
+            "Industry",
+            "Company Size",
             "Posted Date",
             "Job URL",
-            "Scraped At",
         ]
 
         # Header formatting
@@ -77,20 +75,17 @@ class ExcelExporter:
         )
 
         for row_idx, job in enumerate(jobs, start=2):
-            posted = job.posted_date.strftime("%Y-%m-%d") if job.posted_date else job.posted_date_raw or "Unknown"
-            scraped = job.scraped_at.strftime("%Y-%m-%d %H:%M")
+            posted = job.posted_date.strftime("%Y-%m-%d") if job.posted_date else job.posted_date_raw or "Not listed"
 
             row_values = [
                 job.job_title,
                 job.company,
-                job.location,
-                job.country,
-                job.search_query,
-                job.remote_type,
+                job.location_remote_type,
                 job.salary_range,
+                job.industry,
+                job.company_size,
                 posted,
                 job.job_url,
-                scraped,
             ]
 
             for col_idx, val in enumerate(row_values, start=1):
@@ -98,9 +93,9 @@ class ExcelExporter:
                 cell.border = border
                 cell.font = row_font
 
-                if col_idx == 9 and val.startswith("http"):  # Job URL hyperlink
+                if col_idx == 8 and str(val).startswith("http"):  # Job URL hyperlink
                     cell.value = "View on Indeed"
-                    cell.hyperlink = val
+                    cell.hyperlink = str(val)
                     cell.font = link_font
                 else:
                     cell.value = val
