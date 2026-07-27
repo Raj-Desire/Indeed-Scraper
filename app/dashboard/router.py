@@ -40,8 +40,9 @@ async def home_page(request: Request):
     """Serve the single-page application interface."""
     countries = [{"name": c.name, "code": c.code} for c in COMMON_COUNTRIES]
     return templates.TemplateResponse(
-        "index.html",
-        {"request": request, "countries": countries},
+        request=request,
+        name="index.html",
+        context={"countries": countries},
     )
 
 
