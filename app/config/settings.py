@@ -42,6 +42,7 @@ class Settings(BaseSettings):
     sharepoint_site_id: str = Field(default="t12y7.sharepoint.com,7956234f-8307-408f-a0d7-dc15c34c77d1,9b682a2d-dce1-4fcf-82c6-307b316ce49d", description="SharePoint Site ID")
     sharepoint_hostname: str = Field(default="", description="SharePoint Tenant Hostname (e.g. yourtenant.sharepoint.com)")
     sharepoint_site_path: str = Field(default="", description="SharePoint Site Path (e.g. /sites/yourteam)")
+    sharepoint_list_id: str = Field(default="2a20da41-1397-45a4-a44e-1e15ad135abf", description="SharePoint List ID")
     sharepoint_list_name: str = Field(default="Indeed_Data", description="SharePoint List Name")
     sharepoint_auto_sync: bool = Field(default=False, description="Auto-upload scraped jobs to SharePoint List")
 
