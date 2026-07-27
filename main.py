@@ -1,3 +1,5 @@
+import asyncio
+import webbrowser
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -10,14 +12,26 @@ from app.dashboard.router import router
 from app.utils.logger import setup_logging, logger
 
 
+async def _open_browser_later(url: str):
+    await asyncio.sleep(1.2)
+    webbrowser.open(url)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
     setup_logging(log_dir=settings.log_dir, level="INFO")
+    host_for_browser = "127.0.0.1" if settings.dashboard_host in ("0.0.0.0", "0") else settings.dashboard_host
+    url = f"http://{host_for_browser}:{settings.dashboard_port}"
+    
     logger.info("=" * 60)
     logger.info("Indeed Job Scraper Application Started")
-    logger.info("Open Browser: http://{}:{}", settings.dashboard_host, settings.dashboard_port)
+    logger.info("Open Browser: {}", url)
     logger.info("=" * 60)
+
+    # Automatically open default browser in desktop environment
+    asyncio.create_task(_open_browser_later(url))
+
     yield
     logger.info("Indeed Job Scraper Stopped")
 
