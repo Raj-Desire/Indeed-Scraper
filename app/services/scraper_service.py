@@ -78,7 +78,6 @@ class ScraperService:
 
     def get_progress(self) -> ScraperProgress:
         if self._scraper:
-            self._scraper.progress.jobs_found = len(self._results)
             return self._scraper.progress
         return ScraperProgress(status=ScraperStatus.IDLE)
 
@@ -97,19 +96,15 @@ class ScraperService:
             async for job in self._scraper.scrape(config):
                 filtered = self._date_filter.filter([job])
                 if not filtered:
-                    self._on_progress_update(self._scraper.progress)
                     continue
 
                 deduped = self._dedup_filter.filter(filtered)
                 if not deduped:
-                    self._on_progress_update(self._scraper.progress)
                     continue
 
                 self._results.extend(deduped)
-                self._on_progress_update(self._scraper.progress)
-
-            # Ensure final progress.jobs_found is strictly in sync with len(self._results)
-            if self._scraper:
+                # Sync progress.jobs_found with active unique results count
+                self._scraper.progress.jobs_found = len(self._results)
                 self._on_progress_update(self._scraper.progress)
 
             if self._results:
@@ -151,7 +146,6 @@ class ScraperService:
         return self._current_task is not None and not self._current_task.done()
 
     def _on_progress_update(self, progress: ScraperProgress) -> None:
-        progress.jobs_found = len(self._results)
         self._broadcast_progress(progress)
 
     def _broadcast_progress(self, progress: ScraperProgress) -> None:

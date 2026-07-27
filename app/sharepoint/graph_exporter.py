@@ -44,12 +44,12 @@ class GraphSharePointExporter:
         if not jobs:
             return 0
 
-        # Read Site ID and List ID strictly from .env settings
+        # Read Site ID and List Name strictly from .env settings
         site_id = self._settings.sharepoint_site_id.strip()
-        list_id = self._settings.sharepoint_list_id.strip() or self._settings.sharepoint_list_name.strip()
+        list_name = self._settings.sharepoint_list_name.strip()
 
-        if not site_id or not list_id:
-            raise ValueError("SharePoint settings missing in .env (SHAREPOINT_SITE_ID, SHAREPOINT_LIST_ID)")
+        if not site_id or not list_name:
+            raise ValueError("SharePoint settings missing in .env (SHAREPOINT_SITE_ID, SHAREPOINT_LIST_NAME)")
 
         token = self._acquire_token()
         headers = {
@@ -57,8 +57,8 @@ class GraphSharePointExporter:
             "Content-Type": "application/json",
         }
 
-        # Direct Graph API endpoint for list items using List ID
-        items_url = f"https://graph.microsoft.com/v1.0/sites/{site_id}/lists/{list_id}/items"
+        # Direct Graph API endpoint for list items
+        items_url = f"https://graph.microsoft.com/v1.0/sites/{site_id}/lists/{list_name}/items"
         success_count = 0
 
         async with httpx.AsyncClient(timeout=30.0) as client:
