@@ -138,8 +138,7 @@ function filterTable() {
 }
 
 function connectWebSocket() {
-    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    ws = new WebSocket(`${wsProtocol}//${location.host}/ws/progress`);
+    ws = new WebSocket(`ws://${location.host}/ws/progress`);
     ws.onopen = () => console.log('WebSocket connected');
     ws.onclose = () => setTimeout(connectWebSocket, 3000);
 
