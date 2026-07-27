@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     filter_max_age_hours: int = Field(default=720, description="Max job age in hours (30 days)")
 
     # Server Configuration
-    dashboard_host: str = Field(default="127.0.0.1", description="Server host IP")
+    dashboard_host: str = Field(default="0.0.0.0", description="Server host IP")
     dashboard_port: int = Field(default=8000, description="Server port")
 
     # SharePoint & Azure AD Graph API Settings

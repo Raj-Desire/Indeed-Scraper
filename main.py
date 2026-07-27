@@ -40,11 +40,14 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 app.include_router(router)
 
 if __name__ == "__main__":
+    import os
     settings = get_settings()
+    host = os.getenv("HOST", os.getenv("DASHBOARD_HOST", settings.dashboard_host))
+    port = int(os.getenv("PORT", os.getenv("DASHBOARD_PORT", str(settings.dashboard_port))))
     uvicorn.run(
         "main:app",
-        host=settings.dashboard_host,
-        port=settings.dashboard_port,
+        host=host,
+        port=port,
         reload=False,
         log_level="info",
         workers=1,
