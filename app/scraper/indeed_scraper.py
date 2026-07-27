@@ -195,10 +195,6 @@ class IndeedScraper:
                 "--disable-dev-shm-usage",
                 "--disable-gpu",
                 "--disable-infobars",
-                "--disable-features=IsolateOrigins,site-per-process",
-                "--disable-site-isolation-trials",
-                "--disable-web-security",
-                "--ignore-certificate-errors",
             ],
         )
 
@@ -209,38 +205,24 @@ class IndeedScraper:
             viewport={"width": 1920, "height": 1080},
             locale="en-US",
             timezone_id="Asia/Kolkata",
-            extra_http_headers={
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
-                "Accept-Language": "en-US,en;q=0.9",
-                "Sec-Ch-Ua": '"Not_A Brand";v="8", "Chromium";v="126", "Google Chrome";v="126"',
-                "Sec-Ch-Ua-Mobile": "?0",
-                "Sec-Ch-Ua-Platform": '"Windows"',
-                "Sec-Fetch-Dest": "document",
-                "Sec-Fetch-Mode": "navigate",
-                "Sec-Fetch-Site": "none",
-                "Sec-Fetch-User": "?1",
-                "Upgrade-Insecure-Requests": "1",
-            },
         )
-        # Apply anti-detection stealth injections
+        # Apply anti-detection injections matching navigator properties
         await context.add_init_script("""
             // Webdriver evasion
             Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
             delete Object.getPrototypeOf(navigator).webdriver;
 
-            // Align navigator UserAgent & platform properties
+            // Align navigator UserAgent properties
             const ua = navigator.userAgent.replace('HeadlessChrome', 'Chrome');
             Object.defineProperty(navigator, 'userAgent', { get: () => ua });
             Object.defineProperty(navigator, 'appVersion', { get: () => ua.replace('Mozilla/', '') });
             Object.defineProperty(navigator, 'platform', { get: () => 'Win32' });
 
-            // Mock Chrome runtime & hardware properties
+            // Mock Chrome runtime properties
             window.chrome = { runtime: {}, loadTimes: function() {}, csi: function() {}, app: {} };
+            // Mock languages & plugins
             Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
             Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
-            Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 8 });
-            Object.defineProperty(navigator, 'deviceMemory', { get: () => 8 });
-            Object.defineProperty(navigator, 'maxTouchPoints', { get: () => 0 });
 
             // WebGL Vendor Spoofing
             if (typeof WebGLRenderingContext !== 'undefined') {
@@ -299,52 +281,24 @@ class IndeedScraper:
                     referer=domain_root,
                 )
 
-                # If Cloudflare / bot check page is shown, wait up to 8 seconds while simulating mouse movements
                 if await self._is_blocked(current_page):
-                    logger.info("Cloudflare / Bot check page detected on attempt {}. Waiting up to 8s for auto-pass...", attempt + 1)
-                    for step in range(8):
-                        await asyncio.sleep(1.0)
-                        try:
-                            await current_page.mouse.move(150 + step * 30, 200 + step * 25)
-                        except Exception:
-                            pass
-                        if not await self._is_blocked(current_page):
-                            logger.info("Cloudflare auto-verification passed!")
-                            break
-
-                if await self._is_blocked(current_page):
-                    logger.warning("Indeed bot check blocking attempt {} for URL: {}. Recycling context...", attempt + 1, url)
+                    logger.warning("Indeed bot check on attempt {} for URL: {}. Recycling context...", attempt + 1, url)
                     if attempt < self._settings.scraper_retry_attempts - 1:
                         current_page, current_context = await self._recycle_context(browser, current_context)
-                        await asyncio.sleep(random.uniform(3.5, 6.0))
+                        await asyncio.sleep(random.uniform(2.0, 4.0))
                         continue
-
-                    # Fallback direct HTTP fetch if Playwright browser context gets blocked
-                    logger.info("Playwright browser blocked by bot check. Trying direct HTTP fallback...")
-                    html = await self._http_fallback_fetch(url)
-                    if html:
-                        jobs = self._parser.parse_search_results(html=html, country=country, search_query=query)
-                        if jobs:
-                            return self._filter_new_jobs(jobs)
                     return []
 
                 try:
                     await current_page.wait_for_selector(
-                        '[data-jk], .job_seen_beacon, .jobsearch-ResultsList li, .jobCard, .resultContent, td.resultContent, a[id^="job_"], div.cardOutline',
-                        timeout=12000
+                        '[data-jk], .job_seen_beacon, .jobsearch-ResultsList li',
+                        timeout=10000
                     )
                 except PlaywrightTimeout:
                     if attempt < self._settings.scraper_retry_attempts - 1:
                         current_page, current_context = await self._recycle_context(browser, current_context)
                         await asyncio.sleep(2.0)
                         continue
-
-                    # Fallback direct HTTP fetch on timeout
-                    html = await self._http_fallback_fetch(url)
-                    if html:
-                        jobs = self._parser.parse_search_results(html=html, country=country, search_query=query)
-                        if jobs:
-                            return self._filter_new_jobs(jobs)
                     return []
 
                 # Human-like scrolling
@@ -365,13 +319,14 @@ class IndeedScraper:
                     search_query=query,
                 )
 
-                if not jobs:
-                    # Try HTTP fallback if browser parsed 0 jobs
-                    fallback_html = await self._http_fallback_fetch(url)
-                    if fallback_html:
-                        jobs = self._parser.parse_search_results(html=fallback_html, country=country, search_query=query)
+                new_jobs = []
+                for job in jobs:
+                    if not job.indeed_job_id or job.indeed_job_id not in self._seen_job_ids:
+                        if job.indeed_job_id:
+                            self._seen_job_ids.add(job.indeed_job_id)
+                        new_jobs.append(job)
 
-                return self._filter_new_jobs(jobs)
+                return new_jobs
 
             except Exception as exc:
                 logger.error("Error scraping page on attempt {}: {}", attempt + 1, exc)
@@ -380,42 +335,6 @@ class IndeedScraper:
                     await asyncio.sleep(2.0)
 
         return []
-
-    def _filter_new_jobs(self, jobs: list[JobPosting]) -> list[JobPosting]:
-        new_jobs = []
-        for job in jobs:
-            if not job.indeed_job_id or job.indeed_job_id not in self._seen_job_ids:
-                if job.indeed_job_id:
-                    self._seen_job_ids.add(job.indeed_job_id)
-                new_jobs.append(job)
-        return new_jobs
-
-    async def _http_fallback_fetch(self, url: str) -> str:
-        """Fallback direct HTTP fetch if Playwright browser context gets blocked by bot checks."""
-        import httpx
-        try:
-            user_agent = random.choice(USER_AGENTS)
-            headers = {
-                "User-Agent": user_agent,
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-                "Accept-Language": "en-US,en;q=0.9",
-                "Sec-Ch-Ua": '"Not_A Brand";v="8", "Chromium";v="126"',
-                "Sec-Ch-Ua-Mobile": "?0",
-                "Sec-Ch-Ua-Platform": '"Windows"',
-                "Sec-Fetch-Dest": "document",
-                "Sec-Fetch-Mode": "navigate",
-                "Sec-Fetch-Site": "none",
-                "Sec-Fetch-User": "?1",
-                "Upgrade-Insecure-Requests": "1",
-            }
-            async with httpx.AsyncClient(timeout=20.0, follow_redirects=True, headers=headers) as client:
-                resp = await client.get(url)
-                if resp.status_code == 200:
-                    logger.info("HTTP fallback fetch successful for URL: {}", url)
-                    return resp.text
-        except Exception as err:
-            logger.debug("HTTP fallback fetch failed: {}", err)
-        return ""
 
     async def _is_blocked(self, page: Page) -> bool:
         try:
