@@ -6,6 +6,7 @@ Scrapes Indeed search pages for user-entered country, job role/keyword, and max 
 
 import asyncio
 import random
+from urllib.parse import urlparse
 from collections.abc import Callable, AsyncIterator
 from datetime import datetime, timezone
 from typing import Optional
@@ -274,17 +275,37 @@ class IndeedScraper:
         current_page = page
         current_context = context
 
+        # Extract domain root URL for initial homepage warmup (e.g., https://in.indeed.com or https://www.indeed.com)
+        parsed_url = urlparse(url)
+        domain_root = f"{parsed_url.scheme}://{parsed_url.netloc}"
+
         for attempt in range(self._settings.scraper_retry_attempts):
             try:
-                await current_page.goto(url, wait_until="domcontentloaded", timeout=30000)
+                # Session Warmup: Visit homepage first if cookies are missing to acquire Cloudflare/Indeed session tokens
+                cookies = await current_context.cookies()
+                if not cookies:
+                    try:
+                        logger.info("Warming up scraper session on homepage: {}...", domain_root)
+                        await current_page.goto(domain_root, wait_until="domcontentloaded", timeout=20000)
+                        await asyncio.sleep(random.uniform(1.5, 3.0))
+                    except Exception as err:
+                        logger.debug("Homepage warmup skipped: {}", err)
 
-                # If Cloudflare / bot check page is shown, wait up to 6 seconds while simulating mouse movement
+                # Navigate to search URL with referer header set to homepage
+                await current_page.goto(
+                    url,
+                    wait_until="domcontentloaded",
+                    timeout=30000,
+                    referer=domain_root,
+                )
+
+                # If Cloudflare / bot check page is shown, wait up to 8 seconds while simulating mouse movements
                 if await self._is_blocked(current_page):
-                    logger.info("Cloudflare / Bot check page detected on attempt {}. Waiting up to 6s for auto-pass...", attempt + 1)
-                    for step in range(6):
+                    logger.info("Cloudflare / Bot check page detected on attempt {}. Waiting up to 8s for auto-pass...", attempt + 1)
+                    for step in range(8):
                         await asyncio.sleep(1.0)
                         try:
-                            await current_page.mouse.move(120 + step * 25, 180 + step * 20)
+                            await current_page.mouse.move(150 + step * 30, 200 + step * 25)
                         except Exception:
                             pass
                         if not await self._is_blocked(current_page):
@@ -295,7 +316,7 @@ class IndeedScraper:
                     logger.warning("Indeed bot check blocking attempt {} for URL: {}. Recycling context...", attempt + 1, url)
                     if attempt < self._settings.scraper_retry_attempts - 1:
                         current_page, current_context = await self._recycle_context(browser, current_context)
-                        await asyncio.sleep(random.uniform(3.0, 5.0))
+                        await asyncio.sleep(random.uniform(3.5, 6.0))
                         continue
 
                     # Fallback direct HTTP fetch if Playwright browser context gets blocked
