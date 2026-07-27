@@ -263,23 +263,7 @@ class IndeedScraper:
 
         for attempt in range(self._settings.scraper_retry_attempts):
             try:
-                # Session Warmup: Visit homepage first if cookies are missing to acquire Cloudflare/Indeed session tokens
-                cookies = await current_context.cookies()
-                if not cookies:
-                    try:
-                        logger.info("Warming up scraper session on homepage: {}...", domain_root)
-                        await current_page.goto(domain_root, wait_until="domcontentloaded", timeout=20000)
-                        await asyncio.sleep(random.uniform(1.5, 3.0))
-                    except Exception as err:
-                        logger.debug("Homepage warmup skipped: {}", err)
-
-                # Navigate to search URL with referer header set to homepage
-                await current_page.goto(
-                    url,
-                    wait_until="domcontentloaded",
-                    timeout=30000,
-                    referer=domain_root,
-                )
+                await current_page.goto(url, wait_until="domcontentloaded", timeout=30000)
 
                 if await self._is_blocked(current_page):
                     logger.warning("Indeed bot check on attempt {} for URL: {}. Recycling context...", attempt + 1, url)
