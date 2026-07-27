@@ -6,7 +6,6 @@ Scrapes Indeed search pages for user-entered country, job role/keyword, and max 
 
 import asyncio
 import random
-from urllib.parse import urlparse
 from collections.abc import Callable, AsyncIterator
 from datetime import datetime, timezone
 from typing import Optional
@@ -256,10 +255,6 @@ class IndeedScraper:
     ) -> list[JobPosting]:
         current_page = page
         current_context = context
-
-        # Extract domain root URL for initial homepage warmup (e.g., https://in.indeed.com or https://www.indeed.com)
-        parsed_url = urlparse(url)
-        domain_root = f"{parsed_url.scheme}://{parsed_url.netloc}"
 
         for attempt in range(self._settings.scraper_retry_attempts):
             try:
