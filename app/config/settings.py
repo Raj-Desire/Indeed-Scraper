@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     dashboard_host: str = Field(default="127.0.0.1", description="Server host IP")
     dashboard_port: int = Field(
         default=8000,
-        validation_alias=AliasChoices("port", "dashboard_port"),
+        validation_alias=AliasChoices("PORT", "port", "dashboard_port"),
         description="Server port",
     )
 
