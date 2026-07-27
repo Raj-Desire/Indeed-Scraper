@@ -29,7 +29,13 @@ async def favicon():
     return HTMLResponse(content="", status_code=204)
 
 
-@router.get("/", response_class=HTMLResponse)
+@router.api_route("/health", methods=["GET", "HEAD"])
+async def health_check():
+    """Health check endpoint for cloud deployment platforms (Render, Heroku, etc.)."""
+    return {"status": "ok"}
+
+
+@router.api_route("/", methods=["GET", "HEAD"], response_class=HTMLResponse)
 async def home_page(request: Request):
     """Serve the single-page application interface."""
     countries = [{"name": c.name, "code": c.code} for c in COMMON_COUNTRIES]

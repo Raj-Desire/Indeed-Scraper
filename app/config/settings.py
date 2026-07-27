@@ -6,7 +6,7 @@ Centralizes all configuration parameters for scraping, filtering, and server opt
 """
 
 from pathlib import Path
-from pydantic import Field
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -32,8 +32,12 @@ class Settings(BaseSettings):
     filter_max_age_hours: int = Field(default=720, description="Max job age in hours (30 days)")
 
     # Server Configuration
-    dashboard_host: str = Field(default="127.0.0.1", description="Server host IP")
-    dashboard_port: int = Field(default=8000, description="Server port")
+    dashboard_host: str = Field(default="0.0.0.0", description="Server host IP")
+    dashboard_port: int = Field(
+        default=8000,
+        validation_alias=AliasChoices("port", "dashboard_port"),
+        description="Server port",
+    )
 
     # SharePoint & Azure AD Graph API Settings
     azure_tenant_id: str = Field(default="", description="Azure AD Tenant ID")
