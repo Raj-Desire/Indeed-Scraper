@@ -186,16 +186,24 @@ class IndeedScraper:
 
     async def _launch_browser(self, pw, headless_override: Optional[bool]) -> Browser:
         headless = self._settings.scraper_headless if headless_override is None else headless_override
-        return await pw.chromium.launch(
-            headless=headless,
-            args=[
-                "--disable-blink-features=AutomationControlled",
-                "--no-sandbox",
-                "--disable-dev-shm-usage",
-                "--disable-gpu",
-                "--disable-infobars",
-            ],
-        )
+        launch_args = [
+            "--disable-blink-features=AutomationControlled",
+            "--no-sandbox",
+            "--disable-dev-shm-usage",
+            "--disable-gpu",
+            "--disable-infobars",
+        ]
+        try:
+            return await pw.chromium.launch(headless=headless, args=launch_args)
+        except Exception as exc:
+            err_str = str(exc)
+            if "Executable doesn't exist" in err_str or "playwright install" in err_str:
+                logger.info("Playwright Chromium executable not found. Auto-downloading Chromium binary...")
+                import subprocess
+                import sys
+                subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"], check=True)
+                return await pw.chromium.launch(headless=headless, args=launch_args)
+            raise
 
     async def _create_context(self, browser: Browser) -> BrowserContext:
         user_agent = random.choice(USER_AGENTS)

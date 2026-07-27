@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: indeed-job-scraper
+    env: python
+    buildCommand: "pip install -r requirements.txt && python -m playwright install chromium"
+    startCommand: "python main.py"
+    envVars:
+      - key: SCRAPER_HEADLESS
+        value: "true"
+      - key: DASHBOARD_HOST
+        value: "0.0.0.0"
