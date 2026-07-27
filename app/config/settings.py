@@ -32,10 +32,14 @@ class Settings(BaseSettings):
     filter_max_age_hours: int = Field(default=720, description="Max job age in hours (30 days)")
 
     # Server Configuration
-    dashboard_host: str = Field(default="0.0.0.0", description="Server host IP")
+    dashboard_host: str = Field(
+        default="0.0.0.0",
+        validation_alias=AliasChoices("HOST", "host", "dashboard_host"),
+        description="Server host IP",
+    )
     dashboard_port: int = Field(
         default=8000,
-        validation_alias=AliasChoices("port", "dashboard_port"),
+        validation_alias=AliasChoices("PORT", "port", "dashboard_port"),
         description="Server port",
     )
 
