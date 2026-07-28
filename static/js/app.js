@@ -4,13 +4,57 @@ let ws = null;
 let pollTimer = null;
 let allLeads = [];
 
+function getSelectedCountries() {
+    const checkboxes = document.querySelectorAll('input[name="country_checkbox"]:checked');
+    const selected = Array.from(checkboxes).map(cb => cb.value);
+    return selected.length > 0 ? selected : ['US'];
+}
+
+function updateSelectedCountriesDisplay() {
+    const checkboxes = document.querySelectorAll('input[name="country_checkbox"]:checked');
+    const bar = document.getElementById('selected-countries-bar');
+    const badge = document.getElementById('country-count-badge');
+    
+    if (badge) {
+        const count = checkboxes.length;
+        badge.textContent = count === 1 ? '1 Country Selected' : `${count} Countries Selected`;
+    }
+
+    if (!bar) return;
+
+    if (checkboxes.length === 0) {
+        bar.innerHTML = `<span class="text-amber-400 text-xs italic">No country selected. Defaulting to US.</span>`;
+        return;
+    }
+
+    bar.innerHTML = Array.from(checkboxes).map(cb => {
+        const code = cb.value;
+        const name = cb.getAttribute('data-name') || code;
+        return `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm shrink-0">
+            ${esc(name)} <span class="text-cyan-400 text-[10px]">(${esc(code)})</span>
+        </span>`;
+    }).join('');
+}
+
+function selectAllCountries() {
+    const checkboxes = document.querySelectorAll('input[name="country_checkbox"]');
+    checkboxes.forEach(cb => cb.checked = true);
+    updateSelectedCountriesDisplay();
+}
+
+function clearAllCountries() {
+    const checkboxes = document.querySelectorAll('input[name="country_checkbox"]');
+    checkboxes.forEach(cb => cb.checked = false);
+    updateSelectedCountriesDisplay();
+}
+
 // Start User-Defined Search
 async function startSearch() {
-    const country = document.getElementById('input-country')?.value || 'US';
+    const countries = getSelectedCountries();
     const query = document.getElementById('input-query')?.value || 'AI Developer';
     const locationType = document.getElementById('input-location')?.value || 'all';
     const fromage = document.getElementById('input-fromage')?.value || 'all';
-    const pages = parseInt(document.getElementById('input-pages')?.value || '3');
+    const pages = parseInt(document.getElementById('input-pages')?.value || '1');
     const parserEngine = document.getElementById('input-parser')?.value || 'beautifulsoup';
 
     if (!query.trim()) {
@@ -23,7 +67,7 @@ async function startSearch() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                country,
+                countries,
                 query,
                 location_type: locationType,
                 fromage,
@@ -38,7 +82,7 @@ async function startSearch() {
             return;
         }
 
-        document.getElementById('search-status').textContent = 'Status: Scraping in progress...';
+        document.getElementById('search-status').textContent = `Status: Scraping ${countries.length} ${countries.length === 1 ? 'country' : 'countries'}...`;
         document.getElementById('btn-search').disabled = true;
         document.getElementById('btn-stop').disabled = false;
 
@@ -89,7 +133,7 @@ function renderTable(leads) {
     if (!leads || leads.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="8" class="px-5 py-12 text-center text-gray-500">
+                <td colspan="9" class="px-5 py-12 text-center text-gray-500">
                     No leads found yet. Click <strong>"Search Jobs"</strong> above.
                 </td>
             </tr>`;
@@ -103,6 +147,9 @@ function renderTable(leads) {
             </td>
             <td class="px-5 py-3 text-xs text-gray-300">
                 ${esc(l.company)}
+            </td>
+            <td class="px-5 py-3 text-xs text-cyan-300 font-semibold">
+                ${esc(l.country || 'US')}
             </td>
             <td class="px-5 py-3 text-xs text-gray-300">
                 ${esc(l.location_remote_type || l.location || l.remote_type || 'Not listed')}
@@ -134,7 +181,8 @@ function filterTable() {
     }
     const filtered = allLeads.filter(l =>
         (l.job_title || '').toLowerCase().includes(q) ||
-        (l.company || '').toLowerCase().includes(q)
+        (l.company || '').toLowerCase().includes(q) ||
+        (l.country || '').toLowerCase().includes(q)
     );
     renderTable(filtered);
 }
@@ -230,6 +278,7 @@ function esc(str) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+    updateSelectedCountriesDisplay();
     connectWebSocket();
     fetchLeads();
 });

@@ -43,6 +43,7 @@ class ExcelExporter:
         headers = [
             "Job Title",
             "Company",
+            "Country",
             "Location/Remote Type",
             "Salary Range",
             "Industry",
@@ -80,6 +81,7 @@ class ExcelExporter:
             row_values = [
                 job.job_title,
                 job.company,
+                job.country,
                 job.location_remote_type,
                 job.salary_range,
                 job.industry,
@@ -93,7 +95,7 @@ class ExcelExporter:
                 cell.border = border
                 cell.font = row_font
 
-                if col_idx == 8 and str(val).startswith("http"):  # Job URL hyperlink
+                if col_idx == 9 and str(val).startswith("http"):  # Job URL hyperlink
                     cell.value = "View on Indeed"
                     cell.hyperlink = str(val)
                     cell.font = link_font

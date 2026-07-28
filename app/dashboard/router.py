@@ -52,8 +52,13 @@ async def api_start_scraper(request: Request):
     service = get_scraper_service()
     try:
         body = await request.json()
+        countries_raw = body.get("countries")
+        if not countries_raw:
+            c_single = body.get("country", "US")
+            countries_raw = [c_single] if isinstance(c_single, str) else c_single
+
         run_config = RunConfig(
-            country=body.get("country", "US"),
+            countries=countries_raw,
             query=body.get("query", "AI Developer"),
             max_pages=int(body.get("max_pages", 3)),
             location_type=body.get("location_type", "all"),

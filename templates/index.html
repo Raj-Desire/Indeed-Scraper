@@ -2,31 +2,64 @@
 
 {% block content %}
 <!-- Search Parameters Form -->
-<div class="bg-navy-900 border border-navy-800 rounded-2xl p-6 shadow-xl space-y-4">
-    <h2 class="text-white font-bold text-lg">Search Job Leads</h2>
+<div class="bg-navy-900 border border-navy-800 rounded-2xl p-6 shadow-xl space-y-5">
+    <div class="flex items-center justify-between">
+        <h2 class="text-white font-bold text-lg flex items-center gap-2">
+            <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 002 2h1.5a2.5 2.5 0 002.5-2.5V11a2 2 0 012-2h1.065M12 21a9 9 0 100-18 9 9 0 000 18z"/></svg>
+            Search Job Leads
+        </h2>
+    </div>
 
-    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        <!-- Target Country Input -->
-        <div>
-            <label class="block text-gray-300 text-xs font-semibold mb-1">Target Country</label>
-            <select id="input-country" class="w-full bg-navy-800 border border-navy-700 rounded-xl px-4 py-3 text-white text-sm focus:border-brand focus:outline-none">
-                {% for c in countries %}
-                <option value="{{ c.code }}" {% if c.code == 'US' %}selected{% endif %}>{{ c.name }} ({{ c.code }})</option>
-                {% endfor %}
-            </select>
+    <!-- Country Selection Panel with Checkboxes -->
+    <div class="bg-navy-950/60 border border-navy-800/80 rounded-xl p-4 space-y-3">
+        <div class="flex items-center justify-between">
+            <label class="block text-gray-200 text-xs font-bold uppercase tracking-wider flex items-center gap-2">
+                <span>Select Target Countries</span>
+                <span id="country-count-badge" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">1 Selected</span>
+            </label>
+            <div class="flex items-center gap-2 text-xs font-semibold">
+                <button type="button" onclick="selectAllCountries()" class="px-2.5 py-1 bg-cyan-950 hover:bg-cyan-900 text-cyan-300 border border-cyan-700/50 rounded-lg transition-all text-xs">Select All</button>
+                <button type="button" onclick="clearAllCountries()" class="px-2.5 py-1 bg-navy-800 hover:bg-navy-700 text-gray-300 border border-navy-700 rounded-lg transition-all text-xs">Clear All</button>
+            </div>
         </div>
 
+        <!-- Structured Checkbox Grid -->
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2 max-h-36 overflow-y-auto p-1 scrollbar-thin">
+            {% for c in countries %}
+            <label class="flex items-center gap-2 bg-navy-900/90 hover:bg-navy-800 border border-navy-800 hover:border-cyan-500/50 rounded-lg px-2.5 py-1.5 cursor-pointer transition-all group">
+                <input type="checkbox" name="country_checkbox" value="{{ c.code }}" data-name="{{ c.name }}" {% if c.code == 'US' %}checked{% endif %} onchange="updateSelectedCountriesDisplay()"
+                    class="w-3.5 h-3.5 rounded bg-navy-950 border-navy-700 text-cyan-500 focus:ring-cyan-500/30 accent-cyan-500 cursor-pointer">
+                <span class="text-xs text-gray-300 group-hover:text-white font-medium truncate">{{ c.name }} <span class="text-gray-500 text-[10px]">({{ c.code }})</span></span>
+            </label>
+            {% endfor %}
+        </div>
+
+        <!-- One-Line Selected Countries Summary Display -->
+        <div class="pt-2 border-t border-navy-800/60 flex items-center gap-2 overflow-x-auto text-xs scrollbar-none py-1">
+            <span class="text-gray-400 font-semibold shrink-0">Selected:</span>
+            <div id="selected-countries-bar" class="flex items-center gap-1.5 flex-nowrap shrink-0">
+                <!-- Populated dynamically by JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden Default Configuration Inputs -->
+    <input type="hidden" id="input-pages" value="1">
+    <input type="hidden" id="input-parser" value="beautifulsoup">
+
+    <!-- Additional Filter Controls Grid -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
         <!-- Job Role / Query Text Input -->
         <div>
             <label class="block text-gray-300 text-xs font-semibold mb-1">Job Role / Keyword</label>
             <input id="input-query" type="text" value="AI Developer" placeholder="e.g. AI Developer, React Developer, Data Engineer"
-                class="w-full bg-navy-800 border border-navy-700 rounded-xl px-4 py-3 text-white text-sm placeholder-gray-500 focus:border-brand focus:outline-none">
+                class="w-full bg-navy-800 border border-navy-700 rounded-xl px-4 py-2.5 text-white text-sm placeholder-gray-500 focus:border-brand focus:outline-none">
         </div>
 
         <!-- Job Location Type Selector -->
         <div>
             <label class="block text-gray-300 text-xs font-semibold mb-1">Job Location</label>
-            <select id="input-location" class="w-full bg-navy-800 border border-navy-700 rounded-xl px-4 py-3 text-white text-sm focus:border-brand focus:outline-none">
+            <select id="input-location" class="w-full bg-navy-800 border border-navy-700 rounded-xl px-4 py-2.5 text-white text-sm focus:border-brand focus:outline-none">
                 <option value="all" selected>Both (Remote / On-site)</option>
                 <option value="remote">Fully Remote</option>
                 <option value="onsite">On-Site Only</option>
@@ -36,33 +69,12 @@
         <!-- Date Posted Selector -->
         <div>
             <label class="block text-gray-300 text-xs font-semibold mb-1">Date Posted</label>
-            <select id="input-fromage" class="w-full bg-navy-800 border border-navy-700 rounded-xl px-4 py-3 text-white text-sm focus:border-brand focus:outline-none">
+            <select id="input-fromage" class="w-full bg-navy-800 border border-navy-700 rounded-xl px-4 py-2.5 text-white text-sm focus:border-brand focus:outline-none">
                 <option value="all" selected>All Dates</option>
                 <option value="1">Last 24 hours</option>
                 <option value="3">Last 3 days</option>
                 <option value="7">Last 7 days</option>
                 <option value="14">Last 14 days</option>
-            </select>
-        </div>
-
-        <!-- Max Pages Selector -->
-        <div>
-            <label class="block text-gray-300 text-xs font-semibold mb-1">Pages to Scrape</label>
-            <select id="input-pages" class="w-full bg-navy-800 border border-navy-700 rounded-xl px-4 py-3 text-white text-sm focus:border-brand focus:outline-none">
-                <option value="1">1 Page (~15 jobs)</option>
-                <option value="2">2 Pages (~30 jobs)</option>
-                <option value="3" selected>3 Pages (~45 jobs)</option>
-                <option value="5">5 Pages (~75 jobs)</option>
-                <option value="10">10 Pages (Deep Search)</option>
-            </select>
-        </div>
-
-        <!-- Parser Engine Selector -->
-        <div>
-            <label class="block text-gray-300 text-xs font-semibold mb-1">Parser Engine</label>
-            <select id="input-parser" class="w-full bg-navy-800 border border-navy-700 rounded-xl px-4 py-3 text-white text-sm focus:border-brand focus:outline-none">
-                <option value="beautifulsoup" selected>BeautifulSoup (Default)</option>
-                <option value="selectolax">Selectolax</option>
             </select>
         </div>
     </div>
@@ -107,7 +119,7 @@
     <div class="px-6 py-4 border-b border-navy-800 flex items-center justify-between bg-navy-950/50">
         <h3 class="text-white font-bold text-base">Job Leads (<span id="leads-count">0</span>)</h3>
         <div class="flex items-center gap-3">
-            <input id="filter-search" type="text" placeholder="Filter title or company..." onkeyup="filterTable()"
+            <input id="filter-search" type="text" placeholder="Filter title, company, or country..." onkeyup="filterTable()"
                 class="bg-navy-800 border border-navy-700 rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-500 focus:outline-none">
             <a id="table-download-btn" href="/api/export/excel" class="hidden px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg text-xs transition-colors flex items-center gap-1.5 shadow">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3"/></svg>
@@ -126,6 +138,7 @@
                 <tr>
                     <th class="px-5 py-3 text-left">Job Title</th>
                     <th class="px-5 py-3 text-left">Company</th>
+                    <th class="px-5 py-3 text-left">Country</th>
                     <th class="px-5 py-3 text-left">Location/Remote Type</th>
                     <th class="px-5 py-3 text-left">Salary Range</th>
                     <th class="px-5 py-3 text-left">Industry</th>
@@ -136,7 +149,7 @@
             </thead>
             <tbody id="leads-body">
                 <tr>
-                    <td colspan="8" class="px-5 py-12 text-center text-gray-500">
+                    <td colspan="9" class="px-5 py-12 text-center text-gray-500">
                         Enter your job role above and click <strong>"Search Jobs"</strong> to fetch leads.
                     </td>
                 </tr>

@@ -66,24 +66,38 @@ class GraphSharePointExporter:
                 posted_date_str = job.posted_date.strftime("%Y-%m-%d") if job.posted_date else datetime.now(tz=timezone.utc).strftime("%Y-%m-%d")
 
                 # Clean direct field payload
-                payload = {
-                    "fields": {
-                        "Title": job.job_title,
-                        "Company": job.company,
-                        "Location_x002f_RemoteType": job.location_remote_type,
-                        "SalaryRange": job.salary_range,
-                        "Industry": job.industry,
-                        "CompanySize": job.company_size,
-                        "PostedDate": posted_date_str,
-                        "Job_x0020_URL": job.job_url,
-                    }
+                fields_dict = {
+                    "Title": job.job_title,
+                    "Company": job.company,
+                    "Country": job.country,
+                    "Location_x002f_RemoteType": job.location_remote_type,
+                    "SalaryRange": job.salary_range,
+                    "Industry": job.industry,
+                    "CompanySize": job.company_size,
+                    "PostedDate": posted_date_str,
+                    "Job_x0020_URL": job.job_url,
                 }
+                payload = {"fields": fields_dict}
 
                 resp = await client.post(items_url, headers=headers, json=payload)
                 if resp.status_code in [200, 201]:
                     success_count += 1
                 else:
-                    logger.warning("Failed to insert '{}' to SharePoint ({}): {}", job.job_title, resp.status_code, resp.text)
+                    err_msg = resp.text
+                    logger.warning("Failed to insert '{}' to SharePoint ({}): {}", job.job_title, resp.status_code, err_msg)
+                    
+                    # If Country column doesn't exist in SharePoint List yet, retry without Country field
+                    if "Country" in fields_dict and ("Country" in err_msg or "does not exist" in err_msg or "not recognized" in err_msg):
+                        fallback_fields = dict(fields_dict)
+                        fallback_fields.pop("Country", None)
+                        retry_resp = await client.post(items_url, headers=headers, json={"fields": fallback_fields})
+                        if retry_resp.status_code in [200, 201]:
+                            success_count += 1
+                            logger.info("Successfully exported '{}' using fallback payload (without missing 'Country' column).", job.job_title)
+                        else:
+                            raise RuntimeError(f"SharePoint List Insert Error ({retry_resp.status_code}): {retry_resp.text}")
+                    else:
+                        raise RuntimeError(f"SharePoint List Insert Error ({resp.status_code}): {resp.text}")
 
         logger.info("Successfully exported {}/{} jobs to SharePoint List!", success_count, len(jobs))
         return success_count

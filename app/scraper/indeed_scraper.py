@@ -83,107 +83,128 @@ class IndeedScraper:
 
     async def scrape(self, run_config: RunConfig) -> AsyncIterator[JobPosting]:
         """
-        Scrapes job postings for the given RunConfig (country, query, max_pages).
+        Scrapes job postings for the given RunConfig (countries, query, max_pages).
         """
         self._stop_event.clear()
         self._seen_job_ids.clear()
 
-        country = run_config.country or "US"
+        countries = run_config.countries or ["US"]
         query = run_config.query or "AI Developer"
-        max_pages = run_config.max_pages or 3
+        max_pages_per_country = run_config.max_pages or 3
+        total_pages_overall = max_pages_per_country * len(countries)
 
         self._progress = ScraperProgress(
             status=ScraperStatus.RUNNING,
-            current_country=country,
+            current_country=countries[0],
             current_keyword=query,
-            max_pages=max_pages,
+            max_pages=total_pages_overall,
             started_at=datetime.now(tz=timezone.utc),
         )
         # Instantiate parser dynamically based on configuration
         parser_engine = run_config.parser_engine or self._settings.scraper_parser_engine
         self._parser = get_parser(parser_engine)
         self._progress.add_log(f"Using parser engine: {self._parser.__class__.__name__}")
+        self._progress.add_log(f"Targeting {len(countries)} countries: {', '.join(countries)}")
         self._emit_progress()
 
         location_param = "remote" if run_config.location_type.lower() == "remote" else ""
 
         async with async_playwright() as pw:
             browser = await self._launch_browser(pw, run_config.headless)
-            context = await self._create_context(browser)
-            page = await context.new_page()
 
             try:
-                for page_num in range(max_pages):
+                processed_pages_count = 0
+                for c_idx, country in enumerate(countries):
                     if self._stop_event.is_set():
                         break
 
-                    await self._pause_event.wait()
-
-                    fromage_param = getattr(run_config, "fromage", "all") or "all"
-                    url = get_indeed_search_url(
-                        country_input=country,
-                        query=query,
-                        location=location_param,
-                        page=page_num,
-                        fromage=fromage_param,
-                    )
-
-                    self._progress.current_page = page_num + 1
-                    self._progress.add_log(f"Fetching Page {page_num + 1}: {query} ({country})")
+                    self._progress.current_country = country
+                    self._progress.add_log(f"--- Starting Country ({c_idx+1}/{len(countries)}): {country} ---")
                     self._emit_progress()
 
-                    jobs = await self._scrape_page(browser, context, page, url, country, query)
-                    if not jobs:
-                        # Retry page once with a fresh recycled context before giving up
-                        logger.info("Page {} returned 0 jobs. Recalibrating session with fresh context...", page_num + 1)
-                        page, context = await self._recycle_context(browser, context)
-                        jobs = await self._scrape_page(browser, context, page, url, country, query)
+                    country_context = await self._create_context(browser)
+                    country_page = await country_context.new_page()
 
-                    if not jobs:
-                        self._progress.add_log(f"No more results found on Page {page_num + 1}")
-                        break
+                    try:
+                        for page_num in range(max_pages_per_country):
+                            if self._stop_event.is_set():
+                                break
 
-                    for job in jobs:
-                        # Post-scrape location type filter
-                        loc_filter = run_config.location_type.lower()
-                        if loc_filter != "all":
-                            remote_val = job.remote_type.value if hasattr(job.remote_type, "value") else job.remote_type
-                            if loc_filter == "remote" and remote_val != "Fully Remote":
-                                continue
-                            elif loc_filter == "onsite" and remote_val != "On-Site":
-                                continue
-                            elif loc_filter == "hybrid" and remote_val != "Hybrid":
-                                continue
+                            await self._pause_event.wait()
 
-                        # Post-scrape date posted age limit filter
-                        if fromage_param.isdigit():
-                            max_days = int(fromage_param)
-                            max_hours = max_days * 24
-                            if job.posted_date and not is_within_age_limit(job.posted_date, max_hours=max_hours):
-                                continue
+                            fromage_param = getattr(run_config, "fromage", "all") or "all"
+                            url = get_indeed_search_url(
+                                country_input=country,
+                                query=query,
+                                location=location_param,
+                                page=page_num,
+                                fromage=fromage_param,
+                            )
 
-                        # Strict job role / keyword match filter
-                        if run_config.query and run_config.query.strip():
-                            if not is_job_matching_query(
-                                job_title=job.job_title,
-                                company=job.company,
-                                location=job.location,
-                                description=job.job_description,
-                                query=run_config.query,
-                            ):
-                                continue
+                            processed_pages_count += 1
+                            self._progress.current_page = processed_pages_count
+                            self._progress.add_log(f"Fetching Page {page_num + 1}/{max_pages_per_country} ({country}): {query}")
+                            self._emit_progress()
 
-                        self._progress.jobs_found += 1
-                        self._emit_progress()
-                        yield job
+                            jobs, country_page, country_context = await self._scrape_page(
+                                browser, country_context, country_page, url, country, query
+                            )
 
-                    await self._random_delay()
+                            if not jobs:
+                                # Retry page once with a fresh recycled context before giving up
+                                logger.info("Page {} ({}) returned 0 jobs. Recalibrating session with fresh context...", page_num + 1, country)
+                                country_page, country_context = await self._recycle_context(browser, country_context)
+                                jobs, country_page, country_context = await self._scrape_page(
+                                    browser, country_context, country_page, url, country, query
+                                )
+
+                            if not jobs:
+                                self._progress.add_log(f"No more results found for {country} on Page {page_num + 1}")
+                                break
+
+                            for job in jobs:
+                                # Post-scrape location type filter
+                                loc_filter = run_config.location_type.lower()
+                                if loc_filter != "all":
+                                    remote_val = job.remote_type.value if hasattr(job.remote_type, "value") else job.remote_type
+                                    if loc_filter == "remote" and remote_val != "Fully Remote":
+                                        continue
+                                    elif loc_filter == "onsite" and remote_val != "On-Site":
+                                        continue
+                                    elif loc_filter == "hybrid" and remote_val != "Hybrid":
+                                        continue
+
+                                # Post-scrape date posted age limit filter
+                                if fromage_param.isdigit():
+                                    max_days = int(fromage_param)
+                                    max_hours = max_days * 24
+                                    if job.posted_date and not is_within_age_limit(job.posted_date, max_hours=max_hours):
+                                        continue
+
+                                # Strict job role / keyword match filter
+                                if run_config.query and run_config.query.strip():
+                                    if not is_job_matching_query(
+                                        job_title=job.job_title,
+                                        company=job.company,
+                                        location=job.location,
+                                        description=job.job_description,
+                                        query=run_config.query,
+                                    ):
+                                        continue
+
+                                self._progress.jobs_found += 1
+                                self._emit_progress()
+                                yield job
+
+                            await self._random_delay()
+
+                    finally:
+                        try:
+                            await country_context.close()
+                        except Exception:
+                            pass
 
             finally:
-                try:
-                    await context.close()
-                except Exception:
-                    pass
                 try:
                     await browser.close()
                 except Exception:
@@ -246,7 +267,8 @@ class IndeedScraper:
 
     async def _recycle_context(self, browser: Browser, old_context: BrowserContext) -> tuple[Page, BrowserContext]:
         try:
-            await old_context.close()
+            if old_context:
+                await old_context.close()
         except Exception:
             pass
         new_context = await self._create_context(browser)
@@ -261,12 +283,22 @@ class IndeedScraper:
         url: str,
         country: str,
         query: str,
-    ) -> list[JobPosting]:
+    ) -> tuple[list[JobPosting], Page, BrowserContext]:
         current_page = page
         current_context = context
 
+        # Ensure active page and context
+        try:
+            if current_page.is_closed() or not current_context.pages:
+                current_page, current_context = await self._recycle_context(browser, current_context)
+        except Exception:
+            current_page, current_context = await self._recycle_context(browser, current_context)
+
         for attempt in range(self._settings.scraper_retry_attempts):
             try:
+                if current_page.is_closed():
+                    current_page, current_context = await self._recycle_context(browser, current_context)
+
                 await current_page.goto(url, wait_until="domcontentloaded", timeout=30000)
 
                 if await self._is_blocked(current_page):
@@ -275,7 +307,7 @@ class IndeedScraper:
                         current_page, current_context = await self._recycle_context(browser, current_context)
                         await asyncio.sleep(random.uniform(2.0, 4.0))
                         continue
-                    return []
+                    return [], current_page, current_context
 
                 try:
                     await current_page.wait_for_selector(
@@ -287,7 +319,7 @@ class IndeedScraper:
                         current_page, current_context = await self._recycle_context(browser, current_context)
                         await asyncio.sleep(2.0)
                         continue
-                    return []
+                    return [], current_page, current_context
 
                 # Human-like scrolling
                 try:
@@ -314,7 +346,7 @@ class IndeedScraper:
                             self._seen_job_ids.add(job.indeed_job_id)
                         new_jobs.append(job)
 
-                return new_jobs
+                return new_jobs, current_page, current_context
 
             except Exception as exc:
                 logger.error("Error scraping page on attempt {}: {}", attempt + 1, exc)
@@ -322,7 +354,7 @@ class IndeedScraper:
                     current_page, current_context = await self._recycle_context(browser, current_context)
                     await asyncio.sleep(2.0)
 
-        return []
+        return [], current_page, current_context
 
     async def _is_blocked(self, page: Page) -> bool:
         try:

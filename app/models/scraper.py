@@ -7,7 +7,7 @@ Pydantic models for run configuration and live progress tracking.
 from datetime import datetime
 from enum import Enum
 from typing import Optional
-from pydantic import BaseModel, Field, computed_field
+from pydantic import BaseModel, Field, computed_field, model_validator
 
 
 class ScraperStatus(str, Enum):
@@ -72,15 +72,32 @@ class ScraperProgress(BaseModel):
 class RunConfig(BaseModel):
     """
     Configuration for a single user-initiated scraping run.
-    Takes manual user inputs for country, search query, and max pages.
+    Takes manual user inputs for countries, search query, and max pages.
     """
-    country: str = Field(default="US", description="Target country code or name")
+    countries: list[str] = Field(default_factory=lambda: ["US"], description="Target country codes or names")
     query: str = Field(default="AI Developer", description="Role or keyword to search")
-    max_pages: int = Field(default=3, description="Number of pages to scrape")
+    max_pages: int = Field(default=1, description="Number of pages to scrape per country")
     location_type: str = Field(default="all", description="Location filter type (all, remote, onsite)")
     fromage: str = Field(default="all", description="Date posted filter: all, 1 (24h), 3 (3 days), 7 (7 days), 14 (14 days)")
     headless: Optional[bool] = Field(default=None, description="Run in background")
     parser_engine: str = Field(default="beautifulsoup", description="Parser engine to use (beautifulsoup, selectolax)")
+
+    @model_validator(mode="before")
+    @classmethod
+    def populate_countries(cls, data: dict) -> dict:
+        if isinstance(data, dict):
+            if "countries" not in data or not data["countries"]:
+                if "country" in data and data["country"]:
+                    if isinstance(data["country"], list):
+                        data["countries"] = data["country"]
+                    elif isinstance(data["country"], str):
+                        data["countries"] = [c.strip() for c in data["country"].split(",") if c.strip()]
+        return data
+
+    @property
+    def country(self) -> str:
+        """Backwards compatibility accessor for single country."""
+        return self.countries[0] if self.countries else "US"
 
 
 class ScraperSession(BaseModel):
