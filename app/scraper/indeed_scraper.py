@@ -22,7 +22,7 @@ from app.config.settings import get_settings
 from app.models.job import JobPosting
 from app.models.scraper import ScraperProgress, ScraperStatus, RunConfig
 from app.parser import get_parser
-from app.utils.helpers import get_indeed_search_url, is_job_matching_query
+from app.utils.helpers import get_indeed_search_url, is_job_matching_query, is_within_age_limit
 from app.utils.logger import logger
 
 
@@ -119,11 +119,13 @@ class IndeedScraper:
 
                     await self._pause_event.wait()
 
+                    fromage_param = getattr(run_config, "fromage", "all") or "all"
                     url = get_indeed_search_url(
                         country_input=country,
                         query=query,
                         location=location_param,
                         page=page_num,
+                        fromage=fromage_param,
                     )
 
                     self._progress.current_page = page_num + 1
@@ -147,11 +149,18 @@ class IndeedScraper:
                         if loc_filter != "all":
                             remote_val = job.remote_type.value if hasattr(job.remote_type, "value") else job.remote_type
                             if loc_filter == "remote" and remote_val != "Fully Remote":
-                                                    continue
+                                continue
                             elif loc_filter == "onsite" and remote_val != "On-Site":
-                                                    continue
+                                continue
                             elif loc_filter == "hybrid" and remote_val != "Hybrid":
-                                                    continue
+                                continue
+
+                        # Post-scrape date posted age limit filter
+                        if fromage_param.isdigit():
+                            max_days = int(fromage_param)
+                            max_hours = max_days * 24
+                            if job.posted_date and not is_within_age_limit(job.posted_date, max_hours=max_hours):
+                                continue
 
                         # Strict job role / keyword match filter
                         if run_config.query and run_config.query.strip():

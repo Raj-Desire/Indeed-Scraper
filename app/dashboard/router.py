@@ -57,6 +57,7 @@ async def api_start_scraper(request: Request):
             query=body.get("query", "AI Developer"),
             max_pages=int(body.get("max_pages", 3)),
             location_type=body.get("location_type", "all"),
+            fromage=str(body.get("fromage", "all")),
             parser_engine=body.get("parser_engine", settings.scraper_parser_engine),
         )
 

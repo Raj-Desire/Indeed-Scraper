@@ -252,20 +252,25 @@ from app.config.constants import resolve_country_domain
 def get_indeed_search_url(
     country_input: str,
     query: str,
-    location: str = "remote",
+    location: str = "",
     page: int = 0,
+    fromage: str = "all",
 ) -> str:
     """
-    Build an Indeed search URL for any country, query, and page.
+    Build an Indeed search URL for any country, query, page, and date posted filter.
     """
     domain = resolve_country_domain(country_input)
     start = page * 10
     params = {
         "q": query.strip(),
-        "l": location,
         "start": start,
         "sort": "date",
     }
+    if location:
+        params["l"] = location.strip()
+    if fromage and str(fromage).strip().lower() != "all":
+        params["fromage"] = str(fromage).strip()
+
     query_string = urlencode(params)
     return f"https://{domain}/jobs?{query_string}"
 

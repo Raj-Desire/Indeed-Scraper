@@ -9,6 +9,7 @@ async function startSearch() {
     const country = document.getElementById('input-country')?.value || 'US';
     const query = document.getElementById('input-query')?.value || 'AI Developer';
     const locationType = document.getElementById('input-location')?.value || 'all';
+    const fromage = document.getElementById('input-fromage')?.value || 'all';
     const pages = parseInt(document.getElementById('input-pages')?.value || '3');
     const parserEngine = document.getElementById('input-parser')?.value || 'beautifulsoup';
 
@@ -25,6 +26,7 @@ async function startSearch() {
                 country,
                 query,
                 location_type: locationType,
+                fromage,
                 max_pages: pages,
                 parser_engine: parserEngine
             }),
