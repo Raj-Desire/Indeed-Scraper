@@ -23,15 +23,15 @@ function updateSelectedCountriesDisplay() {
     if (!bar) return;
 
     if (checkboxes.length === 0) {
-        bar.innerHTML = `<span class="text-amber-400 text-xs italic">No country selected. Defaulting to US.</span>`;
+        bar.innerHTML = `<span class="text-amber-600 text-xs italic">No country selected. Defaulting to US.</span>`;
         return;
     }
 
     bar.innerHTML = Array.from(checkboxes).map(cb => {
         const code = cb.value;
         const name = cb.getAttribute('data-name') || code;
-        return `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm shrink-0">
-            ${esc(name)} <span class="text-cyan-400 text-[10px]">(${esc(code)})</span>
+        return `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 shadow-sm shrink-0">
+            ${esc(name)} <span class="text-blue-500 text-[10px]">(${esc(code)})</span>
         </span>`;
     }).join('');
 }
@@ -133,45 +133,111 @@ function renderTable(leads) {
     if (!leads || leads.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="9" class="px-5 py-12 text-center text-gray-500">
-                    No leads found yet. Click <strong>"Search Jobs"</strong> above.
+                <td colspan="10" class="px-5 py-12 text-center text-slate-400 font-medium">
+                    No leads found yet. Click <strong class="text-slate-700">"Search Jobs"</strong> above.
                 </td>
             </tr>`;
         return;
     }
 
-    tbody.innerHTML = leads.map(l => `
-        <tr class="border-b border-navy-800/50 hover:bg-navy-800/40 transition-colors">
-            <td class="px-5 py-3 text-xs text-white font-medium">
-                ${esc(l.job_title)}
+    tbody.innerHTML = leads.map(l => {
+        const descSnippet = l.job_description ? (l.job_description.length > 80 ? l.job_description.slice(0, 80) + '...' : l.job_description) : 'No description available';
+        const expText = l.experience || 'Not specified';
+        const isFresher = expText.toLowerCase().includes('fresher') || expText.toLowerCase().includes('entry');
+        const expBadgeClass = isFresher 
+            ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+            : (expText !== 'Not specified' ? 'bg-amber-50 text-amber-800 border-amber-200' : 'bg-slate-100 text-slate-500 border-slate-200');
+
+        return `
+        <tr class="border-b border-slate-100 hover:bg-slate-50/80 transition-colors">
+            <td class="px-5 py-3 text-xs">
+                <div class="font-semibold text-slate-900">${esc(l.job_title)}</div>
+                ${l.role ? `<div class="text-[10px] text-slate-500 font-medium mt-0.5">${esc(l.role)}</div>` : ''}
             </td>
-            <td class="px-5 py-3 text-xs text-gray-300">
+            <td class="px-5 py-3 text-xs font-medium text-slate-700">
                 ${esc(l.company)}
             </td>
-            <td class="px-5 py-3 text-xs text-cyan-300 font-semibold">
+            <td class="px-5 py-3 text-xs font-bold text-blue-600">
                 ${esc(l.country || 'US')}
             </td>
-            <td class="px-5 py-3 text-xs text-gray-300">
+            <td class="px-5 py-3 text-xs text-slate-600">
                 ${esc(l.location_remote_type || l.location || l.remote_type || 'Not listed')}
             </td>
-            <td class="px-5 py-3 text-xs text-gray-300">
+            <td class="px-5 py-3 text-xs">
+                <span class="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${expBadgeClass}">
+                    ${esc(expText)}
+                </span>
+            </td>
+            <td class="px-5 py-3 text-xs font-semibold text-emerald-700">
                 ${esc(l.salary)}
             </td>
-            <td class="px-5 py-3 text-xs text-gray-400">
+            <td class="px-5 py-3 text-xs text-slate-500 max-w-[220px]">
+                <div class="truncate text-[11px] text-slate-600 mb-1" title="${esc(l.job_description)}">${esc(descSnippet)}</div>
+                <button type="button" onclick="openDescriptionModal('${esc(l.id)}')" class="inline-flex items-center gap-1 text-[11px] text-blue-600 hover:text-blue-800 hover:underline font-semibold">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                    Full Description
+                </button>
+            </td>
+            <td class="px-5 py-3 text-xs text-slate-500">
                 ${esc(l.industry || 'Not listed')}
             </td>
-            <td class="px-5 py-3 text-xs text-gray-400">
-                ${esc(l.company_size || 'Not listed')}
-            </td>
-            <td class="px-5 py-3 text-xs text-gray-500">
+            <td class="px-5 py-3 text-xs text-slate-400">
                 ${esc(l.posted_date || 'Not listed')}
             </td>
-            <td class="px-5 py-3">
-                ${l.job_url ? `<a href="${esc(l.job_url)}" target="_blank" class="text-xs text-cyan-400 hover:underline">View Indeed ↗</a>` : '—'}
+            <td class="px-5 py-3 text-xs">
+                <div class="flex items-center gap-2">
+                    ${l.job_url ? `<a href="${esc(l.job_url)}" target="_blank" class="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-medium rounded-lg text-xs transition-colors flex items-center gap-1 shadow-sm">Apply ↗</a>` : '—'}
+                </div>
             </td>
-        </tr>
-    `).join('');
+        </tr>`;
+    }).join('');
 }
+
+function openDescriptionModal(jobId) {
+    const job = allLeads.find(l => String(l.id) === String(jobId));
+    if (!job) return;
+
+    document.getElementById('modal-job-title').textContent = job.job_title || 'Job Description';
+    document.getElementById('modal-company-info').textContent = `${job.company || 'Company'} • ${job.location_remote_type || job.location || 'Location'} (${job.country || 'US'})`;
+    document.getElementById('modal-experience').textContent = job.experience || 'Not specified';
+    document.getElementById('modal-salary').textContent = job.salary || 'Not listed';
+    document.getElementById('modal-location').textContent = job.location_remote_type || job.location || 'Not listed';
+    document.getElementById('modal-industry').textContent = job.industry || 'Not listed';
+    
+    const descEl = document.getElementById('modal-description-content');
+    if (job.job_description && job.job_description.trim()) {
+        descEl.textContent = job.job_description;
+    } else {
+        descEl.innerHTML = '<span class="text-gray-500 italic">No full description snippet available for this job card.</span>';
+    }
+
+    const linkEl = document.getElementById('modal-indeed-link');
+    if (job.job_url) {
+        linkEl.href = job.job_url;
+        linkEl.classList.remove('hidden');
+    } else {
+        linkEl.classList.add('hidden');
+    }
+
+    const modal = document.getElementById('job-modal');
+    if (modal) modal.classList.remove('hidden');
+}
+
+function closeDescriptionModal() {
+    const modal = document.getElementById('job-modal');
+    if (modal) modal.classList.add('hidden');
+}
+
+// Close modal on Escape key press or clicking outside modal box
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeDescriptionModal();
+});
+document.addEventListener('click', (e) => {
+    const modal = document.getElementById('job-modal');
+    if (modal && !modal.classList.contains('hidden') && e.target === modal) {
+        closeDescriptionModal();
+    }
+});
 
 function filterTable() {
     const q = (document.getElementById('filter-search')?.value || '').toLowerCase();
@@ -182,7 +248,9 @@ function filterTable() {
     const filtered = allLeads.filter(l =>
         (l.job_title || '').toLowerCase().includes(q) ||
         (l.company || '').toLowerCase().includes(q) ||
-        (l.country || '').toLowerCase().includes(q)
+        (l.country || '').toLowerCase().includes(q) ||
+        (l.experience || '').toLowerCase().includes(q) ||
+        (l.job_description || '').toLowerCase().includes(q)
     );
     renderTable(filtered);
 }
@@ -203,8 +271,8 @@ function connectWebSocket() {
         const logText = document.getElementById('log-text');
 
         if (statusDot) {
-            const colors = { running: 'bg-green-500 animate-pulse', idle: 'bg-gray-500', completed: 'bg-blue-500', error: 'bg-red-500' };
-            statusDot.className = `w-2.5 h-2.5 rounded-full ${colors[p.status] || 'bg-gray-500'}`;
+            const colors = { running: 'bg-emerald-500 animate-pulse', idle: 'bg-slate-400', completed: 'bg-blue-600', error: 'bg-red-500' };
+            statusDot.className = `w-2.5 h-2.5 rounded-full ${colors[p.status] || 'bg-slate-400'}`;
         }
         if (statusText) statusText.textContent = p.status ? p.status.charAt(0).toUpperCase() + p.status.slice(1) : 'Idle';
 
@@ -237,7 +305,7 @@ function connectWebSocket() {
             document.getElementById('btn-search').disabled = false;
             document.getElementById('btn-stop').disabled = true;
             if (p.status === 'completed') {
-                document.getElementById('search-status').textContent = 'Status: Search Completed 🎉';
+                document.getElementById('search-status').textContent = 'Status: Search Completed';
             }
         }
     };

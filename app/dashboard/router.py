@@ -111,6 +111,8 @@ async def api_get_leads(
             "salary": j.salary_range,
             "industry": j.industry,
             "company_size": j.company_size,
+            "experience": j.experience or "Not specified",
+            "job_description": j.job_description or "",
             "remote_type": j.remote_type,
             "posted_date": j.posted_date.isoformat() if j.posted_date else j.posted_date_raw,
             "job_url": j.job_url,

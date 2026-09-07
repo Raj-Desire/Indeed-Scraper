@@ -122,9 +122,9 @@ def clean_text(text: str) -> str:
         return ""
     # Remove HTML tags
     text = re.sub(r"<[^>]+>", " ", text)
-    # Decode common HTML entities
-    text = text.replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
-    text = text.replace("&nbsp;", " ").replace("&#39;", "'").replace("&quot;", '"')
+    # Normalize unicode hyphens/dashes and quotes
+    text = text.replace("\u2013", "-").replace("\u2014", "-").replace("\u2212", "-")
+    text = text.replace("\u2018", "'").replace("\u2019", "'").replace("\u201c", '"').replace("\u201d", '"')
     # Normalize whitespace
     text = re.sub(r"\s+", " ", text)
     return text.strip()
@@ -139,27 +139,47 @@ def truncate_text(text: str, max_length: int = 500, suffix: str = "...") -> str:
 
 def extract_salary_range(text: str) -> str:
     """
-    Attempt to extract salary/rate information from job description text.
+    Attempt to extract salary/rate/compensation information from job text or description.
 
     Args:
-        text: Job description text.
+        text: Job description text or card text.
 
     Returns:
         Salary range string or "Not listed".
     """
+    if not text:
+        return "Not listed"
+
+    # Pattern 1: Explicit Compensation label e.g. "Compensation: $250,000–$500,000 + 1%-5% equity" or "Pay: $120,000/yr"
+    p_comp = re.search(
+        r"(?:(?:salary|compensation|pay|rate)\s*[:\-–]\s*)([\$£€₹Rs\.\d,\s–—\-\+kK%a-zA-Z/]+?(?:year|yr|annum|pa|hour|hr|day|month|mo|equity|bonus|\n|$))",
+        text,
+        re.IGNORECASE,
+    )
+    if p_comp:
+        candidate = p_comp.group(1).strip()
+        # Must have at least one digit AND currency or frequency indicator
+        if any(char.isdigit() for char in candidate) and (any(c in candidate for c in ["$", "£", "€", "₹", "Rs", "LPA", "lakh"]) or re.search(r"\d+k", candidate, re.IGNORECASE)):
+            candidate_clean = candidate.split("\n")[0].strip()
+            if len(candidate_clean) > 3:
+                return candidate_clean
+
     patterns = [
-        r"\$[\d,]+(?:\s*[-–]\s*\$[\d,]+)?(?:\s*(?:per\s*)?(?:year|yr|annum|pa|hour|hr|day))?",
-        r"£[\d,]+(?:\s*[-–]\s*£[\d,]+)?(?:\s*(?:per\s*)?(?:year|yr|annum|pa|hour|hr|day))?",
-        r"€[\d,]+(?:\s*[-–]\s*€[\d,]+)?(?:\s*(?:per\s*)?(?:year|yr|annum|pa|hour|hr|day))?",
-        r"₹\s*[\d,]+(?:\s*[-–]\s*₹?\s*[\d,]+)?(?:\s*(?:per\s*)?(?:year|yr|annum|pa|hour|hr|day|month|mo|lakh|lpa))?",
-        r"Rs\.?\s*[\d,]+(?:\s*[-–]\s*Rs\.?\s*[\d,]+)?(?:\s*(?:per\s*)?(?:year|yr|annum|pa|hour|hr|day|month|mo|lakh|lpa))?",
-        r"[\d,.]+\s*(?:Lakh|LPA|Lakhs)\s*[-–]\s*[\d,.]+\s*(?:Lakh|LPA|Lakhs)?",
-        r"[\d,]+k?\s*[-–]\s*[\d,]+k?\s*(?:USD|GBP|EUR|AUD|CAD)",
+        # $250,000 - $500,000 a year / per year / etc.
+        r"(\$[\d,]+(?:\s*[\-–—to]+\s*\$?[\d,]+)?(?:\s*(?:\+|plus\s+)?(?:\d+[%–—\-]+)?(?:\s*equity|\s*bonus)?)?(?:\s*(?:a|per\s*)?(?:year|yr|annum|pa|hour|hr|day|month|mo))?)",
+        r"(£[\d,]+(?:\s*[\-–—to]+\s*£?[\d,]+)?(?:\s*(?:a|per\s*)?(?:year|yr|annum|pa|hour|hr|day|month|mo))?)",
+        r"(€[\d,]+(?:\s*[\-–—to]+\s*€?[\d,]+)?(?:\s*(?:a|per\s*)?(?:year|yr|annum|pa|hour|hr|day|month|mo))?)",
+        r"(₹\s*[\d,]+(?:\s*[\-–—to]+\s*₹?\s*[\d,]+)?(?:\s*(?:a|per\s*)?(?:year|yr|annum|pa|hour|hr|day|month|mo|lakh|lpa))?)",
+        r"(Rs\.?\s*[\d,]+(?:\s*[\-–—to]+\s*Rs\.?\s*[\d,]+)?(?:\s*(?:a|per\s*)?(?:year|yr|annum|pa|hour|hr|day|month|mo|lakh|lpa))?)",
+        r"([\d,.]+\s*(?:Lakh|LPA|Lakhs)\s*[\-–—to]+\s*[\d,.]+\s*(?:Lakh|LPA|Lakhs)?)",
+        r"([\d,]+k?\s*[\-–—to]+\s*[\d,]+k?\s*(?:USD|GBP|EUR|AUD|CAD|INR)?)",
     ]
     for pattern in patterns:
         match = re.search(pattern, text, re.IGNORECASE)
         if match:
-            return match.group(0).strip()
+            val = match.group(1).strip()
+            if any(char.isdigit() for char in val) and (any(c in val for c in ["$", "£", "€", "₹", "Rs", "LPA", "lakh"]) or re.search(r"\d+k", val, re.IGNORECASE)):
+                return val
     return "Not listed"
 
 
@@ -424,5 +444,78 @@ def extract_company_size(text: str) -> str:
         return match_size.group(1).strip().title()
 
     return "Not listed"
+
+
+def extract_experience(text: str) -> str:
+    """
+    Extract experience requirements/criteria mentioned in job text, card, or description.
+    
+    Examples extracted:
+    - "3+ years of experience" -> "3+ Years Of Experience"
+    - "5-7 years experience" -> "5-7 Years Experience"
+    - "Minimum 2 years" -> "Minimum 2 Years"
+    - "Skills required: Python (3+ yrs)" -> "3+ Yrs Experience"
+    - "Fresher" / "Entry level" -> "Entry Level / Fresher"
+    """
+    if not text:
+        return "Not specified"
+
+    # Check for entry level / fresher keywords
+    if re.search(r"\b(entry[\s-]level|fresher|freshers|no\s+experience\s+required|0\s*[-–]\s*1\s*(?:years?|yrs?))\b", text, re.IGNORECASE):
+        return "Entry Level / Fresher"
+
+    # Pattern 1: Explicit labels like "Experience: 2-7 years", "Work Experience: 3 to 5 yrs", "Min. 4+ Years"
+    explicit_patterns = [
+        r"(?:experience|exp|work\s+experience|relevant\s+experience)\s*[:\-–—]\s*(\d{1,2}(?:\s*[\-–—to]+\s*\d{1,2})?\+?\s*(?:years?|yrs?|months?|mos?)(?:\s*(?:of)?\s*(?:relevant|hands[\-–—\s]on|professional|work)?\s*experience)?)",
+        r"(?:minimum|min\.?|at\s+least)\s+(\d{1,2}(?:\s*[\-–—to]+\s*\d{1,2})?\+?\s*(?:years?|yrs?))",
+        r"(\d{1,2}(?:\s*[\-–—to]+\s*\d{1,2})?\+?\s*(?:years?|yrs?))\s+(?:of\s+)?(?:experience|proven\s+experience|relevant\s+experience)",
+    ]
+    for pat in explicit_patterns:
+        m = re.search(pat, text, re.IGNORECASE)
+        if m:
+            clean_res = re.sub(r"[–—]", "-", m.group(1).strip())
+            clean_res = re.sub(r"\s+", " ", clean_res)
+            return f"{clean_res.title()} Experience"
+
+    # Pattern 2: e.g. "2-7 years", "3+ years of experience", "5 to 8 years experience", "1-3 yrs exp"
+    p1 = re.search(
+        r"(\b\d{1,2}\s*(?:\+|[\-–—\s]*\d{1,2})?\s*(?:to\s*\d{1,2}\s*)?(?:years?|yrs?)(?:\s+(?:of\s+)?(?:experience|exp|relevant\s+experience|professional\s+experience))?\b)",
+        text,
+        re.IGNORECASE,
+    )
+    if p1:
+        match_str = p1.group(1).strip()
+        match_str = re.sub(r"\s+", " ", match_str)
+        if not re.search(r"experience|exp", match_str, re.IGNORECASE):
+            start_pos = max(0, p1.start() - 35)
+            end_pos = min(len(text), p1.end() + 35)
+            surrounding = text[start_pos:end_pos].lower()
+            if any(k in surrounding for k in ["experience", "exp", "background", "minimum", "req", "proven", "skills", "must have", "qualif"]):
+                return f"{match_str.title()} Experience"
+            elif "+" in match_str or "-" in match_str or "to" in match_str.lower():
+                return f"{match_str.title()} Experience"
+        else:
+            return match_str.title()
+
+    # Pattern 3: e.g. "Minimum 3 years", "At least 5 years", "Must have 2+ years"
+    p3 = re.search(
+        r"(\b(?:minimum|min|at\s+least|must\s+have|require[sd]?)\s+\d{1,2}\s*(?:\+|-\s*\d{1,2})?\s*(?:years?|yrs?)(?:\s+of\s+experience)?\b)",
+        text,
+        re.IGNORECASE,
+    )
+    if p3:
+        return p3.group(1).strip().title()
+
+    # Pattern 4: Skill parenthetical / bullet pattern e.g. "Python (3+ years)" or "React (2+ yrs)"
+    p_skill = re.search(
+        r"(?:\([^\)]*?(\d{1,2}\+?\s*(?:years?|yrs?))[^\)]*?\))",
+        text,
+        re.IGNORECASE,
+    )
+    if p_skill:
+        return f"{p_skill.group(1).strip().title()} Experience"
+
+    return "Not specified"
+
 
 

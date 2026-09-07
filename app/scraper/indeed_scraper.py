@@ -339,11 +339,37 @@ class IndeedScraper:
                     search_query=query,
                 )
 
+                # Extract and enrich jobs with full description directly on search page or via detail fetch
                 new_jobs = []
                 for job in jobs:
                     if not job.indeed_job_id or job.indeed_job_id not in self._seen_job_ids:
                         if job.indeed_job_id:
                             self._seen_job_ids.add(job.indeed_job_id)
+
+                        # Strategy 1: Click the job card on the active search page to load full #jobDescriptionText in the pane
+                        if job.indeed_job_id:
+                            try:
+                                card_btn = await current_page.query_selector(f"a[data-jk='{job.indeed_job_id}'], [data-jk='{job.indeed_job_id}'] a.jcs-JobTitle, a#job_{job.indeed_job_id}")
+                                if card_btn:
+                                    await card_btn.click(timeout=3000)
+                                    await asyncio.sleep(random.uniform(0.4, 0.7))
+                                    pane_html = await current_page.content()
+                                    self._parser.enrich_with_description(job, pane_html)
+                            except Exception as click_err:
+                                logger.debug("Interactive card click failed for {}: {}", job.job_title, click_err)
+
+                        # Strategy 2: Fallback to direct detail page navigation if description is still short
+                        if (not job.job_description or len(job.job_description) < 30) and job.job_url:
+                            try:
+                                detail_page = await current_context.new_page()
+                                await detail_page.goto(job.job_url, wait_until="domcontentloaded", timeout=15000)
+                                await asyncio.sleep(random.uniform(0.3, 0.6))
+                                detail_html = await detail_page.content()
+                                self._parser.enrich_with_description(job, detail_html)
+                                await detail_page.close()
+                            except Exception as detail_err:
+                                logger.debug("Detail page fetch skipped for {}: {}", job.job_title, detail_err)
+
                         new_jobs.append(job)
 
                 return new_jobs, current_page, current_context

@@ -45,9 +45,11 @@ class ExcelExporter:
             "Company",
             "Country",
             "Location/Remote Type",
+            "Experience Criteria",
             "Salary Range",
             "Industry",
             "Company Size",
+            "Job Description",
             "Posted Date",
             "Job URL",
         ]
@@ -83,9 +85,11 @@ class ExcelExporter:
                 job.company,
                 job.country,
                 job.location_remote_type,
+                job.experience,
                 job.salary_range,
                 job.industry,
                 job.company_size,
+                job.job_description,
                 posted,
                 job.job_url,
             ]
@@ -95,7 +99,7 @@ class ExcelExporter:
                 cell.border = border
                 cell.font = row_font
 
-                if col_idx == 9 and str(val).startswith("http"):  # Job URL hyperlink
+                if col_idx == 11 and str(val).startswith("http"):  # Job URL hyperlink
                     cell.value = "View on Indeed"
                     cell.hyperlink = str(val)
                     cell.font = link_font
