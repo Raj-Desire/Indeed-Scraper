@@ -181,12 +181,9 @@ function renderTable(leads) {
             <td class="px-5 py-3 text-xs text-slate-500">
                 ${esc(l.industry || 'Not listed')}
             </td>
-            <td class="px-5 py-3 text-xs text-slate-400">
-                ${esc(l.posted_date || 'Not listed')}
-            </td>
-            <td class="px-5 py-3 text-xs">
-                <div class="flex items-center gap-2">
-                    ${l.job_url ? `<a href="${esc(l.job_url)}" target="_blank" class="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-medium rounded-lg text-xs transition-colors flex items-center gap-1 shadow-sm">Apply ↗</a>` : '—'}
+            <td class="px-5 py-3 text-xs text-center">
+                <div class="flex items-center justify-center gap-2">
+                    ${l.job_url ? `<a href="${esc(l.job_url)}" target="_blank" class="px-3 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-medium rounded-lg text-xs transition-colors flex items-center gap-1 shadow-2xs">Apply ↗</a>` : '—'}
                 </div>
             </td>
         </tr>`;

@@ -50,7 +50,6 @@ class ExcelExporter:
             "Industry",
             "Company Size",
             "Job Description",
-            "Posted Date",
             "Job URL",
         ]
 
@@ -78,8 +77,6 @@ class ExcelExporter:
         )
 
         for row_idx, job in enumerate(jobs, start=2):
-            posted = job.posted_date.strftime("%Y-%m-%d") if job.posted_date else job.posted_date_raw or "Not listed"
-
             row_values = [
                 job.job_title,
                 job.company,
@@ -90,7 +87,6 @@ class ExcelExporter:
                 job.industry,
                 job.company_size,
                 job.job_description,
-                posted,
                 job.job_url,
             ]
 
@@ -99,7 +95,7 @@ class ExcelExporter:
                 cell.border = border
                 cell.font = row_font
 
-                if col_idx == 11 and str(val).startswith("http"):  # Job URL hyperlink
+                if col_idx == 10 and str(val).startswith("http"):  # Job URL hyperlink
                     cell.value = "View on Indeed"
                     cell.hyperlink = str(val)
                     cell.font = link_font
