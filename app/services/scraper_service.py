@@ -14,6 +14,7 @@ from app.config.settings import get_settings
 from app.excel.exporter import ExcelExporter
 from app.filters.date_filter import DateFilter
 from app.filters.dedup_filter import DedupFilter
+from app.matching.match_service import MatchService
 from app.models.job import JobPosting
 from app.models.scraper import RunConfig, ScraperProgress, ScraperSession, ScraperStatus
 from app.scraper.indeed_scraper import IndeedScraper
@@ -34,6 +35,7 @@ class ScraperService:
         self._date_filter = DateFilter(max_age_hours=self._settings.filter_max_age_hours)
         self._dedup_filter = DedupFilter()
         self._exporter = ExcelExporter()
+        self._match_service = MatchService() if self._settings.enable_kb_matching else None
 
         logger.info("ScraperService initialized (simple mode)")
 
@@ -102,6 +104,13 @@ class ScraperService:
                 if not deduped:
                     continue
 
+                if self._match_service is not None:
+                    for matched_job in deduped:
+                        try:
+                            await self._match_service.evaluate_job(matched_job)
+                        except Exception as match_err:
+                            logger.error("KB matching error for '{}': {}", matched_job.job_title, match_err)
+
                 self._results.extend(deduped)
                 # Sync progress.jobs_found with active unique results count
                 self._scraper.progress.jobs_found = len(self._results)
@@ -135,6 +144,12 @@ class ScraperService:
                 progress.status = ScraperStatus.ERROR
                 progress.last_error = str(exc)
                 self._broadcast_progress(progress)
+        finally:
+            if self._match_service is not None:
+                try:
+                    await self._match_service.close()
+                except Exception as close_err:
+                    logger.error("Error closing match service: {}", close_err)
 
     async def export_sharepoint(self) -> int:
         """Export current session results to SharePoint List via Graph API."""
