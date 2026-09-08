@@ -50,6 +50,10 @@ class ExcelExporter:
             "Industry",
             "Company Size",
             "Job Description",
+            "Match Score",
+            "Matched Skills",
+            "Missing Skills",
+            "Match Reason",
             "Job URL",
         ]
 
@@ -87,6 +91,10 @@ class ExcelExporter:
                 job.industry,
                 job.company_size,
                 job.job_description,
+                job.match_score if job.match_score is not None else "",
+                ", ".join(job.matched_skills),
+                ", ".join(job.missing_skills),
+                job.match_reason,
                 job.job_url,
             ]
 
@@ -95,7 +103,7 @@ class ExcelExporter:
                 cell.border = border
                 cell.font = row_font
 
-                if col_idx == 10 and str(val).startswith("http"):  # Job URL hyperlink
+                if col_idx == 14 and str(val).startswith("http"):  # Job URL hyperlink
                     cell.value = "View on Indeed"
                     cell.hyperlink = str(val)
                     cell.font = link_font
