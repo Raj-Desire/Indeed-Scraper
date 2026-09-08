@@ -97,8 +97,92 @@ async function startSearch() {
 }
 
 async function stopSearch() {
+    if (pollTimer) {
+        clearInterval(pollTimer);
+        pollTimer = null;
+    }
     await fetch('/api/scraper/stop', { method: 'POST' });
     document.getElementById('search-status').textContent = 'Status: Stopping...';
+}
+
+let lastLeadsHash = '';
+let isUserHoveringSkills = false;
+
+// Global floating tooltip element
+let globalTooltip = null;
+
+function initGlobalTooltip() {
+    if (globalTooltip) return;
+    globalTooltip = document.createElement('div');
+    globalTooltip.id = 'skills-floating-tooltip';
+    globalTooltip.className = 'fixed z-[9999] hidden flex-col bg-white border border-slate-200 rounded-xl shadow-2xl p-3 min-w-[220px] max-w-[340px] pointer-events-none transition-opacity duration-150 text-xs';
+    document.body.appendChild(globalTooltip);
+}
+
+function showSkillsTooltip(event, type, skillsJson) {
+    initGlobalTooltip();
+    isUserHoveringSkills = true;
+    let skills = [];
+    try {
+        skills = typeof skillsJson === 'string' ? JSON.parse(decodeURIComponent(skillsJson)) : skillsJson;
+    } catch(e) {
+        skills = [];
+    }
+
+    if (!skills || skills.length === 0) return;
+
+    const isMatched = type === 'matched';
+    const titleColor = isMatched ? 'text-emerald-800' : 'text-rose-800';
+    const titleIcon = isMatched ? '✓ All Matched Skills' : '✕ All Missing Skills';
+    const badgeBg = isMatched 
+        ? 'bg-emerald-50 text-emerald-800 border-emerald-200' 
+        : 'bg-rose-50 text-rose-700 border-rose-200';
+
+    const badgesHtml = skills.map(s => 
+        `<span class="inline-block ${badgeBg} border text-[10px] font-medium px-1.5 py-0.5 rounded shadow-2xs">${esc(s)}</span>`
+    ).join(' ');
+
+    globalTooltip.innerHTML = `
+        <div class="text-[10px] font-bold ${titleColor} uppercase tracking-wider mb-2 flex items-center justify-between border-b border-slate-100 pb-1">
+            <span>${titleIcon}</span>
+            <span class="font-extrabold bg-slate-100 px-1.5 py-0.2 rounded-full text-slate-700 text-[9px]">${skills.length}</span>
+        </div>
+        <div class="flex flex-wrap gap-1 max-h-[220px] overflow-y-auto pr-0.5">
+            ${badgesHtml}
+        </div>
+    `;
+
+    globalTooltip.classList.remove('hidden');
+    positionSkillsTooltip(event.currentTarget || event.target);
+}
+
+function positionSkillsTooltip(targetEl) {
+    if (!globalTooltip || !targetEl) return;
+    const rect = targetEl.getBoundingClientRect();
+    const tooltipRect = globalTooltip.getBoundingClientRect();
+
+    let top = rect.top - tooltipRect.height - 8;
+    let left = rect.left;
+
+    // If top is outside viewport (or clipped by sticky header), show below target
+    if (top < 10) {
+        top = rect.bottom + 8;
+    }
+    // If right side goes outside viewport, shift left
+    if (left + tooltipRect.width > window.innerWidth - 16) {
+        left = window.innerWidth - tooltipRect.width - 16;
+    }
+    if (left < 10) left = 10;
+
+    globalTooltip.style.top = `${top}px`;
+    globalTooltip.style.left = `${left}px`;
+}
+
+function hideSkillsTooltip() {
+    isUserHoveringSkills = false;
+    if (globalTooltip) {
+        globalTooltip.classList.add('hidden');
+    }
 }
 
 async function fetchLeads() {
@@ -107,7 +191,15 @@ async function fetchLeads() {
         const data = await res.json();
         allLeads = data.leads || [];
 
-        renderTable(allLeads);
+        // Check if data actually changed to prevent DOM blinking
+        const currentHash = JSON.stringify(allLeads.map(l => [l.id, l.match_score, l.job_title, l.company]));
+        if (currentHash !== lastLeadsHash) {
+            // Only update table if content changed AND user is not actively hovering skills popup
+            if (!isUserHoveringSkills) {
+                lastLeadsHash = currentHash;
+                renderTable(allLeads);
+            }
+        }
 
         // Show download & SharePoint sync buttons if leads exist
         const navDl = document.getElementById('nav-download-btn');
@@ -133,20 +225,81 @@ function renderTable(leads) {
     if (!leads || leads.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="10" class="px-5 py-12 text-center text-slate-400 font-medium">
+                <td colspan="13" class="px-5 py-12 text-center text-slate-400 font-medium">
                     No leads found yet. Click <strong class="text-slate-700">"Search Jobs"</strong> above.
                 </td>
             </tr>`;
         return;
     }
 
-    tbody.innerHTML = leads.map(l => {
+    // Sort leads client-side: Highest Match Score first (unranked at bottom)
+    const sortedLeads = [...leads].sort((a, b) => {
+        const scoreA = (a.match_score !== null && a.match_score !== undefined) ? Number(a.match_score) : -1;
+        const scoreB = (b.match_score !== null && b.match_score !== undefined) ? Number(b.match_score) : -1;
+        return scoreB - scoreA;
+    });
+
+    tbody.innerHTML = sortedLeads.map(l => {
         const descSnippet = l.job_description ? (l.job_description.length > 80 ? l.job_description.slice(0, 80) + '...' : l.job_description) : 'No description available';
         const expText = l.experience || 'Not specified';
         const isFresher = expText.toLowerCase().includes('fresher') || expText.toLowerCase().includes('entry');
         const expBadgeClass = isFresher 
             ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
             : (expText !== 'Not specified' ? 'bg-amber-50 text-amber-800 border-amber-200' : 'bg-slate-100 text-slate-500 border-slate-200');
+
+        // Match Score Badge styling
+        let matchScoreBadge = '<span class="text-slate-400 text-[11px] font-medium">—</span>';
+        if (l.match_score !== null && l.match_score !== undefined) {
+            const score = Number(l.match_score);
+            let badgeBg = 'bg-slate-100 text-slate-700 border-slate-200';
+            if (score >= 75) {
+                badgeBg = 'bg-emerald-50 text-emerald-800 border-emerald-300 font-bold';
+            } else if (score >= 50) {
+                badgeBg = 'bg-blue-50 text-blue-800 border-blue-300 font-bold';
+            } else if (score >= 25) {
+                badgeBg = 'bg-amber-50 text-amber-800 border-amber-300 font-bold';
+            } else {
+                badgeBg = 'bg-rose-50 text-rose-700 border-rose-300 font-semibold';
+            }
+            matchScoreBadge = `<span class="inline-flex items-center justify-center min-w-[42px] px-2 py-0.5 rounded-full text-xs border shadow-2xs ${badgeBg}">${score}%</span>`;
+        }
+
+        // Matched Skills Tags with Floating Portal Hover Tooltip
+        let matchedSkillsHtml = '<span class="text-slate-400 text-[11px]">—</span>';
+        if (l.matched_skills && l.matched_skills.length > 0) {
+            const visible = l.matched_skills.slice(0, 2).map(s => `<span class="inline-block bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-medium px-1.5 py-0.5 rounded">${esc(s)}</span>`).join(' ');
+            const remainingCount = l.matched_skills.length - 2;
+            const encodedSkills = encodeURIComponent(JSON.stringify(l.matched_skills));
+
+            matchedSkillsHtml = `
+                <div class="inline-flex flex-wrap gap-1 items-center cursor-pointer"
+                     onmouseenter="showSkillsTooltip(event, 'matched', '${encodedSkills}')"
+                     onmouseleave="hideSkillsTooltip()">
+                    ${visible}
+                    ${remainingCount > 0 ? `<span class="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded-full border border-emerald-300 hover:bg-emerald-200 transition-colors">+${remainingCount}</span>` : ''}
+                </div>
+            `;
+        }
+
+        // Missing Skills Tags with Floating Portal Hover Tooltip
+        let missingSkillsHtml = '<span class="text-slate-400 text-[11px]">—</span>';
+        if (l.missing_skills && l.missing_skills.length > 0) {
+            const visible = l.missing_skills.slice(0, 2).map(s => `<span class="inline-block bg-rose-50 text-rose-700 border border-rose-200 text-[10px] font-medium px-1.5 py-0.5 rounded">${esc(s)}</span>`).join(' ');
+            const remainingCount = l.missing_skills.length - 2;
+            const encodedSkills = encodeURIComponent(JSON.stringify(l.missing_skills));
+
+            missingSkillsHtml = `
+                <div class="inline-flex flex-wrap gap-1 items-center cursor-pointer"
+                     onmouseenter="showSkillsTooltip(event, 'missing', '${encodedSkills}')"
+                     onmouseleave="hideSkillsTooltip()">
+                    ${visible}
+                    ${remainingCount > 0 ? `<span class="text-[10px] bg-rose-100 text-rose-800 font-bold px-1.5 py-0.5 rounded-full border border-rose-300 hover:bg-rose-200 transition-colors">+${remainingCount}</span>` : ''}
+                </div>
+            `;
+        }
+
+        // Match Reason snippet
+        const reasonSnippet = l.match_reason ? (l.match_reason.length > 90 ? l.match_reason.slice(0, 90) + '...' : l.match_reason) : '—';
 
         return `
         <tr class="border-b border-slate-100 hover:bg-slate-50/80 transition-colors">
@@ -157,11 +310,27 @@ function renderTable(leads) {
             <td class="px-5 py-3 text-xs font-medium text-slate-700">
                 ${esc(l.company)}
             </td>
-            <td class="px-5 py-3 text-xs font-bold text-blue-600">
+            <td class="px-5 py-3 text-xs font-bold text-blue-600 text-center">
                 ${esc(l.country || 'US')}
             </td>
             <td class="px-5 py-3 text-xs text-slate-600">
                 ${esc(l.location_remote_type || l.location || l.remote_type || 'Not listed')}
+            </td>
+            <td class="px-5 py-3 text-xs text-center">
+                ${matchScoreBadge}
+            </td>
+            <td class="px-5 py-3 text-xs max-w-[180px]">
+                <div class="flex flex-wrap gap-1 items-center">
+                    ${matchedSkillsHtml}
+                </div>
+            </td>
+            <td class="px-5 py-3 text-xs max-w-[180px]">
+                <div class="flex flex-wrap gap-1 items-center">
+                    ${missingSkillsHtml}
+                </div>
+            </td>
+            <td class="px-5 py-3 text-xs text-slate-600 max-w-[220px]">
+                <div class="text-[11px] leading-relaxed line-clamp-2" title="${esc(l.match_reason || '')}">${esc(reasonSnippet)}</div>
             </td>
             <td class="px-5 py-3 text-xs">
                 <span class="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${expBadgeClass}">
@@ -201,6 +370,38 @@ function openDescriptionModal(jobId) {
     document.getElementById('modal-location').textContent = job.location_remote_type || job.location || 'Not listed';
     document.getElementById('modal-industry').textContent = job.industry || 'Not listed';
     
+    // AI Match Card population
+    const matchScoreEl = document.getElementById('modal-match-score');
+    const matchedSkillsEl = document.getElementById('modal-matched-skills');
+    const missingSkillsEl = document.getElementById('modal-missing-skills');
+    const matchReasonEl = document.getElementById('modal-match-reason');
+
+    if (job.match_score !== null && job.match_score !== undefined) {
+        const score = Number(job.match_score);
+        matchScoreEl.textContent = `${score}% Match`;
+        matchScoreEl.className = 'px-2.5 py-0.5 rounded-full text-xs font-bold border shadow-2xs ' + 
+            (score >= 75 ? 'bg-emerald-100 text-emerald-800 border-emerald-300' :
+             score >= 50 ? 'bg-blue-100 text-blue-800 border-blue-300' :
+             score >= 25 ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-rose-100 text-rose-800 border-rose-300');
+    } else {
+        matchScoreEl.textContent = 'Not Evaluated';
+        matchScoreEl.className = 'px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-500 border border-slate-200';
+    }
+
+    if (job.matched_skills && job.matched_skills.length) {
+        matchedSkillsEl.innerHTML = job.matched_skills.map(s => `<span class="inline-block bg-emerald-50 text-emerald-800 border border-emerald-200 text-[11px] font-medium px-2 py-0.5 rounded-md">${esc(s)}</span>`).join('');
+    } else {
+        matchedSkillsEl.innerHTML = '<span class="text-slate-400 italic text-[11px]">No specific skills matched</span>';
+    }
+
+    if (job.missing_skills && job.missing_skills.length) {
+        missingSkillsEl.innerHTML = job.missing_skills.map(s => `<span class="inline-block bg-rose-50 text-rose-700 border border-rose-200 text-[11px] font-medium px-2 py-0.5 rounded-md">${esc(s)}</span>`).join('');
+    } else {
+        missingSkillsEl.innerHTML = '<span class="text-slate-400 italic text-[11px]">No missing skills detected</span>';
+    }
+
+    matchReasonEl.textContent = job.match_reason || 'No evaluation rationale available.';
+
     const descEl = document.getElementById('modal-description-content');
     if (job.job_description && job.job_description.trim()) {
         descEl.textContent = job.job_description;
@@ -299,6 +500,11 @@ function connectWebSocket() {
         }
 
         if (p.status === 'completed' || p.status === 'idle' || p.status === 'stopped') {
+            if (pollTimer) {
+                clearInterval(pollTimer);
+                pollTimer = null;
+            }
+            fetchLeads(); // Final update
             document.getElementById('btn-search').disabled = false;
             document.getElementById('btn-stop').disabled = true;
             if (p.status === 'completed') {

@@ -154,6 +154,10 @@
                     <th class="px-5 py-3.5 font-bold">Company</th>
                     <th class="px-5 py-3.5 font-bold text-center">Country</th>
                     <th class="px-5 py-3.5 font-bold">Location / Type</th>
+                    <th class="px-5 py-3.5 font-bold text-center">Match Score</th>
+                    <th class="px-5 py-3.5 font-bold">Matched Skills</th>
+                    <th class="px-5 py-3.5 font-bold">Missing Skills</th>
+                    <th class="px-5 py-3.5 font-bold">Match Reason</th>
                     <th class="px-5 py-3.5 font-bold">Experience Criteria</th>
                     <th class="px-5 py-3.5 font-bold">Salary / Compensation</th>
                     <th class="px-5 py-3.5 font-bold">Job Description</th>
@@ -163,7 +167,7 @@
             </thead>
             <tbody id="leads-body" class="divide-y divide-slate-100 text-slate-700">
                 <tr>
-                    <td colspan="9" class="px-5 py-16 text-center text-slate-400 font-medium">
+                    <td colspan="13" class="px-5 py-16 text-center text-slate-400 font-medium">
                         Enter your job role above and click <strong class="text-slate-700">"Search Jobs"</strong> to fetch leads.
                     </td>
                 </tr>
@@ -204,7 +208,36 @@
             </div>
         </div>
 
-        <div class="p-6 overflow-y-auto max-h-[55vh] space-y-3 bg-white">
+        <div class="p-6 overflow-y-auto max-h-[55vh] space-y-4 bg-white">
+            <!-- AI Match Analysis Card -->
+            <div id="modal-ai-card" class="bg-gradient-to-r from-blue-50/70 to-indigo-50/70 border border-blue-200/80 rounded-xl p-4.5 space-y-3">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <span class="text-base">🤖</span>
+                        <span class="text-xs font-bold uppercase tracking-wider text-blue-900">AI Knowledge Base Match</span>
+                    </div>
+                    <span id="modal-match-score" class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-white text-blue-800 border border-blue-200 shadow-2xs">—</span>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+                    <div>
+                        <span class="text-[10px] font-bold text-emerald-800 uppercase block mb-1">Matched Skills</span>
+                        <div id="modal-matched-skills" class="flex flex-wrap gap-1 text-[11px] text-slate-700">
+                            <!-- Injected -->
+                        </div>
+                    </div>
+                    <div>
+                        <span class="text-[10px] font-bold text-rose-800 uppercase block mb-1">Missing / Gap Skills</span>
+                        <div id="modal-missing-skills" class="flex flex-wrap gap-1 text-[11px] text-slate-700">
+                            <!-- Injected -->
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <span class="text-[10px] font-bold text-slate-500 uppercase block mb-0.5">Evaluation Reason</span>
+                    <p id="modal-match-reason" class="text-xs text-slate-700 leading-relaxed italic bg-white/70 p-2.5 rounded-lg border border-blue-100/70">—</p>
+                </div>
+            </div>
+
             <h4 class="text-xs font-bold uppercase tracking-wider text-slate-500">Full Job Description & Requirements</h4>
             <div id="modal-description-content" class="text-slate-700 text-sm whitespace-pre-line leading-relaxed font-sans bg-slate-50 p-5 rounded-xl border border-slate-200">
                 <!-- Injected dynamically by JS -->

@@ -20,77 +20,209 @@ from app.matching.models import MatchResult
 from app.utils.logger import logger
 
 _SYSTEM_PROMPT = (
-    "You are a recruiting analyst. Given a job description and excerpts from the "
-    "company's own capability/experience knowledge base, judge how well the company's "
-    "demonstrated experience matches the job's required technologies and responsibilities "
-    "(pay close attention to exact technology names such as SharePoint, SPFx, Power BI, "
-    "Power Apps, Dynamics 365, Azure, RAG, Python). "
-    "Respond ONLY with a JSON object with keys: "
-    "match_score (integer 0-100), matched_skills (array of strings), "
-    "missing_skills (array of strings), match_reason (short string)."
+    "You are a technical capabilities analyst. Your task is to compare JOB REQUIREMENTS against the provided COMPANY CAPABILITIES.\n\n"
+    "RULES:\n"
+    "1. Read the COMPANY CAPABILITIES carefully. Any technology, tool, methodology, or skill mentioned or demonstrated in the capabilities is a MATCH.\n"
+    "2. 'matched_skills': List of specific technical skills/tools from the job that our company possesses based on the capabilities text.\n"
+    "3. 'missing_skills': ONLY list skills required by the job that are completely absent from the company capabilities.\n"
+    "4. 'match_score': Integer (0-100) representing how well the company meets the required technical stack.\n"
+    "5. 'match_reason': 1-2 sentence factual summary of the match.\n"
+    "6. Respond strictly with a JSON object:\n"
+    '{\n'
+    '  "match_score": 85,\n'
+    '  "matched_skills": ["Skill1", "Skill2"],\n'
+    '  "missing_skills": ["Skill3"],\n'
+    '  "match_reason": "Summary of fit."\n'
+    '}'
 )
 
 
 class LLMMatcher:
-    """Evaluates job-to-company fit using an Azure OpenAI chat deployment."""
+    """Evaluates job-to-company fit using NVIDIA NIM or Azure OpenAI chat deployment."""
 
     def __init__(self, client=None, enabled: Optional[bool] = None, deployment: Optional[str] = None) -> None:
         """
         Args:
-            client: Optional pre-built openai.AsyncAzureOpenAI client, for tests.
+            client: Optional pre-built AsyncOpenAI / AsyncAzureOpenAI client, for tests.
             enabled: Override for whether evaluation is active (tests only).
-            deployment: Override for the chat deployment name (tests only).
+            deployment: Override for the chat deployment / model name (tests only).
         """
         settings = get_settings()
-        self._deployment = deployment if deployment is not None else settings.azure_openai_chat_deployment
+        self._provider = settings.llm_provider.lower()
+        self._deployment = deployment
 
         if client is not None:
             self._client = client
             self._enabled = True if enabled is None else enabled
+            self._deployment = self._deployment or settings.nvidia_model
             return
 
-        self._enabled = bool(
-            settings.azure_openai_endpoint and settings.azure_openai_api_key and settings.azure_openai_chat_deployment
-        )
-        self._client = None
-        if not self._enabled:
-            logger.warning(
-                "Azure OpenAI is not fully configured (endpoint/api key/deployment) - LLM matching disabled."
+        if self._provider == "nvidia" or self._provider == "openai":
+            api_key = settings.nvidia_api_key.strip()
+            base_url = settings.nvidia_base_url.strip() or "https://integrate.api.nvidia.com/v1"
+            model = self._deployment or settings.nvidia_model.strip()
+
+            self._enabled = bool(api_key and model)
+            self._deployment = model
+            self._client = None
+
+            if not self._enabled:
+                logger.warning(
+                    "NVIDIA LLM is not fully configured (NVIDIA_API_KEY/NVIDIA_MODEL) - LLM matching disabled."
+                )
+                return
+
+            from openai import AsyncOpenAI
+            self._client = AsyncOpenAI(
+                base_url=base_url,
+                api_key=api_key,
             )
-            return
+            logger.info("Initialized LLMMatcher with NVIDIA NIM model '{}'", self._deployment)
 
-        from openai import AsyncAzureOpenAI
+        elif self._provider == "azure":
+            self._deployment = self._deployment or settings.azure_openai_chat_deployment
+            self._enabled = bool(
+                settings.azure_openai_endpoint and settings.azure_openai_api_key and self._deployment
+            )
+            self._client = None
+            if not self._enabled:
+                logger.warning(
+                    "Azure OpenAI is not fully configured (endpoint/api key/deployment) - LLM matching disabled."
+                )
+                return
 
-        self._client = AsyncAzureOpenAI(
-            azure_endpoint=settings.azure_openai_endpoint,
-            api_key=settings.azure_openai_api_key,
-            api_version=settings.azure_openai_api_version,
-        )
+            from openai import AsyncAzureOpenAI
+            self._client = AsyncAzureOpenAI(
+                azure_endpoint=settings.azure_openai_endpoint,
+                api_key=settings.azure_openai_api_key,
+                api_version=settings.azure_openai_api_version,
+            )
+            logger.info("Initialized LLMMatcher with Azure OpenAI deployment '{}'", self._deployment)
+        else:
+            self._enabled = False
+            self._client = None
+            logger.warning("Unknown LLM_PROVIDER '{}' - LLM matching disabled.", self._provider)
 
     async def evaluate(self, job_description: str, kb_chunks: list[RetrievedChunk]) -> MatchResult:
         """Return a structured match result. Never raises - any failure yields a safe default."""
         if not self._enabled or not self._client:
             return MatchResult(match_score=None, matched_skills=[], missing_skills=[], match_reason="LLM matching not configured")
 
-        context = "\n\n".join(f"[{c.title}] {c.chunk}" for c in kb_chunks) or "No company knowledge retrieved."
-        user_prompt = f"JOB DESCRIPTION:\n{job_description}\n\nCOMPANY KNOWLEDGE BASE EXCERPTS:\n{context}"
+        # --- Token & Quality Optimization ---
+        # 1. Clean job description (first 2,000 chars covers core role and requirements)
+        cleaned_jd = job_description.strip()[:2000] if job_description else ""
+        
+        # 2. Extract rich snippet excerpts from chunks (up to 450 chars) so full technical context is preserved
+        compact_chunks = []
+        for c in (kb_chunks or []):
+            snippet = (c.chunk or "").strip()[:450].replace("\n", " ")
+            if snippet:
+                compact_chunks.append(f"- {snippet}")
+        
+        context = "\n".join(compact_chunks) or "No company knowledge retrieved."
+        user_prompt = (
+            f"You are matching a candidate company against a job posting.\n\n"
+            f"COMPANY CAPABILITIES:\n{context}\n\n"
+            f"JOB REQUIREMENTS:\n{cleaned_jd}\n\n"
+            f"INSTRUCTIONS:\n"
+            f"1. Extract the specific technical skills/requirements needed by the job.\n"
+            f"2. Put skills that exist in COMPANY CAPABILITIES into 'matched_skills'.\n"
+            f"3. Put skills that are absent from COMPANY CAPABILITIES into 'missing_skills'.\n"
+            f"4. Calculate 'match_score' (0-100) and write a short 'match_reason'.\n\n"
+            f"JSON Output Format:\n"
+            f'{{\n  "match_score": 80,\n  "matched_skills": ["Skill1", "Skill2"],\n  "missing_skills": ["Skill3"],\n  "match_reason": "Summary of fit"\n}}'
+        )
 
         try:
-            response = await self._client.chat.completions.create(
-                model=self._deployment,
-                messages=[
+            kwargs = {
+                "model": self._deployment,
+                "messages": [
                     {"role": "system", "content": _SYSTEM_PROMPT},
                     {"role": "user", "content": user_prompt},
                 ],
-                response_format={"type": "json_object"},
-                temperature=0.2,
-            )
-            payload = json.loads(response.choices[0].message.content)
+                "temperature": 0.1,
+                "max_tokens": 600,  # Generous headroom to prevent JSON truncation
+            }
+
+            # If supported / Azure OpenAI standard gpt models
+            if self._provider == "azure" and "phi" not in str(self._deployment).lower():
+                kwargs["response_format"] = {"type": "json_object"}
+
+            response = await self._client.chat.completions.create(**kwargs)
+            raw_content = (response.choices[0].message.content or "").strip()
+            
+            # Robust JSON extraction handling markdown blocks (```json ... ```)
+            import re
+            json_str = raw_content
+            code_block_match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", raw_content, re.IGNORECASE)
+            if code_block_match:
+                json_str = code_block_match.group(1).strip()
+            else:
+                brace_match = re.search(r"\{[\s\S]*\}", raw_content)
+                if brace_match:
+                    json_str = brace_match.group(0).strip()
+
+            try:
+                payload = json.loads(json_str)
+            except Exception:
+                # Fallback: remove trailing incomplete lines if cut off
+                cleaned_fallback = re.sub(r',\s*$', '', json_str)
+                payload = json.loads(cleaned_fallback)
+
+            matched_list = [str(s) for s in payload.get("matched_skills", [])]
+            missing_list = [str(s) for s in payload.get("missing_skills", [])]
+            reason = str(payload.get("match_reason", "")).strip()
+
+            # --- Fully Dynamic Semantic & Substring Reconciliation ---
+            # Automatically verifies any skill phrase against the retrieved knowledge context.
+            # No hardcoded skills: works dynamically for ANY new service added to the knowledge base in the future.
+            context_lower = " " + re.sub(r"[^\w\s]", " ", context.lower()) + " "
+            cleaned_missing = []
+            
+            # Common stop words to ignore when checking multi-word phrases
+            stopwords = {"experience", "with", "and", "or", "in", "for", "the", "a", "an", "of", "to", "strong", "knowledge", "skills", "using", "hands-on"}
+
+            for skill in missing_list:
+                s_clean = skill.strip()
+                tokens = [t.lower() for t in re.findall(r"\b[\w\+\#\.\-]+\b", s_clean) if t.lower() not in stopwords and len(t) > 1]
+                
+                # Check if significant terms appear in retrieved context
+                is_present_in_context = False
+                if tokens:
+                    significant_matches = [t for t in tokens if f" {t} " in context_lower or t in context_lower]
+                    if len(significant_matches) >= 1 and (len(significant_matches) / len(tokens) >= 0.5 or len(tokens) == 1):
+                        is_present_in_context = True
+
+                if is_present_in_context:
+                    if skill not in matched_list:
+                        matched_list.append(skill)
+                else:
+                    cleaned_missing.append(skill)
+
+            # --- Strict Mathematical Match Score Calculation ---
+            # If 0 skills are missing and matched skills exist, score is 100%.
+            # Otherwise, score is exactly the ratio of matched skills to total identified skills.
+            total_skills = len(matched_list) + len(cleaned_missing)
+            if total_skills > 0:
+                if len(cleaned_missing) == 0 and len(matched_list) > 0:
+                    score = 100
+                else:
+                    score = int(round((len(matched_list) / total_skills) * 100))
+            else:
+                raw_score = payload.get("match_score")
+                score = int(raw_score) if raw_score is not None else 0
+
+            if not reason:
+                if len(matched_list) > 0:
+                    reason = f"Company demonstrates strong capabilities in {', '.join(matched_list[:3])}."
+                else:
+                    reason = "No direct company capabilities found for this role."
+
             return MatchResult(
-                match_score=int(payload.get("match_score", 0)),
-                matched_skills=[str(s) for s in payload.get("matched_skills", [])],
-                missing_skills=[str(s) for s in payload.get("missing_skills", [])],
-                match_reason=str(payload.get("match_reason", "")),
+                match_score=score,
+                matched_skills=matched_list,
+                missing_skills=cleaned_missing,
+                match_reason=reason,
             )
         except Exception as exc:
             logger.error("LLM match evaluation failed: {}", exc)
@@ -101,4 +233,5 @@ class LLMMatcher:
             try:
                 await self._client.close()
             except Exception as exc:
-                logger.error("Error closing Azure OpenAI client: {}", exc)
+                logger.error("Error closing LLM client: {}", exc)
+

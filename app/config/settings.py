@@ -54,9 +54,15 @@ class Settings(BaseSettings):
     azure_search_endpoint: str = Field(default="", description="Azure AI Search service endpoint URL")
     azure_search_index: str = Field(default="", description="Azure AI Search index name (existing KB index)")
     azure_search_api_key: str = Field(default="", description="Azure AI Search admin/query API key")
-    azure_search_top_k: int = Field(default=5, description="Number of KB chunks to retrieve per job")
+    azure_search_top_k: int = Field(default=10, description="Number of KB chunks to retrieve per job")
 
-    # Azure OpenAI (LLM job-match evaluation)
+    # LLM Settings (supports Azure OpenAI / Azure AI Foundry / OpenAI / NVIDIA NIM)
+    llm_provider: str = Field(default="azure", description="LLM provider: 'azure', 'openai', or 'nvidia'")
+    nvidia_api_key: str = Field(default="", description="NVIDIA NIM API key")
+    nvidia_base_url: str = Field(default="https://integrate.api.nvidia.com/v1", description="NVIDIA NIM base URL")
+    nvidia_model: str = Field(default="nvidia/nemotron-3-ultra-550b-a55b", description="NVIDIA model name")
+
+    # Azure OpenAI (Legacy / Alternative)
     azure_openai_endpoint: str = Field(default="", description="Azure OpenAI endpoint URL")
     azure_openai_api_key: str = Field(default="", description="Azure OpenAI API key")
     azure_openai_api_version: str = Field(default="2024-06-01", description="Azure OpenAI REST API version")

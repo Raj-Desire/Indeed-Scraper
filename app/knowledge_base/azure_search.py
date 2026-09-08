@@ -66,12 +66,14 @@ class AzureSearchKnowledgeBase:
             return []
 
         k = top_k or self._top_k
+        # Optimize query for vectorizer (first 1500 chars of core technical requirements)
+        search_query = query_text.strip()[:1500]
         try:
             from azure.search.documents.models import VectorizableTextQuery
 
-            vector_query = VectorizableTextQuery(text=query_text, k_nearest_neighbors=k, fields="text_vector")
+            vector_query = VectorizableTextQuery(text=search_query, k_nearest_neighbors=k, fields="text_vector")
             results = await self._client.search(
-                search_text=query_text,
+                search_text=search_query,
                 vector_queries=[vector_query],
                 select=["chunk_id", "parent_id", "title", "chunk"],
                 top=k,
@@ -81,10 +83,10 @@ class AzureSearchKnowledgeBase:
             async for result in results:
                 chunks.append(
                     RetrievedChunk(
-                        chunk_id=result.get("chunk_id", ""),
-                        parent_id=result.get("parent_id", ""),
-                        title=result.get("title", ""),
-                        chunk=result.get("chunk", ""),
+                        chunk_id=str(result.get("chunk_id") or ""),
+                        parent_id=str(result.get("parent_id") or ""),
+                        title=str(result.get("title") or ""),
+                        chunk=str(result.get("chunk") or ""),
                         score=float(result.get("@search.score", 0.0) or 0.0),
                     )
                 )

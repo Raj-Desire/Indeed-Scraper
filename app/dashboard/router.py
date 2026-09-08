@@ -99,6 +99,9 @@ async def api_get_leads(
             if sq in j.job_title.lower() or sq in j.company.lower() or sq in j.location.lower()
         ]
 
+    # Sort leads by match_score descending (highest score on top, unranked at bottom)
+    leads.sort(key=lambda j: (j.match_score is not None, j.match_score or 0), reverse=True)
+
     def serialize(j):
         return {
             "id": str(j.id),
@@ -116,6 +119,10 @@ async def api_get_leads(
             "remote_type": j.remote_type,
             "posted_date": j.posted_date.isoformat() if j.posted_date else j.posted_date_raw,
             "job_url": j.job_url,
+            "match_score": j.match_score,
+            "matched_skills": j.matched_skills or [],
+            "missing_skills": j.missing_skills or [],
+            "match_reason": j.match_reason or "",
         }
 
     return {
