@@ -70,7 +70,7 @@ class LLMMatcher:
     async def evaluate(self, job_description: str, kb_chunks: list[RetrievedChunk]) -> MatchResult:
         """Return a structured match result. Never raises - any failure yields a safe default."""
         if not self._enabled or not self._client:
-            return MatchResult(match_score=0, matched_skills=[], missing_skills=[], match_reason="LLM matching not configured")
+            return MatchResult(match_score=None, matched_skills=[], missing_skills=[], match_reason="LLM matching not configured")
 
         context = "\n\n".join(f"[{c.title}] {c.chunk}" for c in kb_chunks) or "No company knowledge retrieved."
         user_prompt = f"JOB DESCRIPTION:\n{job_description}\n\nCOMPANY KNOWLEDGE BASE EXCERPTS:\n{context}"
@@ -94,7 +94,7 @@ class LLMMatcher:
             )
         except Exception as exc:
             logger.error("LLM match evaluation failed: {}", exc)
-            return MatchResult(match_score=0, matched_skills=[], missing_skills=[], match_reason=f"Evaluation failed: {exc}")
+            return MatchResult(match_score=None, matched_skills=[], missing_skills=[], match_reason=f"Evaluation failed: {exc}")
 
     async def close(self) -> None:
         if self._client and hasattr(self._client, "close"):

@@ -35,7 +35,7 @@ class ScraperService:
         self._date_filter = DateFilter(max_age_hours=self._settings.filter_max_age_hours)
         self._dedup_filter = DedupFilter()
         self._exporter = ExcelExporter()
-        self._match_service = MatchService() if self._settings.enable_kb_matching else None
+        self._match_service: Optional[MatchService] = None
 
         logger.info("ScraperService initialized (simple mode)")
 
@@ -95,6 +95,9 @@ class ScraperService:
     async def _run_pipeline(self, config: RunConfig) -> None:
         """Execute pipeline for a single run."""
         try:
+            if self._match_service is None and self._settings.enable_kb_matching:
+                self._match_service = MatchService()
+
             async for job in self._scraper.scrape(config):
                 filtered = self._date_filter.filter([job])
                 if not filtered:
@@ -150,6 +153,8 @@ class ScraperService:
                     await self._match_service.close()
                 except Exception as close_err:
                     logger.error("Error closing match service: {}", close_err)
+                finally:
+                    self._match_service = None
 
     async def export_sharepoint(self) -> int:
         """Export current session results to SharePoint List via Graph API."""

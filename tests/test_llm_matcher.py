@@ -70,7 +70,7 @@ def test_evaluate_parses_structured_json_response():
 def test_evaluate_returns_disabled_default_when_not_configured():
     matcher = LLMMatcher(client=None, enabled=False, deployment="")
     result = asyncio.run(matcher.evaluate("some job description", []))
-    assert result.match_score == 0
+    assert result.match_score is None
     assert result.matched_skills == []
     assert result.missing_skills == []
     assert result.match_reason
@@ -91,7 +91,7 @@ def test_evaluate_swallows_client_errors():
 
     matcher = LLMMatcher(client=_BoomClient(), enabled=True, deployment="test-deployment")
     result = asyncio.run(matcher.evaluate("some job description", []))
-    assert result.match_score == 0
+    assert result.match_score is None
     assert "failed" in result.match_reason.lower() or "rate limited" in result.match_reason.lower()
 
 

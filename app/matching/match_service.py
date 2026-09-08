@@ -36,7 +36,8 @@ class MatchService:
         try:
             chunks = await self._kb.search(job.job_description)
             result = await self._matcher.evaluate(job.job_description, chunks)
-            job.match_score = result.match_score
+            if result.match_score is not None:
+                job.match_score = result.match_score
             job.matched_skills = result.matched_skills
             job.missing_skills = result.missing_skills
             job.match_reason = result.match_reason

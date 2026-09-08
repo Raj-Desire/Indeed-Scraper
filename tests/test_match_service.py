@@ -73,8 +73,22 @@ def test_evaluate_job_never_raises_on_kb_or_llm_failure():
     assert updated.match_score is None  # left at default because the pipeline caught the exception
 
 
+def test_evaluate_job_never_uses_kb_score_as_match_score():
+    """The KB relevance score must never leak into JobPosting.match_score -
+    only the LLM's structured verdict may set it."""
+    chunks = [RetrievedChunk(chunk_id="c1", parent_id="p1", title="SPFx", chunk="SPFx work...", score=0.99)]
+    result = MatchResult(match_score=12, matched_skills=[], missing_skills=[], match_reason="LLM verdict")
+    service = MatchService(kb=_FakeKB(chunks), matcher=_FakeMatcher(result))
+
+    job = JobPosting(job_title="SharePoint Developer", company="Acme Corp", job_description="Need SPFx skills")
+    updated = asyncio.run(service.evaluate_job(job))
+
+    assert updated.match_score == 12
+
+
 if __name__ == "__main__":
     test_evaluate_job_populates_match_fields()
     test_evaluate_job_skips_empty_description()
     test_evaluate_job_never_raises_on_kb_or_llm_failure()
+    test_evaluate_job_never_uses_kb_score_as_match_score()
     print("OK")
