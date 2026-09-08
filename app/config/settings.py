@@ -50,6 +50,21 @@ class Settings(BaseSettings):
     sharepoint_list_name: str = Field(default="Indeed_Data", description="SharePoint List Name")
     sharepoint_auto_sync: bool = Field(default=False, description="Auto-upload scraped jobs to SharePoint List")
 
+    # Azure AI Search (existing company knowledge-base index)
+    azure_search_endpoint: str = Field(default="", description="Azure AI Search service endpoint URL")
+    azure_search_index: str = Field(default="", description="Azure AI Search index name (existing KB index)")
+    azure_search_api_key: str = Field(default="", description="Azure AI Search admin/query API key")
+    azure_search_top_k: int = Field(default=5, description="Number of KB chunks to retrieve per job")
+
+    # Azure OpenAI (LLM job-match evaluation)
+    azure_openai_endpoint: str = Field(default="", description="Azure OpenAI endpoint URL")
+    azure_openai_api_key: str = Field(default="", description="Azure OpenAI API key")
+    azure_openai_api_version: str = Field(default="2024-06-01", description="Azure OpenAI REST API version")
+    azure_openai_chat_deployment: str = Field(default="", description="Azure OpenAI chat deployment name used for match evaluation")
+
+    # Knowledge-base matching toggle
+    enable_kb_matching: bool = Field(default=True, description="Enrich scraped jobs with Azure KB retrieval + LLM match scoring")
+
     # Directories
     output_dir: str = Field(default="outputs", description="Excel output directory")
     log_dir: str = Field(default="logs", description="Log file directory")

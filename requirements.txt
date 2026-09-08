@@ -24,6 +24,10 @@ pydantic
 pydantic-settings
 python-dotenv
 
+# Azure AI Search & Azure OpenAI (knowledge-base job matching)
+azure-search-documents>=11.5.1
+openai>=1.30.0
+
 # Logging & utilities
 loguru
 rich
