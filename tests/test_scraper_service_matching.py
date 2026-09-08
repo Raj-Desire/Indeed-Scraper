@@ -52,6 +52,44 @@ def test_run_pipeline_calls_match_service_for_each_surviving_job(monkeypatch, tm
     assert all(j.match_score == 42 for j in service._results)
 
 
+class _FlakyMatchService:
+    """Raises for the first job it sees, succeeds normally for the rest."""
+
+    def __init__(self):
+        self.calls = []
+
+    async def evaluate_job(self, job):
+        self.calls.append(job.job_title)
+        if len(self.calls) == 1:
+            raise RuntimeError("boom")
+        job.match_score = 42
+        return job
+
+    async def close(self):
+        pass
+
+
+def test_run_pipeline_isolates_match_service_failure_to_one_job(monkeypatch, tmp_path):
+    service = ScraperService()
+    service._settings.output_dir = str(tmp_path)
+    service._match_service = _FlakyMatchService()
+
+    job1 = JobPosting(job_title="Job A", company="Acme", job_description="desc a", posted_date=datetime.now(tz=timezone.utc))
+    job2 = JobPosting(job_title="Job B", company="Beta", job_description="desc b", posted_date=datetime.now(tz=timezone.utc))
+
+    service._scraper = _FakeScraper([job1, job2])
+    service._date_filter.filter = lambda jobs: jobs
+    service._dedup_filter.filter = lambda jobs: jobs
+
+    from app.models.scraper import RunConfig
+    asyncio.run(service._run_pipeline(RunConfig()))
+
+    assert service._match_service.calls == ["Job A", "Job B"]
+    assert [j.job_title for j in service._results] == ["Job A", "Job B"]
+    assert job1.match_score is None
+    assert job2.match_score == 42
+
+
 if __name__ == "__main__":
     import tempfile
     with tempfile.TemporaryDirectory() as d:
