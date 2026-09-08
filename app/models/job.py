@@ -45,6 +45,12 @@ class JobPosting(BaseModel):
         default_factory=lambda: datetime.now(tz=timezone.utc),
         description="Timestamp when scraped",
     )
+    match_score: Optional[int] = Field(
+        default=None, ge=0, le=100, description="LLM-judged company/job match score (0-100), set by the KB matching pipeline"
+    )
+    matched_skills: list[str] = Field(default_factory=list, description="Skills/technologies the company can demonstrate for this job")
+    missing_skills: list[str] = Field(default_factory=list, description="Required skills the KB shows no evidence of")
+    match_reason: str = Field(default="", description="Short LLM explanation of the match score")
 
     @property
     def location_remote_type(self) -> str:
