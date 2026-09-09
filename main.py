@@ -3,6 +3,13 @@ import webbrowser
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+from dotenv import find_dotenv, load_dotenv
+
+# Ensure .env is explicitly loaded before anything else
+_env_path = find_dotenv(usecwd=True)
+if _env_path:
+    load_dotenv(_env_path, override=True)
+
 import uvicorn
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles

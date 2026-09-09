@@ -32,6 +32,11 @@ class AzureSearchKnowledgeBase:
         settings = get_settings()
         self._top_k = top_k if top_k is not None else settings.azure_search_top_k
 
+        if enabled is False:
+            self._enabled = False
+            self._client = None
+            return
+
         if client is not None:
             self._client = client
             self._enabled = True if enabled is None else enabled

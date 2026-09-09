@@ -41,6 +41,7 @@ class JobPosting(BaseModel):
     apply_url: str = Field(default="", description="Direct apply URL if available")
     experience: str = Field(default="Not specified", description="Experience criteria or requirements")
     job_description: str = Field(default="", description="Full job description snippet")
+    has_full_description: bool = Field(default=False, description="True if full job description has been enriched")
     scraped_at: datetime = Field(
         default_factory=lambda: datetime.now(tz=timezone.utc),
         description="Timestamp when scraped",

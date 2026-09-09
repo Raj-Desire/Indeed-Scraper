@@ -16,6 +16,7 @@ from bs4 import BeautifulSoup, Tag
 from app.config.constants import resolve_country_domain
 from app.models.job import JobPosting, RemoteType
 from app.parser.base_parser import BaseJobParser
+from app.scraper.selector_health import selector_health
 from app.utils.helpers import (
     clean_text,
     extract_indeed_job_id,
@@ -77,6 +78,7 @@ class BeautifulSoupParser(BaseJobParser):
         # Primary container: .job_seen_beacon
         cards = soup.find_all(class_=re.compile(r"job_seen_beacon|cardOutline"))
         if cards:
+            selector_health.record_hit("job_cards_container")
             logger.debug("[BeautifulSoup] Found {} cards via class 'job_seen_beacon|cardOutline'", len(cards))
             return cards
 
@@ -86,15 +88,20 @@ class BeautifulSoupParser(BaseJobParser):
             if li.find(attrs={"data-jk": True}) or li.get("data-jk"):
                 li_cards.append(li)
         if li_cards:
+            selector_health.record_miss("job_cards_container")
+            selector_health.record_hit("job_cards_li_fallback")
             logger.debug("[BeautifulSoup] Found {} cards via li[data-jk]", len(li_cards))
             return li_cards
 
         # Fallback 2: data-jk containers directly
         jk_cards = soup.find_all(attrs={"data-jk": True})
         if jk_cards:
+            selector_health.record_miss("job_cards_container")
+            selector_health.record_hit("job_cards_jk_fallback")
             logger.debug("[BeautifulSoup] Found {} cards via [data-jk]", len(jk_cards))
             return jk_cards
 
+        selector_health.record_miss("job_cards_container")
         return []
 
     def _parse_job_card(
@@ -109,26 +116,40 @@ class BeautifulSoupParser(BaseJobParser):
         # 1. Job Title
         title = self._extract_title(card)
         if not title:
+            selector_health.record_miss("card_job_title")
             logger.debug("[BeautifulSoup] Field 'job_title' not found on card -> skipping card")
             return None
+        selector_health.record_hit("card_job_title")
 
         # 2. Company Name
         company = self._extract_company(card)
         if not company:
+            selector_health.record_miss("card_company")
             logger.debug("[BeautifulSoup] Field 'company' not found on card -> skipping card")
             return None
+        selector_health.record_hit("card_company")
 
         # 3. Job URL & ID
         job_url, job_id = self._extract_job_url(card, country)
         if not job_url:
+            selector_health.record_miss("card_job_url")
             logger.debug("[BeautifulSoup] Field 'job_url' not found on card -> skipping card")
             return None
+        selector_health.record_hit("card_job_url")
 
         # 4. Location
         location = self._extract_location(card)
+        if location:
+            selector_health.record_hit("card_location")
+        else:
+            selector_health.record_miss("card_location")
 
         # 5. Salary
         salary = self._extract_salary_from_card(card)
+        if salary and salary != "Not listed":
+            selector_health.record_hit("card_salary")
+        else:
+            selector_health.record_miss("card_salary")
 
         # 6. Posted Date
         posted_date, date_raw = self._extract_posted_date_from_card(card)
@@ -431,6 +452,11 @@ class BeautifulSoupParser(BaseJobParser):
 
         # Layer 3: Full Job Description Container
         self._enrich_full_description(job, soup)
+        if job.job_description and len(job.job_description) > 30:
+            job.has_full_description = True
+            selector_health.record_hit("detail_job_description")
+        else:
+            selector_health.record_miss("detail_job_description")
 
         # Layer 4: Dedicated Salary & Qualifications Sections
         self._enrich_detail_salary(job, soup)
@@ -555,14 +581,20 @@ class BeautifulSoupParser(BaseJobParser):
                         if t and len(t) > 5 and not any(t in l for l in lines):
                             lines.append(f"{t}\n")
 
+                raw_text = clean_text(container.get_text(separator="\n\n"))
                 if lines and len(" ".join(lines)) > 50:
                     formatted_text = "\n".join(lines).strip()
+                    if len(raw_text) > len(formatted_text) * 1.35:
+                        chosen_text = raw_text
+                    else:
+                        chosen_text = formatted_text
                 else:
-                    formatted_text = clean_text(container.get_text(separator="\n\n"))
+                    chosen_text = raw_text
 
-                if formatted_text and len(formatted_text) > 30:
-                    job.job_description = formatted_text
-                    logger.debug("[BeautifulSoup] Detail enriched 'job_description' (len={}) via selector='{}'", len(formatted_text), sel)
+                if chosen_text and len(chosen_text) > 30:
+                    job.job_description = chosen_text
+                    job.has_full_description = True
+                    logger.debug("[BeautifulSoup] Detail enriched 'job_description' (len={}) via selector='{}'", len(chosen_text), sel)
                     break
 
     def _enrich_detail_salary(self, job: JobPosting, soup: BeautifulSoup) -> None:

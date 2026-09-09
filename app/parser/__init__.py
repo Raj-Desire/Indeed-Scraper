@@ -9,17 +9,19 @@ from app.parser.job_parser import BeautifulSoupParser
 from app.utils.logger import logger
 
 
-def get_parser(engine: str) -> BaseJobParser:
+def get_parser(engine: str = "selectolax") -> BaseJobParser:
     """
     Factory function to retrieve the appropriate parser instance.
-    Defaults to BeautifulSoupParser if unknown.
+    Defaults to SelectolaxParser (3-5x faster) with automatic fallback to BeautifulSoupParser.
     """
-    engine_lower = (engine or "").lower().strip()
-    if engine_lower == "selectolax":
-        try:
-            from app.parser.selectolax_parser import SelectolaxParser
-            return SelectolaxParser()
-        except Exception as exc:
-            logger.error("Failed to load SelectolaxParser: {}. Falling back to BeautifulSoupParser.", exc)
-            return BeautifulSoupParser()
-    return BeautifulSoupParser()
+    engine_lower = (engine or "selectolax").lower().strip()
+    if engine_lower == "beautifulsoup":
+        return BeautifulSoupParser()
+
+    # Default: Try Selectolax first, gracefully fall back to BeautifulSoup if unavailable
+    try:
+        from app.parser.selectolax_parser import SelectolaxParser
+        return SelectolaxParser()
+    except Exception as exc:
+        logger.warning("Failed to initialize SelectolaxParser ({}); falling back to BeautifulSoupParser.", exc)
+        return BeautifulSoupParser()

@@ -10,7 +10,6 @@ websockets
 # Scraping & HTML parsing
 playwright
 beautifulsoup4
-httpx
 lxml
 selectolax
 
@@ -30,7 +29,6 @@ openai>=1.30.0
 
 # Logging & utilities
 loguru
-rich
 python-dateutil
 aiofiles
 tenacity

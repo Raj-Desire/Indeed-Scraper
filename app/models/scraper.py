@@ -4,10 +4,11 @@ Scraper State Models
 Pydantic models for run configuration and live progress tracking.
 """
 
-from datetime import datetime
+from collections import deque
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional
-from pydantic import BaseModel, Field, computed_field, model_validator
+from pydantic import BaseModel, Field, PrivateAttr, computed_field, model_validator
 
 
 class ScraperStatus(str, Enum):
@@ -33,6 +34,8 @@ class ScraperProgress(BaseModel):
     elapsed_seconds: float = Field(default=0.0)
     log_messages: list[str] = Field(default_factory=list)
     last_error: str = Field(default="")
+
+    _log_deque: deque = PrivateAttr(default_factory=lambda: deque(maxlen=50))
 
     @computed_field
     @property
@@ -60,11 +63,12 @@ class ScraperProgress(BaseModel):
         return round(min(99.0, max(0.0, total_pct)), 1)
 
     def add_log(self, message: str, max_messages: int = 50) -> None:
-        """Append log message."""
-        timestamp = datetime.utcnow().strftime("%H:%M:%S")
-        self.log_messages.append(f"[{timestamp}] {message}")
-        if len(self.log_messages) > max_messages:
-            self.log_messages = self.log_messages[-max_messages:]
+        """Append log message using O(1) deque eviction."""
+        timestamp = datetime.now(tz=timezone.utc).strftime("%H:%M:%S")
+        if self._log_deque.maxlen != max_messages:
+            self._log_deque = deque(self._log_deque, maxlen=max_messages)
+        self._log_deque.append(f"[{timestamp}] {message}")
+        self.log_messages = list(self._log_deque)
 
     model_config = {"use_enum_values": True}
 
@@ -80,7 +84,7 @@ class RunConfig(BaseModel):
     location_type: str = Field(default="all", description="Location filter type (all, remote, onsite)")
     fromage: str = Field(default="all", description="Date posted filter: all, 1 (24h), 3 (3 days), 7 (7 days), 14 (14 days)")
     headless: Optional[bool] = Field(default=None, description="Run in background")
-    parser_engine: str = Field(default="beautifulsoup", description="Parser engine to use (beautifulsoup, selectolax)")
+    parser_engine: str = Field(default="selectolax", description="Parser engine to use (beautifulsoup, selectolax)")
 
     @model_validator(mode="before")
     @classmethod

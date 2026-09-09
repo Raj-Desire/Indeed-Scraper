@@ -6,6 +6,7 @@ Zero AI or Scheduler dependencies.
 """
 
 import asyncio
+import time
 from datetime import datetime, timezone
 from typing import Optional
 from uuid import uuid4
@@ -31,6 +32,7 @@ class ScraperService:
         self._results: list[JobPosting] = []
         self._current_session: Optional[ScraperSession] = None
         self._progress_callbacks: list[callable] = []
+        self._last_broadcast_time: float = 0.0
 
         self._date_filter = DateFilter(max_age_hours=self._settings.filter_max_age_hours)
         self._dedup_filter = DedupFilter()
@@ -110,11 +112,14 @@ class ScraperService:
                 if self._match_service is not None:
                     for matched_job in deduped:
                         try:
+                            logger.info("Evaluating AI KB match for: '{}' at '{}'...", matched_job.job_title, matched_job.company)
                             await self._match_service.evaluate_job(matched_job)
+                            logger.info("AI match verdict for '{}': Score={}/100 | Skills={}", matched_job.job_title, matched_job.match_score, matched_job.matched_skills)
                         except Exception as match_err:
                             logger.error("KB matching error for '{}': {}", matched_job.job_title, match_err)
 
                 self._results.extend(deduped)
+                logger.info("Added {} job(s) to live dashboard (Total leads: {})", len(deduped), len(self._results))
                 # Sync progress.jobs_found with active unique results count
                 self._scraper.progress.jobs_found = len(self._results)
                 self._on_progress_update(self._scraper.progress)
@@ -168,7 +173,14 @@ class ScraperService:
     def _on_progress_update(self, progress: ScraperProgress) -> None:
         self._broadcast_progress(progress)
 
-    def _broadcast_progress(self, progress: ScraperProgress) -> None:
+    def _broadcast_progress(self, progress: ScraperProgress, force: bool = False) -> None:
+        """Throttle progress updates to maximum 2/sec when running, unless status changed."""
+        now = time.monotonic()
+        status = getattr(progress, "status", None)
+        if not force and status == ScraperStatus.RUNNING and (now - self._last_broadcast_time < 0.5):
+            return
+
+        self._last_broadcast_time = now
         for callback in self._progress_callbacks:
             try:
                 callback(progress)

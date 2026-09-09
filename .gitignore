@@ -24,6 +24,7 @@ pythonenv/
 # Scraper Outputs, Excel & Data Files
 # =============================================================================
 outputs/
+sessions/
 *.xlsx
 *.xls
 *.csv
@@ -113,3 +114,5 @@ Desktop.ini
 .superpowers/
 .gemini/
 .agent/
+
+Scratch

@@ -12,6 +12,7 @@ from typing import Optional
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 
 from app.utils.logger import logger
+from app.config.constants import resolve_country_domain
 
 
 # =============================================================================
@@ -237,37 +238,6 @@ def normalize_indeed_url(url: str) -> str:
     except Exception:
         return url
 
-
-# =============================================================================
-# Indeed Domain Mapping
-# =============================================================================
-
-INDEED_DOMAIN_MAP: dict[str, str] = {
-    "US": "www.indeed.com",
-    "CA": "ca.indeed.com",
-    "GB": "uk.indeed.com",
-    "AU": "au.indeed.com",
-    "NZ": "nz.indeed.com",
-    "DE": "de.indeed.com",
-    "NL": "nl.indeed.com",
-    "CH": "www.indeed.ch",
-    "SE": "se.indeed.com",
-    "NO": "no.indeed.com",
-    "DK": "dk.indeed.com",
-    "FI": "fi.indeed.com",
-    "IE": "ie.indeed.com",
-    "BE": "be.indeed.com",
-    "FR": "fr.indeed.com",
-    "SG": "sg.indeed.com",
-    "AE": "www.indeed.ae",
-    "SA": "sa.indeed.com",
-    "ZA": "za.indeed.com",
-    "JP": "jp.indeed.com",
-    "KR": "kr.indeed.com",
-}
-
-
-from app.config.constants import resolve_country_domain
 
 def get_indeed_search_url(
     country_input: str,

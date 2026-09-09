@@ -57,6 +57,11 @@ class LLMMatcher:
 
         self._deployment = deployment
 
+        if enabled is False:
+            self._enabled = False
+            self._client = None
+            return
+
         if client is not None:
             self._client = client
             self._enabled = True if enabled is None else enabled
@@ -218,6 +223,10 @@ class LLMMatcher:
                         continue
                     else:
                         break
+
+            if not response or not response.choices:
+                if last_error:
+                    raise last_error
 
             raw_content = ""
             raw_reasoning = ""
@@ -439,18 +448,18 @@ class LLMMatcher:
                 elif "AI" not in matched_list and any(m in matched_list for m in ("Computer Vision", "Azure OpenAI", "Machine Learning")):
                     matched_list.append("AI")
 
-            # --- Strict Mathematical Match Score Calculation ---
-            # If 0 skills are missing and matched skills exist, score is 100%.
-            # Otherwise, score is exactly the ratio of matched skills to total identified skills.
-            total_skills = len(matched_list) + len(cleaned_missing)
-            if total_skills > 0:
-                if len(cleaned_missing) == 0 and len(matched_list) > 0:
-                    score = 100
-                else:
-                    score = int(round((len(matched_list) / total_skills) * 100))
+            raw_score = payload.get("match_score")
+            if raw_score is not None:
+                score = int(raw_score)
             else:
-                raw_score = payload.get("match_score")
-                score = int(raw_score) if raw_score is not None else 0
+                total_skills = len(matched_list) + len(cleaned_missing)
+                if total_skills > 0:
+                    if len(cleaned_missing) == 0 and len(matched_list) > 0:
+                        score = 100
+                    else:
+                        score = int(round((len(matched_list) / total_skills) * 100))
+                else:
+                    score = 0
 
             if not reason or reason == "Evaluated by LLM":
                 if len(matched_list) > 0 and len(cleaned_missing) == 0:
