@@ -1,34 +1,41 @@
-# DIW Indeed Job Scraper
+# =============================================================================
+# Indeed Job Scraper & AI Matching Engine — Python Dependencies
+# =============================================================================
 
-# Core web framework
+# Web Framework & Real-Time Dashboard
 fastapi
 uvicorn[standard]
 jinja2
 python-multipart
 websockets
+httpx
 
-# Scraping & HTML parsing
+# Web Scraping & HTML Parsing
 playwright
 beautifulsoup4
 lxml
 selectolax
 
-# Data export & processing
+# Data Processing & Office / Graph Export
 pandas
 openpyxl
 msal
 
-# Configuration & validation
+# Configuration & Validation
 pydantic
 pydantic-settings
 python-dotenv
 
-# Azure AI Search & Azure OpenAI (knowledge-base job matching)
+# AI Knowledge Base & Azure Services
 azure-search-documents>=11.5.1
 openai>=1.30.0
 
-# Logging & utilities
+# Logging & Terminal Utilities
 loguru
+rich
 python-dateutil
 aiofiles
 tenacity
+
+# Testing & Quality Assurance
+pytest

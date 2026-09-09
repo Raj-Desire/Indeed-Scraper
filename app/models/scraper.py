@@ -81,8 +81,10 @@ class RunConfig(BaseModel):
     countries: list[str] = Field(default_factory=lambda: ["US"], description="Target country codes or names")
     query: str = Field(default="AI Developer", description="Role or keyword to search")
     max_pages: int = Field(default=1, description="Number of pages to scrape per country")
+    max_leads: Optional[int] = Field(default=None, description="Max leads desired")
     location_type: str = Field(default="all", description="Location filter type (all, remote, onsite)")
     fromage: str = Field(default="all", description="Date posted filter: all, 1 (24h), 3 (3 days), 7 (7 days), 14 (14 days)")
+    sort_by: str = Field(default="date", description="Sort method: date or relevance")
     headless: Optional[bool] = Field(default=None, description="Run in background")
     parser_engine: str = Field(default="selectolax", description="Parser engine to use (beautifulsoup, selectolax)")
 
@@ -90,6 +92,8 @@ class RunConfig(BaseModel):
     @classmethod
     def populate_countries(cls, data: dict) -> dict:
         if isinstance(data, dict):
+            if "fromage" in data and data["fromage"] is not None:
+                data["fromage"] = str(data["fromage"])
             if "countries" not in data or not data["countries"]:
                 if "country" in data and data["country"]:
                     if isinstance(data["country"], list):

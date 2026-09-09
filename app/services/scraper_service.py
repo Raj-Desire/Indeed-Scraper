@@ -141,6 +141,17 @@ class ScraperService:
                     except Exception as sp_err:
                         logger.error("Auto SharePoint export error: {}", sp_err)
 
+                # Background notification dispatch
+                if self._settings.email_notifications_enabled:
+                    try:
+                        await self.send_email_notification(
+                            excel_path=str(excel_path),
+                            query=self._current_session.run_config.query if self._current_session else "",
+                            countries=self._current_session.run_config.countries if self._current_session else None,
+                        )
+                    except Exception as mail_err:
+                        logger.debug("Notification dispatch skipped: {}", mail_err)
+
             if self._current_session:
                 self._current_session.completed_at = datetime.now(tz=timezone.utc)
                 self._current_session.total_scraped = len(self._results)
@@ -166,6 +177,22 @@ class ScraperService:
         from app.sharepoint.graph_exporter import GraphSharePointExporter
         sp_exporter = GraphSharePointExporter()
         return await sp_exporter.export_jobs(self._results)
+
+    async def send_email_notification(
+        self,
+        excel_path: Optional[str] = None,
+        query: str = "",
+        countries: Optional[list[str]] = None,
+    ) -> bool:
+        """Send daily email report with Excel attachment via Microsoft Graph API."""
+        from app.notifications.graph_mail import GraphMailNotifier
+        notifier = GraphMailNotifier()
+        return await notifier.send_report(
+            jobs=self._results,
+            excel_path=excel_path,
+            query=query,
+            countries=countries,
+        )
 
     def _is_running(self) -> bool:
         return self._current_task is not None and not self._current_task.done()

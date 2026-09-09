@@ -42,7 +42,11 @@ class Settings(BaseSettings):
     filter_max_age_hours: int = Field(default=720, description="Max job age in hours (30 days)")
 
     # Server Configuration
-    dashboard_host: str = Field(default="127.0.0.1", description="Server host IP")
+    dashboard_host: str = Field(
+        default="127.0.0.1",
+        validation_alias=AliasChoices("DASHBOARD_HOST", "dashboard_host", "host"),
+        description="Server host IP",
+    )
     dashboard_port: int = Field(
         default=8000,
         validation_alias=AliasChoices("PORT", "port", "dashboard_port"),
@@ -50,15 +54,44 @@ class Settings(BaseSettings):
     )
 
     # SharePoint & Azure AD Graph API Settings (strictly loaded from .env)
-    azure_tenant_id: str = Field(default="", description="Azure AD Tenant ID")
-    azure_client_id: str = Field(default="", description="Azure AD Application (Client) ID")
-    azure_client_secret: str = Field(default="", description="Azure AD Client Secret")
+    azure_tenant_id: str = Field(
+        default="",
+        validation_alias=AliasChoices("AZURE_TENANT_ID", "azure_tenant_id", "GRAPH_TENANT_ID", "graph_tenant_id"),
+        description="Azure AD Tenant ID",
+    )
+    azure_client_id: str = Field(
+        default="",
+        validation_alias=AliasChoices("AZURE_CLIENT_ID", "azure_client_id", "GRAPH_CLIENT_ID", "graph_client_id"),
+        description="Azure AD Application (Client) ID",
+    )
+    azure_client_secret: str = Field(
+        default="",
+        validation_alias=AliasChoices("AZURE_CLIENT_SECRET", "azure_client_secret", "GRAPH_CLIENT_SECRET", "graph_client_secret"),
+        description="Azure AD Client Secret",
+    )
     sharepoint_site_id: str = Field(default="", description="SharePoint Site ID")
     sharepoint_hostname: str = Field(default="", description="SharePoint Tenant Hostname (e.g. yourtenant.sharepoint.com)")
     sharepoint_site_path: str = Field(default="", description="SharePoint Site Path (e.g. /sites/yourteam)")
     sharepoint_list_id: str = Field(default="", description="SharePoint List ID")
     sharepoint_list_name: str = Field(default="", description="SharePoint List Name")
     sharepoint_auto_sync: bool = Field(default=False, description="Auto-upload scraped jobs to SharePoint List")
+
+    # Microsoft 365 Graph API Email Notification Settings
+    email_notifications_enabled: bool = Field(
+        default=True,
+        validation_alias=AliasChoices("EMAIL_NOTIFICATIONS_ENABLED", "email_notifications_enabled"),
+        description="Whether to send email report after scrape",
+    )
+    mail_sender: str = Field(
+        default="",
+        validation_alias=AliasChoices("GRAPH_SENDER_EMAIL", "graph_sender_email", "MAIL_SENDER", "mail_sender", "NOTIFICATION_EMAIL_FROM", "sender_email"),
+        description="Microsoft 365 sender mailbox (e.g. user@yourdomain.com)",
+    )
+    notification_email_to: str = Field(
+        default="",
+        validation_alias=AliasChoices("NOTIFICATION_EMAIL_TO", "notification_email_to", "RECIPIENT_EMAIL"),
+        description="Recipient email address(es), comma-separated",
+    )
 
     # Azure AI Search (existing company knowledge-base index)
     azure_search_endpoint: str = Field(default="", description="Azure AI Search service endpoint URL")

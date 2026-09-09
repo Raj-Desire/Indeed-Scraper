@@ -1,0 +1,34 @@
+{
+  "13:00": {
+    "query": "sharepoint",
+    "countries": ["US"],
+    "max_leads": 15,
+    "fromage": 1,
+    "sort_by": "date",
+    "enabled": true
+  },
+  "14:00": {
+    "query": "AI",
+    "countries": ["US"],
+    "max_leads": 15,
+    "fromage": 1,
+    "sort_by": "date",
+    "enabled": true
+  },
+  "15:00": {
+    "query": "Power apps",
+    "countries": ["US"],
+    "max_leads": 15,
+    "fromage": 1,
+    "sort_by": "date",
+    "enabled": true
+  },
+  "18:00": {
+    "query": "Full Stack Developer",
+    "countries": ["US"],
+    "max_leads": 15,
+    "fromage": 1,
+    "sort_by": "date",
+    "enabled": true
+  }
+}
