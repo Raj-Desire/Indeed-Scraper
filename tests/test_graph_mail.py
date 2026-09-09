@@ -110,7 +110,9 @@ def test_send_report_skipped_when_sender_missing():
     notifier = GraphMailNotifier()
     notifier._settings.email_notifications_enabled = True
     notifier._settings.mail_sender = ""
+    notifier._settings.graph_sender_email = ""
     notifier._settings.notification_email_to = "test@example.com"
+
 
     result = asyncio.run(
         notifier.send_report(

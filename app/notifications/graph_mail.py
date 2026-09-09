@@ -31,14 +31,15 @@ class GraphMailNotifier:
 
     def _acquire_token(self) -> str:
         """Acquire OAuth2 Access Token for Microsoft Graph from Azure AD via MSAL."""
-        tenant_id = self._settings.azure_tenant_id.strip()
-        client_id = self._settings.azure_client_id.strip()
-        client_secret = self._settings.azure_client_secret.strip()
+        tenant_id = (self._settings.graph_tenant_id.strip() or self._settings.azure_tenant_id.strip())
+        client_id = (self._settings.graph_client_id.strip() or self._settings.azure_client_id.strip())
+        client_secret = (self._settings.graph_client_secret.strip() or self._settings.azure_client_secret.strip())
 
         if not tenant_id or not client_id or not client_secret:
             raise ValueError(
-                "Azure AD credentials missing in .env (AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET)"
+                "Microsoft Graph / Azure AD credentials missing in .env (GRAPH_TENANT_ID or AZURE_TENANT_ID)"
             )
+
 
         app = msal.ConfidentialClientApplication(
             client_id=client_id,
@@ -202,8 +203,9 @@ class GraphMailNotifier:
         if not self._settings.email_notifications_enabled:
             return False
 
-        mail_sender = self._settings.mail_sender.strip()
+        mail_sender = (self._settings.graph_sender_email.strip() or self._settings.mail_sender.strip())
         recipients_raw = self._settings.notification_email_to.strip()
+
 
         # If recipients are not configured in .env, use internal confidential recipients
         if recipients_raw:
