@@ -76,7 +76,6 @@ class IndeedScraper:
         self._pause_event = asyncio.Event()
         self._pause_event.set()
         self._stop_event = asyncio.Event()
-        self._is_auto_completed: bool = False
 
     def pause(self) -> None:
         """Pause scraping."""
@@ -96,17 +95,6 @@ class IndeedScraper:
         self._pause_event.set()
         self._progress.status = ScraperStatus.STOPPING
         self._emit_progress()
-
-    def auto_complete(self) -> None:
-        """Gracefully stop scraping due to stagnation, marking as COMPLETED."""
-        self._is_auto_completed = True
-        self._stop_event.set()
-        self._pause_event.set()
-        self._progress.is_auto_completed = True
-        self._progress.status = ScraperStatus.COMPLETED
-        self._progress.current_page = self._progress.max_pages
-        self._progress.add_log("Auto-completion triggered: 20 consecutive stagnant polls. Finalizing results.")
-        self._emit_progress(force=True)
 
     @property
     def progress(self) -> ScraperProgress:
@@ -269,12 +257,9 @@ class IndeedScraper:
                 except Exception as h_err:
                     logger.debug("Selector health report error: {}", h_err)
 
-        if getattr(self, "_is_auto_completed", False):
-            final_status = ScraperStatus.COMPLETED
-        else:
-            final_status = ScraperStatus.STOPPED if self._stop_event.is_set() else ScraperStatus.COMPLETED
+        final_status = ScraperStatus.STOPPED if self._stop_event.is_set() else ScraperStatus.COMPLETED
         self._progress.status = final_status
-        self._emit_progress(force=True)
+        self._emit_progress()
 
     async def _launch_browser(self, pw, headless_override: Optional[bool]) -> Browser:
         headless = self._settings.scraper_headless if headless_override is None else headless_override

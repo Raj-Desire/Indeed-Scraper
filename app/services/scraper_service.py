@@ -39,10 +39,6 @@ class ScraperService:
         self._exporter = ExcelExporter()
         self._match_service: Optional[MatchService] = None
 
-        self._stagnation_limit: int = 20
-        self._consecutive_stagnant_polls: int = 0
-        self._last_polled_leads_count: int = 0
-
         logger.info("ScraperService initialized (simple mode)")
 
     async def start(self, run_config: Optional[RunConfig] = None) -> str:
@@ -55,8 +51,6 @@ class ScraperService:
 
         self._dedup_filter.reset()
         self._results = []
-        self._consecutive_stagnant_polls = 0
-        self._last_polled_leads_count = 0
 
         session = ScraperSession(
             session_id=session_id,
@@ -85,39 +79,6 @@ class ScraperService:
     def stop(self) -> None:
         if self._scraper:
             self._scraper.stop()
-
-    def auto_complete(self) -> None:
-        """Trigger graceful completion on scraper when stagnation limit is hit."""
-        if self._scraper:
-            self._scraper.auto_complete()
-
-    def check_lead_stagnation(self, current_count: int) -> bool:
-        """Check if consecutive GET /api/leads calls have stagnated without new leads."""
-        if not self._is_running():
-            return False
-
-        if current_count > self._last_polled_leads_count:
-            self._consecutive_stagnant_polls = 0
-            self._last_polled_leads_count = current_count
-            return False
-
-        self._consecutive_stagnant_polls += 1
-        logger.info(
-            "Stagnant poll sequence: {}/{} (current leads: {})",
-            self._consecutive_stagnant_polls,
-            self._stagnation_limit,
-            current_count,
-        )
-        return self._consecutive_stagnant_polls >= self._stagnation_limit
-
-    async def trigger_auto_complete(self) -> None:
-        """Trigger graceful completion on scraper when stagnation limit is hit."""
-        if self._scraper and self._is_running():
-            logger.warning(
-                "Stagnation limit ({} polls) reached. Triggering scraper auto-completion...",
-                self._stagnation_limit,
-            )
-            self._scraper.auto_complete()
 
     def get_progress(self) -> ScraperProgress:
         if self._scraper:
@@ -163,9 +124,7 @@ class ScraperService:
                 self._scraper.progress.jobs_found = len(self._results)
                 self._on_progress_update(self._scraper.progress)
 
-            # Export and notify if results exist OR if run was auto-completed
-            is_auto_done = self._scraper and getattr(self._scraper, "_is_auto_completed", False)
-            if self._results or is_auto_done:
+            if self._results:
                 excel_path = self._exporter.export(
                     self._results,
                     output_dir=self._settings.output_dir,
@@ -175,7 +134,7 @@ class ScraperService:
                 logger.info("Excel exported to: {}", excel_path)
 
                 # Auto-sync to SharePoint if enabled
-                if self._settings.sharepoint_auto_sync and self._results:
+                if self._settings.sharepoint_auto_sync:
                     try:
                         logger.info("Auto-syncing scraped jobs to SharePoint List via Microsoft Graph API...")
                         await self.export_sharepoint()
