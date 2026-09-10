@@ -3,7 +3,6 @@
 let ws = null;
 let pollTimer = null;
 let allLeads = [];
-let isTerminalStateHandled = false;
 
 function getSelectedCountries() {
     const checkboxes = document.querySelectorAll('input[name="country_checkbox"]:checked');
@@ -505,17 +504,12 @@ function connectWebSocket() {
                 clearInterval(pollTimer);
                 pollTimer = null;
             }
-            if (!isTerminalStateHandled) {
-                isTerminalStateHandled = true;
-                fetchLeads(); // Final update only once
-            }
+            fetchLeads(); // Final update
             document.getElementById('btn-search').disabled = false;
             document.getElementById('btn-stop').disabled = true;
             if (p.status === 'completed') {
                 document.getElementById('search-status').textContent = 'Status: Search Completed';
             }
-        } else if (p.status === 'running') {
-            isTerminalStateHandled = false;
         }
     };
 }
