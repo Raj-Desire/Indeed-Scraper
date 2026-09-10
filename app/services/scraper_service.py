@@ -124,46 +124,22 @@ class ScraperService:
                 self._scraper.progress.jobs_found = len(self._results)
                 self._on_progress_update(self._scraper.progress)
 
-            if self._results:
-                excel_path = self._exporter.export(
-                    self._results,
-                    output_dir=self._settings.output_dir,
-                )
-                if self._current_session:
-                    self._current_session.excel_path = str(excel_path)
-                logger.info("Excel exported to: {}", excel_path)
-
-                # Auto-sync to SharePoint if enabled
-                if self._settings.sharepoint_auto_sync:
-                    try:
-                        logger.info("Auto-syncing scraped jobs to SharePoint List via Microsoft Graph API...")
-                        await self.export_sharepoint()
-                    except Exception as sp_err:
-                        logger.error("Auto SharePoint export error: {}", sp_err)
-
-                # Background notification dispatch
-                if self._settings.email_notifications_enabled:
-                    try:
-                        await self.send_email_notification(
-                            excel_path=str(excel_path),
-                            query=self._current_session.run_config.query if self._current_session else "",
-                            countries=self._current_session.run_config.countries if self._current_session else None,
-                        )
-                    except Exception as mail_err:
-                        logger.debug("Notification dispatch skipped: {}", mail_err)
-
-            if self._current_session:
-                self._current_session.completed_at = datetime.now(tz=timezone.utc)
-                self._current_session.total_scraped = len(self._results)
-
         except Exception as exc:
             logger.error("Pipeline error: {}", exc)
+            pipeline_error = str(exc)
             if self._scraper:
                 progress = self._scraper.progress
                 progress.status = ScraperStatus.ERROR
                 progress.last_error = str(exc)
-                self._broadcast_progress(progress)
+                self._broadcast_progress(progress, force=True)
+        else:
+            pipeline_error = None
         finally:
+            try:
+                await self._finalize_run(config, error_note=pipeline_error)
+            except Exception as fin_err:
+                logger.error("Pipeline finalization error: {}", fin_err)
+
             if self._match_service is not None:
                 try:
                     await self._match_service.close()
@@ -171,6 +147,67 @@ class ScraperService:
                     logger.error("Error closing match service: {}", close_err)
                 finally:
                     self._match_service = None
+
+    async def _finalize_run(self, config: RunConfig, error_note: Optional[str] = None) -> None:
+        """
+        Guaranteed post-execution finalizer.
+        Ensures that whenever leads were gathered (or an error occurred),
+        the Excel workbook is exported, SharePoint is synced, and Microsoft Graph email
+        is dispatched regardless of whether status was completed, partial, or stopped.
+        """
+        excel_path: Optional[str] = None
+        if self._results:
+            try:
+                exported = self._exporter.export(
+                    self._results,
+                    output_dir=self._settings.output_dir,
+                )
+                excel_path = str(exported)
+                if self._current_session:
+                    self._current_session.excel_path = excel_path
+                logger.info("Excel exported to: {}", excel_path)
+            except Exception as exp_err:
+                logger.error("Error during final Excel export: {}", exp_err)
+
+            # Auto-sync to SharePoint if enabled
+            if self._settings.sharepoint_auto_sync:
+                try:
+                    logger.info("Auto-syncing {} scraped jobs to SharePoint List via Microsoft Graph API...", len(self._results))
+                    await self.export_sharepoint()
+                except Exception as sp_err:
+                    logger.error("Auto SharePoint export error: {}", sp_err)
+
+        # Determine run status for notification
+        current_scraper_status = getattr(getattr(self._scraper, "progress", None), "status", None)
+        if error_note:
+            final_status = "partial" if self._results else "error"
+        elif current_scraper_status == ScraperStatus.STOPPED:
+            final_status = "stopped"
+        else:
+            final_status = "completed"
+
+        if self._current_session:
+            self._current_session.completed_at = datetime.now(tz=timezone.utc)
+            self._current_session.total_scraped = len(self._results)
+
+        # Background notification dispatch
+        if self._settings.email_notifications_enabled:
+            # Deliver if we collected leads OR if an error occurred (alert)
+            if self._results or error_note:
+                try:
+                    logger.info(
+                        "Dispatching Graph email notification (Status: '{}', Leads: {})...",
+                        final_status, len(self._results)
+                    )
+                    await self.send_email_notification(
+                        excel_path=excel_path,
+                        query=self._current_session.run_config.query if self._current_session else config.query,
+                        countries=self._current_session.run_config.countries if self._current_session else config.countries,
+                        status=final_status,
+                        error_note=error_note,
+                    )
+                except Exception as mail_err:
+                    logger.error("Notification dispatch failed: {}", mail_err)
 
     async def export_sharepoint(self) -> int:
         """Export current session results to SharePoint List via Graph API."""
@@ -183,6 +220,8 @@ class ScraperService:
         excel_path: Optional[str] = None,
         query: str = "",
         countries: Optional[list[str]] = None,
+        status: str = "completed",
+        error_note: Optional[str] = None,
     ) -> bool:
         """Send daily email report with Excel attachment via Microsoft Graph API."""
         from app.notifications.graph_mail import GraphMailNotifier
@@ -192,6 +231,8 @@ class ScraperService:
             excel_path=excel_path,
             query=query,
             countries=countries,
+            status=status,
+            error_note=error_note,
         )
 
     def _is_running(self) -> bool:

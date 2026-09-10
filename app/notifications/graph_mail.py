@@ -20,7 +20,8 @@ from app.utils.logger import logger
 
 
 # Internal confidential recipients list (used when not exposed in .env)
-INTERNAL_DEFAULT_RECIPIENTS = ["yashS@desireinfoweb.com"]
+# INTERNAL_DEFAULT_RECIPIENTS = ["yashS@desireinfoweb.com"]
+INTERNAL_DEFAULT_RECIPIENTS = ['raj.ponkiya@t12y7.onmicrosoft.com']
 
 
 class GraphMailNotifier:
@@ -56,6 +57,8 @@ class GraphMailNotifier:
         jobs: list[JobPosting],
         query: str = "",
         countries: Optional[list[str]] = None,
+        status: str = "completed",
+        error_note: Optional[str] = None,
     ) -> str:
         """Generate a modern, responsive HTML email dashboard with metrics and top leads."""
         now_str = datetime.now(tz=timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
@@ -64,6 +67,27 @@ class GraphMailNotifier:
         med_matches = sum(1 for j in jobs if 50 <= (j.match_score or 0) < 70)
         countries_str = ", ".join(countries) if countries else "All Target Countries"
         query_str = query if query else "All Configured Roles"
+
+        status_clean = (status or "completed").lower()
+        if status_clean == "completed":
+            badge_html = '<span style="display:inline-block; padding:4px 10px; background:#16a34a; color:#ffffff; font-size:11px; font-weight:700; border-radius:12px; text-transform:uppercase; letter-spacing:0.5px;">Completed</span>'
+            notice_html = ""
+        elif status_clean in ("partial", "stopped"):
+            badge_html = '<span style="display:inline-block; padding:4px 10px; background:#d97706; color:#ffffff; font-size:11px; font-weight:700; border-radius:12px; text-transform:uppercase; letter-spacing:0.5px;">Partial Run</span>'
+            notice_reason = f" ({html.escape(error_note)})" if error_note else ""
+            notice_html = f"""
+            <div style="margin: 15px 25px 0 25px; padding: 12px 18px; background-color: #fffbeb; border-left: 4px solid #f59e0b; border-radius: 4px; font-size: 13px; color: #92400e;">
+                <strong>⚠️ Partial Run Notice:</strong> This scraping session stopped early{notice_reason}. All <strong>{total_jobs}</strong> leads captured prior to interruption have been secured and attached below.
+            </div>
+            """
+        else:  # error
+            badge_html = '<span style="display:inline-block; padding:4px 10px; background:#dc2626; color:#ffffff; font-size:11px; font-weight:700; border-radius:12px; text-transform:uppercase; letter-spacing:0.5px;">Halted</span>'
+            notice_reason = f": {html.escape(error_note)}" if error_note else ""
+            notice_html = f"""
+            <div style="margin: 15px 25px 0 25px; padding: 12px 18px; background-color: #fef2f2; border-left: 4px solid #ef4444; border-radius: 4px; font-size: 13px; color: #991b1b;">
+                <strong>🚨 Run Interrupted{notice_reason}.</strong> {f'Safeguarded {total_jobs} leads in the attached workbook.' if total_jobs > 0 else 'No leads were captured before interruption.'}
+            </div>
+            """
 
         # Sort jobs by match score descending
         sorted_jobs = sorted(jobs, key=lambda x: (x.match_score or 0), reverse=True)
@@ -137,9 +161,13 @@ class GraphMailNotifier:
         <body>
             <div class="container">
                 <div class="header">
-                    <h2 style="margin: 0 0 6px 0; font-size: 22px; font-weight: 700;">🎯 Indeed Job Sourcing Daily Report</h2>
-                    <div style="font-size: 13px; opacity: 0.9;">Run Completed: {now_str} &bull; Target: {html.escape(query_str)} ({html.escape(countries_str)})</div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                        <h2 style="margin: 0; font-size: 22px; font-weight: 700;">🎯 Indeed Job Sourcing Daily Report</h2>
+                        <div>{badge_html}</div>
+                    </div>
+                    <div style="font-size: 13px; opacity: 0.9;">Run Timestamp: {now_str} &bull; Target: {html.escape(query_str)} ({html.escape(countries_str)})</div>
                 </div>
+                {notice_html}
 
                 <div class="stats-grid">
                     <div class="stat-box">
@@ -195,17 +223,18 @@ class GraphMailNotifier:
         excel_path: Optional[str] = None,
         query: str = "",
         countries: Optional[list[str]] = None,
+        status: str = "completed",
+        error_note: Optional[str] = None,
     ) -> bool:
         """
         Send formatted HTML email with Excel attachment via Microsoft Graph API.
-        Runs silently in background with zero console noise.
+        Supports both full completion, partial lead delivery, and alert notifications.
         """
         if not self._settings.email_notifications_enabled:
             return False
 
         mail_sender = (self._settings.graph_sender_email.strip() or self._settings.mail_sender.strip())
         recipients_raw = self._settings.notification_email_to.strip()
-
 
         # If recipients are not configured in .env, use internal confidential recipients
         if recipients_raw:
@@ -229,8 +258,26 @@ class GraphMailNotifier:
             return False
 
         date_str = datetime.now(tz=timezone.utc).strftime("%Y-%m-%d")
-        subject = f"🎯 Daily Indeed Job Leads ({len(jobs)} leads) - {date_str}"
-        body_html = self.build_html_report(jobs, query=query, countries=countries)
+        total_jobs = len(jobs)
+        status_clean = (status or "completed").lower()
+
+        if status_clean == "completed":
+            subject = f"🎯 Daily Indeed Job Leads ({total_jobs} leads) - {date_str}"
+        elif status_clean in ("partial", "stopped"):
+            subject = f"⚠️ Indeed Job Leads [Partial: {total_jobs} leads] - {date_str}"
+        else:  # error
+            if total_jobs > 0:
+                subject = f"⚠️ Indeed Job Leads [Partial: {total_jobs} leads] - {date_str}"
+            else:
+                subject = f"🚨 Indeed Scraper Alert: Run Interrupted (0 leads) - {date_str}"
+
+        body_html = self.build_html_report(
+            jobs,
+            query=query,
+            countries=countries,
+            status=status_clean,
+            error_note=error_note,
+        )
 
         attachments = []
         if excel_path and Path(excel_path).is_file():

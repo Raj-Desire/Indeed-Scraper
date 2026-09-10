@@ -137,9 +137,11 @@ class IndeedScraper:
                     if self._stop_event.is_set():
                         break
 
+                    # Reset consecutive blocks counter for each country independently
+                    self._consecutive_blocks = 0
                     self._progress.current_country = country
-                    self._progress.add_log(f"--- Starting Country ({c_idx+1}/{len(countries)}): {country} ---")
-                    self._emit_progress()
+                    self._progress.add_log(f"🌍 Country {c_idx+1}/{len(countries)}: Starting {country}...")
+                    self._emit_progress(force=True)
 
                     # Phase 5.1: Select proxy if rotation is enabled
                     proxy_url = None
@@ -153,9 +155,6 @@ class IndeedScraper:
                     # Phase 5.4: Dynamic browser profile applied per country
                     country_context = await self._create_context(browser, country, proxy_url=proxy_url)
                     country_page = await country_context.new_page()
-
-                    # Phase 3.4: Directly navigate to search URL without homepage geo-redirect
-                    # await self._warm_up_visit(country_page, country)
 
                     try:
                         for page_num in range(max_pages_per_country):
@@ -184,34 +183,89 @@ class IndeedScraper:
                             )
 
                             if not jobs:
-                                # Retry once with a fresh recycled context before giving up
-                                logger.info(
-                                    "Page {} ({}) returned 0 jobs. Recalibrating session with fresh context...",
-                                    page_num + 1, country,
-                                )
-                                country_page, country_context = await self._recycle_context(
-                                    browser, country_context, country, proxy_url=proxy_url
-                                )
-                                jobs = await self._scrape_page(
-                                    country_context, country_page, url, country, query
-                                )
+                                is_blocked = self._consecutive_blocks > 0
+                                if is_blocked:
+                                    # 60-second cooldown break to let Indeed anti-bot trust score recover
+                                    cooldown_secs = 60
+                                    logger.warning(
+                                        "Indeed verification detected for {} on Page {}. Pausing for {}s cooldown before retrying...",
+                                        country, page_num + 1, cooldown_secs
+                                    )
+                                    self._progress.add_log(
+                                        f"⚠️ Bot verification on {country}. Pausing {cooldown_secs}s cooldown to reset trust..."
+                                    )
+                                    self._emit_progress(force=True)
+
+                                    for remaining in range(cooldown_secs, 0, -15):
+                                        if self._stop_event.is_set():
+                                            break
+                                        await asyncio.sleep(min(15.0, remaining))
+                                        if remaining > 15 and not self._stop_event.is_set():
+                                            self._progress.add_log(
+                                                f"Cooldown active for {country}: retrying in {remaining - 15}s..."
+                                            )
+                                            self._emit_progress(force=True)
+
+                                    if not self._stop_event.is_set():
+                                        self._progress.add_log(
+                                            f"🔄 Cooldown complete. Retrying {country} with fresh session..."
+                                        )
+                                        self._emit_progress(force=True)
+                                        country_page, country_context = await self._recycle_context(
+                                            browser, country_context, country, proxy_url=proxy_url
+                                        )
+                                        self._consecutive_blocks = 0
+                                        jobs = await self._scrape_page(
+                                            country_context, country_page, url, country, query
+                                        )
+                                        if jobs:
+                                            self._progress.add_log(
+                                                f"✅ Cooldown retry succeeded! Captured {len(jobs)} jobs for {country}."
+                                            )
+                                            self._emit_progress(force=True)
+                                else:
+                                    # Zero results on clean search: recycle context once and retry
+                                    logger.info(
+                                        "Page {} ({}) returned 0 jobs. Recalibrating session with fresh context...",
+                                        page_num + 1, country,
+                                    )
+                                    country_page, country_context = await self._recycle_context(
+                                        browser, country_context, country, proxy_url=proxy_url
+                                    )
+                                    jobs = await self._scrape_page(
+                                        country_context, country_page, url, country, query
+                                    )
 
                             if not jobs:
-                                self._progress.add_log(f"No more results found for {country} on Page {page_num + 1}")
-                                # Phase 3.5: Adaptive delay after zero results
+                                if self._consecutive_blocks > 0:
+                                    self._progress.add_log(
+                                        f"⚠️ {country} still restricted after cooldown. Preserving {self._progress.jobs_found} leads; transitioning to next country..."
+                                    )
+                                else:
+                                    self._progress.add_log(f"No more results found for {country} on Page {page_num + 1}")
+
+                                # Advance progress counter to the end of this country so progress bar doesn't stall
+                                processed_pages_count = (c_idx + 1) * max_pages_per_country
+                                self._progress.current_page = processed_pages_count
+                                self._emit_progress(force=True)
                                 await self._adaptive_delay(status="zero_results", page_num=page_num)
                                 break
 
                             # Phase 3.3: Save successful session state for country
                             await self._save_session_state(country_context, country)
 
+                            matched_jobs_count = 0
                             for job in jobs:
                                 # Post-scrape location type filter
                                 loc_filter = run_config.location_type.lower()
                                 if loc_filter != "all":
-                                    remote_val = job.remote_type.value if hasattr(job.remote_type, "value") else job.remote_type
+                                    remote_val = job.remote_type.value if hasattr(job.remote_type, "value") else str(job.remote_type)
                                     if loc_filter == "remote" and remote_val != "Fully Remote":
-                                        continue
+                                        desc_lower = f"{job.job_title} {job.location} {job.job_description or ''}".lower()
+                                        if any(term in desc_lower for term in ["remote", "work from home", "wfh", "telecommute"]):
+                                            pass
+                                        else:
+                                            continue
                                     elif loc_filter == "onsite" and remote_val != "On-Site":
                                         continue
                                     elif loc_filter == "hybrid" and remote_val != "Hybrid":
@@ -228,10 +282,21 @@ class IndeedScraper:
                                     ):
                                         continue
 
+                                matched_jobs_count += 1
                                 logger.info("Job passed query filter: '{}' at '{}' ({})", job.job_title, job.company, job.location)
                                 self._progress.jobs_found += 1
                                 self._emit_progress()
                                 yield job
+
+                            if matched_jobs_count == 0 and len(jobs) > 0:
+                                log_note = f"Parsed {len(jobs)} raw jobs for {country} (Page {page_num + 1}), but none matched location/query filters."
+                                logger.info(log_note)
+                                self._progress.add_log(log_note)
+                                self._emit_progress(force=True)
+                            elif matched_jobs_count > 0:
+                                log_note = f"✅ Captured {matched_jobs_count} matching leads for {country} (Page {page_num + 1}). Total leads: {self._progress.jobs_found}"
+                                self._progress.add_log(log_note)
+                                self._emit_progress(force=True)
 
                             # Phase 3.5: Adaptive inter-page delay based on page index and result count
                             await self._adaptive_delay(status="success", page_num=page_num, jobs_count=len(jobs))
@@ -243,6 +308,20 @@ class IndeedScraper:
                             await country_context.close()
                         except Exception:
                             pass
+
+                    # Step-by-step country transition feedback
+                    next_c_idx = c_idx + 1
+                    if next_c_idx < len(countries):
+                        next_country = countries[next_c_idx]
+                        self._progress.add_log(
+                            f"🏁 Finished {country} (leads so far: {self._progress.jobs_found}). Step by step moving to next country: {next_country}..."
+                        )
+                        self._emit_progress(force=True)
+                    else:
+                        self._progress.add_log(
+                            f"🏁 Finished {country} (leads so far: {self._progress.jobs_found}). All selected countries completed!"
+                        )
+                        self._emit_progress(force=True)
 
             finally:
                 try:
@@ -488,20 +567,7 @@ class IndeedScraper:
                         "Indeed bot check on attempt {} for URL: {} (consecutive blocks: {}).",
                         attempt + 1, url, self._consecutive_blocks,
                     )
-                    # Phase 5.3: Circuit breaker with exponential back-off
-                    if self._consecutive_blocks >= self._max_consecutive_blocks:
-                        backoff = min(300.0, 30.0 * (2 ** (self._consecutive_blocks - self._max_consecutive_blocks)))
-                        logger.warning(
-                            "Circuit breaker tripped: {} consecutive blocks. Sleeping for {:.1f}s to cool down IP...",
-                            self._consecutive_blocks, backoff,
-                        )
-                        self._progress.add_log(
-                            f"Circuit breaker active: {self._consecutive_blocks} consecutive blocks. Sleeping {int(backoff)}s..."
-                        )
-                        self._emit_progress(force=True)
-                        await asyncio.sleep(backoff)
-                    else:
-                        await self._adaptive_delay(status="blocked")
+                    await self._adaptive_delay(status="blocked")
                     if attempt < self._settings.scraper_retry_attempts - 1:
                         continue
                     return []
@@ -534,25 +600,22 @@ class IndeedScraper:
                     logger.info("Circuit breaker reset: scraped successfully after {} block(s)", self._consecutive_blocks)
                     self._consecutive_blocks = 0
 
-                # Enrich jobs with full description
-                # Strategy 0: Internal XHR/Fetch endpoint evaluated directly inside page session (Phase 5.5)
-                # Avoids opening extra browser pages/tabs by requesting Indeed's internal job detail endpoint with session cookies
+                # Strategy 0: Direct same-origin internal fetch evaluated inside page session
+                # Fast, lightweight, avoids opening extra browser tabs or navigating away
                 for job in jobs:
                     if job.indeed_job_id and (not job.has_full_description or len(job.job_description or "") < 300):
                         try:
                             desc_html = await page.evaluate(
                                 """async (jk) => {
                                     try {
+                                        const ctrl = new AbortController();
+                                        const tid = setTimeout(() => ctrl.abort(), 3500);
                                         const res = await fetch(`/viewjob?jk=${jk}&t=jobsearch`, {
-                                            headers: {
-                                                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                                                'X-Requested-With': 'XMLHttpRequest'
-                                            },
-                                            credentials: 'same-origin'
+                                            credentials: 'same-origin',
+                                            signal: ctrl.signal
                                         });
-                                        if (res.ok) {
-                                            return await res.text();
-                                        }
+                                        clearTimeout(tid);
+                                        if (res.ok) return await res.text();
                                     } catch (e) {}
                                     return null;
                                 }""",
@@ -562,61 +625,81 @@ class IndeedScraper:
                                 self._parser.enrich_with_description(job, desc_html)
                                 if job.has_full_description or len(job.job_description or "") > 300:
                                     logger.info("Enriched full description for '{}' ({} chars)", job.job_title, len(job.job_description))
-                            await asyncio.sleep(random.uniform(0.1, 0.25))
+                            await asyncio.sleep(random.uniform(0.1, 0.2))
                         except Exception as s0_err:
                             logger.debug("Strategy 0 fetch error for {}: {}", job.job_title, s0_err)
 
-                # Strategy 1: Interactive side-pane click for remaining jobs on active search page
-                for job in jobs:
-                    if job.indeed_job_id and (not job.has_full_description or len(job.job_description or "") < 300):
-                        try:
-                            card_btn = await page.query_selector(
-                                f"a[data-jk='{job.indeed_job_id}'], "
-                                f"[data-jk='{job.indeed_job_id}'] a.jcs-JobTitle, "
-                                f"a#job_{job.indeed_job_id}"
-                            )
-                            if card_btn:
-                                # Phase 3.1: Human click simulation with mouse movement
-                                await self._human_click(page, card_btn)
-                                await asyncio.sleep(random.uniform(0.4, 0.7))
-                                pane_html = await page.content()
-                                self._parser.enrich_with_description(job, pane_html)
-                                if job.has_full_description or len(job.job_description or "") > 300:
-                                    logger.info("Strategy 1 enriched full description for '{}' ({} chars)", job.job_title, len(job.job_description))
-                        except Exception as click_err:
-                            logger.debug("Interactive card click failed for {}: {}", job.job_title, click_err)
+                # Strategy 1 (Fallback): For remaining jobs lacking description, use a single dedicated worker tab
+                # Crucial: NEVER click links on the search results `page` to prevent page destruction or navigation away!
+                domain = resolve_country_domain(country)
+                remaining_needing_detail = [
+                    j for j in jobs
+                    if (not j.has_full_description or len(j.job_description or "") < 300) and j.indeed_job_id
+                ][:2]
+
+                if remaining_needing_detail:
+                    try:
+                        async with asyncio.timeout(12.0):
+                            worker_page = None
+                            try:
+                                worker_page = await context.new_page()
+                                for r_job in remaining_needing_detail:
+                                    if self._stop_event.is_set():
+                                        break
+                                    try:
+                                        target_url = f"https://{domain}/viewjob?jk={r_job.indeed_job_id}"
+                                        await worker_page.goto(target_url, wait_until="domcontentloaded", timeout=6000)
+                                        w_html = await worker_page.content()
+                                        self._parser.enrich_with_description(r_job, w_html)
+                                        if r_job.has_full_description or len(r_job.job_description or "") > 300:
+                                            logger.info("Worker tab enriched full description for '{}' ({} chars)", r_job.job_title, len(r_job.job_description))
+                                    except Exception as w_err:
+                                        logger.debug("Worker tab enrichment error for {}: {}", r_job.job_title, w_err)
+                            except Exception as wp_err:
+                                logger.debug("Could not create worker tab for detail enrichment: {}", wp_err)
+                            finally:
+                                if worker_page:
+                                    try:
+                                        await worker_page.close()
+                                    except Exception:
+                                        pass
+                    except (asyncio.TimeoutError, Exception) as enrich_err:
+                        logger.debug("Worker tab enrichment window ended: {}", enrich_err)
 
                 # Strategy 2: Parallel detail page fetch with semaphore (Phase 4.1)
-                # For jobs whose description is still short (< 300 chars), fetch detail pages concurrently
                 jobs_needing_detail = [
                     j for j in jobs
                     if (not j.has_full_description or len(j.job_description or "") < 300) and j.job_url
-                ]
+                ][:2]
 
                 if jobs_needing_detail:
-                    semaphore = asyncio.Semaphore(3)  # Capped to 3 concurrent fetches to avoid IP rate limits
+                    try:
+                        async with asyncio.timeout(10.0):
+                            semaphore = asyncio.Semaphore(2)
 
-                    async def _fetch_detail_concurrent(job_to_enrich: JobPosting) -> None:
-                        async with semaphore:
-                            detail_page = None
-                            try:
-                                detail_page = await context.new_page()
-                                await detail_page.goto(job_to_enrich.job_url, wait_until="domcontentloaded", timeout=15000)
-                                await asyncio.sleep(random.uniform(0.3, 0.6))
-                                detail_html = await detail_page.content()
-                                self._parser.enrich_with_description(job_to_enrich, detail_html)
-                                if job_to_enrich.has_full_description or len(job_to_enrich.job_description or "") > 300:
-                                    logger.info("Strategy 2 enriched full description for '{}' ({} chars)", job_to_enrich.job_title, len(job_to_enrich.job_description))
-                            except Exception as detail_err:
-                                logger.debug("Detail page fetch skipped for {}: {}", job_to_enrich.job_title, detail_err)
-                            finally:
-                                if detail_page:
+                            async def _fetch_detail_concurrent(job_to_enrich: JobPosting) -> None:
+                                async with semaphore:
+                                    detail_page = None
                                     try:
-                                        await detail_page.close()
-                                    except Exception:
-                                        pass
+                                        detail_page = await context.new_page()
+                                        await detail_page.goto(job_to_enrich.job_url, wait_until="domcontentloaded", timeout=6000)
+                                        await asyncio.sleep(random.uniform(0.1, 0.2))
+                                        detail_html = await detail_page.content()
+                                        self._parser.enrich_with_description(job_to_enrich, detail_html)
+                                        if job_to_enrich.has_full_description or len(job_to_enrich.job_description or "") > 300:
+                                            logger.info("Strategy 2 enriched full description for '{}' ({} chars)", job_to_enrich.job_title, len(job_to_enrich.job_description))
+                                    except Exception as detail_err:
+                                        logger.debug("Detail page fetch skipped for {}: {}", job_to_enrich.job_title, detail_err)
+                                    finally:
+                                        if detail_page:
+                                            try:
+                                                await detail_page.close()
+                                            except Exception:
+                                                pass
 
-                    await asyncio.gather(*[_fetch_detail_concurrent(j) for j in jobs_needing_detail])
+                            await asyncio.gather(*[_fetch_detail_concurrent(j) for j in jobs_needing_detail], return_exceptions=True)
+                    except (asyncio.TimeoutError, Exception) as s2_err:
+                        logger.debug("Strategy 2 enrichment window ended: {}", s2_err)
 
                 return jobs
 
@@ -797,21 +880,6 @@ class IndeedScraper:
                     return True
             except Exception:
                 pass
-
-            # 5. Check for empty job results that aren't a legitimate "No Results" page
-            # Indeed sometimes serves a blank container on silent soft-block
-            jobs_container = await page.query_selector(
-                '.jobsearch-ResultsList, [data-jk], .job_seen_beacon'
-            )
-            if not jobs_container:
-                # If there are no jobs, ensure it is truly a no-result page rather than a blocked payload
-                no_results_marker = await page.query_selector(
-                    '.jobsearch-NoResult, .no_results, [data-testid="no-results"]'
-                )
-                if not no_results_marker:
-                    # Neither jobs nor valid no-results indicator found
-                    logger.debug("No jobs container and no 'No Results' marker found; potential soft-block")
-                    return True
 
             return False
         except Exception:

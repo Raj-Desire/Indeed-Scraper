@@ -468,11 +468,37 @@ function connectWebSocket() {
         const jobsFoundEl = document.getElementById('jobs-found');
         const logText = document.getElementById('log-text');
 
+        let latestLog = '';
+        if (p.log_messages && p.log_messages.length > 0) {
+            latestLog = p.log_messages[p.log_messages.length - 1];
+            if (logText) logText.textContent = latestLog;
+        }
+
+        const isCooldown = p.status === 'running' && (
+            latestLog.includes('Cooldown') ||
+            latestLog.includes('cooldown') ||
+            latestLog.includes('Pausing') ||
+            latestLog.includes('retrying in')
+        );
+
         if (statusDot) {
             const colors = { running: 'bg-emerald-500 animate-pulse', idle: 'bg-slate-400', completed: 'bg-blue-600', error: 'bg-red-500' };
-            statusDot.className = `w-2.5 h-2.5 rounded-full ${colors[p.status] || 'bg-slate-400'}`;
+            if (isCooldown) {
+                statusDot.className = 'w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse';
+            } else {
+                statusDot.className = `w-2.5 h-2.5 rounded-full ${colors[p.status] || 'bg-slate-400'}`;
+            }
         }
-        if (statusText) statusText.textContent = p.status ? p.status.charAt(0).toUpperCase() + p.status.slice(1) : 'Idle';
+
+        if (statusText) {
+            if (isCooldown) {
+                statusText.textContent = 'Anti-Bot Cooldown (60s)';
+            } else if (p.status === 'running' && p.current_country) {
+                statusText.textContent = `Running (${p.current_country})`;
+            } else {
+                statusText.textContent = p.status ? p.status.charAt(0).toUpperCase() + p.status.slice(1) : 'Idle';
+            }
+        }
 
         // Calculate progress percentage with fallbacks
         let pct = 0;
@@ -495,11 +521,18 @@ function connectWebSocket() {
         if (pctEl) pctEl.textContent = `${pct.toFixed(0)}%`;
         if (jobsFoundEl) jobsFoundEl.textContent = p.jobs_found || 0;
 
-        if (p.log_messages && p.log_messages.length > 0) {
-            if (logText) logText.textContent = p.log_messages[p.log_messages.length - 1];
+        if (p.status === 'running') {
+            const searchStatusEl = document.getElementById('search-status');
+            if (searchStatusEl) {
+                if (isCooldown) {
+                    searchStatusEl.textContent = `Status: ${latestLog}`;
+                } else if (latestLog.includes('Starting Country')) {
+                    searchStatusEl.textContent = `Status: ${latestLog.replace(/---/g, '').trim()}`;
+                }
+            }
         }
 
-        if (p.status === 'completed' || p.status === 'idle' || p.status === 'stopped') {
+        if (p.status === 'completed' || p.status === 'idle' || p.status === 'stopped' || p.status === 'error') {
             if (pollTimer) {
                 clearInterval(pollTimer);
                 pollTimer = null;
@@ -509,6 +542,13 @@ function connectWebSocket() {
             document.getElementById('btn-stop').disabled = true;
             if (p.status === 'completed') {
                 document.getElementById('search-status').textContent = 'Status: Search Completed';
+            } else if (p.status === 'stopped') {
+                document.getElementById('search-status').textContent = 'Status: Search Stopped';
+            } else if (p.status === 'error') {
+                const count = p.jobs_found || 0;
+                document.getElementById('search-status').textContent = count > 0
+                    ? `Status: Run Halted (${count} leads secured & exported)`
+                    : (p.last_error ? `Status: Halted (${p.last_error})` : 'Status: Search Halted');
             }
         }
     };
