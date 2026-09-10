@@ -42,6 +42,7 @@ class ScraperService:
         self._stagnation_limit: int = 20
         self._consecutive_stagnant_polls: int = 0
         self._last_polled_leads_count: int = 0
+        self._auto_complete_triggered: bool = False
 
         logger.info("ScraperService initialized (simple mode)")
 
@@ -57,6 +58,7 @@ class ScraperService:
         self._results = []
         self._consecutive_stagnant_polls = 0
         self._last_polled_leads_count = 0
+        self._auto_complete_triggered = False
 
         session = ScraperSession(
             session_id=session_id,
@@ -93,7 +95,10 @@ class ScraperService:
 
     def check_lead_stagnation(self, current_count: int) -> bool:
         """Check if consecutive GET /api/leads calls have stagnated without new leads."""
-        if not self._is_running():
+        if not self._is_running() or self._auto_complete_triggered:
+            return False
+
+        if self._scraper and getattr(self._scraper, "_is_auto_completed", None) is True:
             return False
 
         if current_count > self._last_polled_leads_count:
@@ -108,7 +113,10 @@ class ScraperService:
             self._stagnation_limit,
             current_count,
         )
-        return self._consecutive_stagnant_polls >= self._stagnation_limit
+        if self._consecutive_stagnant_polls >= self._stagnation_limit:
+            self._auto_complete_triggered = True
+            return True
+        return False
 
     async def trigger_auto_complete(self) -> None:
         """Trigger graceful completion on scraper when stagnation limit is hit."""
