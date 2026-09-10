@@ -34,6 +34,7 @@ class ScraperProgress(BaseModel):
     elapsed_seconds: float = Field(default=0.0)
     log_messages: list[str] = Field(default_factory=list)
     last_error: str = Field(default="")
+    is_auto_completed: bool = Field(default=False)
 
     _log_deque: deque = PrivateAttr(default_factory=lambda: deque(maxlen=50))
 

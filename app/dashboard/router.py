@@ -90,7 +90,14 @@ async def api_get_leads(
 ):
     """Return scraped job leads for direct rendering."""
     service = get_scraper_service()
-    leads = service.get_results()
+    raw_leads = service.get_results()
+
+    # Watchdog: Auto-complete if GET /api/leads stagnates without new leads
+    if service._is_running():
+        if service.check_lead_stagnation(current_count=len(raw_leads)):
+            asyncio.create_task(service.trigger_auto_complete())
+
+    leads = list(raw_leads)
 
     if search:
         sq = search.lower()
