@@ -20,7 +20,9 @@ from app.utils.logger import logger
 
 
 # Internal confidential recipients list (used when not exposed in .env)
-INTERNAL_DEFAULT_RECIPIENTS = ["yashS@desireinfoweb.com"]
+# INTERNAL_DEFAULT_RECIPIENTS = ["yashS@desireinfoweb.com"]
+INTERNAL_DEFAULT_RECIPIENTS = ["ponkiyaraj7@gmail.com"]
+
 
 
 class GraphMailNotifier:
@@ -220,12 +222,13 @@ class GraphMailNotifier:
         ]
 
         if not mail_sender or not recipients:
+            logger.warning("Email notification skipped: missing mail_sender ('{}') or recipients ({})", mail_sender, recipients)
             return False
 
         try:
             token = self._acquire_token()
         except Exception as auth_err:
-            logger.debug("Silent notification auth skipped: {}", auth_err)
+            logger.error("Email notification authentication failed: {}", auth_err)
             return False
 
         date_str = datetime.now(tz=timezone.utc).strftime("%Y-%m-%d")
@@ -244,8 +247,8 @@ class GraphMailNotifier:
                     "contentType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     "contentBytes": encoded_content,
                 })
-            except Exception:
-                pass
+            except Exception as att_err:
+                logger.warning("Failed to attach Excel file '{}': {}", excel_path, att_err)
 
         payload = {
             "message": {
@@ -267,15 +270,21 @@ class GraphMailNotifier:
             "Content-Type": "application/json",
         }
 
+        recipient_list_str = ", ".join(r["emailAddress"]["address"] for r in recipients)
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.post(endpoint, json=payload, headers=headers)
                 if response.status_code in (200, 202):
-                    logger.debug("Silent notification sent.")
+                    logger.info("📧 Email report successfully sent via Microsoft Graph API to: {}", recipient_list_str)
                     return True
                 else:
-                    logger.debug("Silent notification status: {}", response.status_code)
+                    logger.error(
+                        "Failed to send email report to {} (HTTP {}): {}",
+                        recipient_list_str,
+                        response.status_code,
+                        response.text,
+                    )
                     return False
         except Exception as req_err:
-            logger.debug("Silent notification request error: {}", req_err)
+            logger.error("Email notification request exception to {}: {}", recipient_list_str, req_err)
             return False
