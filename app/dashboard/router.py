@@ -133,7 +133,7 @@ async def api_get_leads(
 
 @router.get("/api/export/excel")
 async def api_export_excel():
-    """Download clean Excel workbook."""
+    """Download clean Excel workbook. Also ensures email is dispatched to sender/recipients if not sent yet."""
     from app.excel.exporter import ExcelExporter
 
     service = get_scraper_service()
@@ -142,8 +142,39 @@ async def api_export_excel():
     if not leads:
         raise HTTPException(status_code=400, detail="No job leads to export. Run a search first.")
 
+    session = service.get_session()
+    cfg = session.run_config if session else None
+
     exporter = ExcelExporter()
-    output_path = exporter.export(leads, output_dir=settings.output_dir)
+    output_path = exporter.export(
+        leads,
+        output_dir=settings.output_dir,
+        query=cfg.query if cfg else "",
+        countries=cfg.countries if cfg else [],
+        fromage=cfg.fromage if cfg else "all",
+        location_type=cfg.location_type if cfg else "all",
+    )
+
+    # Check if email notification was already sent for this batch; if not, dispatch now
+    if not service.is_email_sent():
+        logger.info("Download Excel clicked: Email has not been sent yet. Dispatching email report to sender and recipients...")
+        try:
+            sent = await service.send_email_notification(
+                excel_path=str(output_path),
+                query=cfg.query if cfg else "",
+                countries=cfg.countries if cfg else [],
+                fromage=cfg.fromage if cfg else "all",
+                location_type=cfg.location_type if cfg else "all",
+                status="completed",
+            )
+            if sent:
+                logger.info("Download Excel: Email successfully dispatched to sender and recipients.")
+            else:
+                logger.warning("Download Excel: Email notification returned False (disabled or failed).")
+        except Exception as mail_err:
+            logger.error("Download Excel: Error dispatching email notification: {}", mail_err)
+    else:
+        logger.info("Download Excel clicked: Email was already sent for this run.")
 
     return FileResponse(
         path=str(output_path),

@@ -10,6 +10,8 @@ from enum import Enum
 from typing import Optional
 from pydantic import BaseModel, Field, PrivateAttr, computed_field, model_validator
 
+from app.config.constants import IST
+
 
 class ScraperStatus(str, Enum):
     """Operational status of the scraper."""
@@ -64,7 +66,7 @@ class ScraperProgress(BaseModel):
 
     def add_log(self, message: str, max_messages: int = 50) -> None:
         """Append log message using O(1) deque eviction."""
-        timestamp = datetime.now(tz=timezone.utc).strftime("%H:%M:%S")
+        timestamp = datetime.now(tz=IST).strftime("%I:%M:%S %p IST")
         if self._log_deque.maxlen != max_messages:
             self._log_deque = deque(self._log_deque, maxlen=max_messages)
         self._log_deque.append(f"[{timestamp}] {message}")

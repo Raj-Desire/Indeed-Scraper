@@ -132,3 +132,40 @@ def test_finalize_notifies_completed_on_clean_run(tmp_path):
     call_kwargs = service.send_email_notification.call_args.kwargs
     assert call_kwargs["status"] == "completed"
     assert call_kwargs["error_note"] is None
+    assert service.is_email_sent() is True
+
+
+def test_download_excel_triggers_email_when_not_sent(tmp_path, monkeypatch):
+    """Clicking Download Excel triggers email send if not already sent."""
+    from app.dashboard.router import api_export_excel
+    import app.dashboard.router as router_mod
+
+    service = ScraperService()
+    service._settings.output_dir = str(tmp_path)
+    service._email_sent = False
+
+    job1 = JobPosting(
+        job_title="Azure AI Lead",
+        company="TechCorp",
+        job_description="Azure OpenAI and Power Platform",
+        posted_date=datetime.now(tz=timezone.utc),
+    )
+    service._results = [job1]
+
+    # Mock send_email_notification
+    service.send_email_notification = AsyncMock(return_value=True)
+
+    monkeypatch.setattr(router_mod, "get_scraper_service", lambda: service)
+
+    # First call: email not sent yet -> should trigger send_email_notification
+    response = asyncio.run(api_export_excel())
+    assert response.status_code == 200
+    assert service.send_email_notification.called
+    assert service.send_email_notification.call_count == 1
+    service.mark_email_sent(True)
+
+    # Second call: email already sent -> should NOT trigger send_email_notification again
+    response2 = asyncio.run(api_export_excel())
+    assert response2.status_code == 200
+    assert service.send_email_notification.call_count == 1  # Still 1
+

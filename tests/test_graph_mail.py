@@ -71,6 +71,7 @@ def test_build_html_report_structure():
     assert "Indeed Job Sourcing Daily Report" in html_content
     assert "Applied AI Engineer" in html_content
     assert "US" in html_content
+    assert "IST (GMT+5:30)" in html_content
     assert "Total Leads" in html_content
     assert ">3<" in html_content  # 3 total leads
 
@@ -121,3 +122,71 @@ def test_send_report_skipped_when_sender_missing():
         )
     )
     assert result is False
+
+
+def test_build_html_report_includes_search_parameters():
+    notifier = GraphMailNotifier()
+    jobs = create_sample_jobs()
+
+    html_content = notifier.build_html_report(
+        jobs=jobs,
+        query="Azure Ai engineer",
+        countries=["US", "GB"],
+        fromage="1",
+        location_type="remote",
+    )
+
+    # Check search parameters table is present
+    assert "Search Parameters & Selected Filters" in html_content
+    assert "Selected Countries:" in html_content
+    assert "United States (US)" in html_content
+    assert "United Kingdom (GB)" in html_content
+    assert "Search Keyword / Role:" in html_content
+    assert "Azure Ai engineer" in html_content
+    assert "Date Posted Filter:" in html_content
+    assert "Last 24 hours (1 day)" in html_content
+    assert "Location Filter:" in html_content
+    assert "Fully Remote Only" in html_content
+
+
+def test_send_report_includes_sender_in_recipients(monkeypatch):
+    from unittest.mock import AsyncMock, MagicMock
+    import httpx
+
+    notifier = GraphMailNotifier()
+    notifier._settings.email_notifications_enabled = True
+    notifier._settings.mail_sender = "sender@company.com"
+    notifier._settings.graph_sender_email = "sender@company.com"
+    notifier._settings.notification_email_to = "recipient@company.com"
+
+    monkeypatch.setattr(notifier, "_acquire_token", lambda: "fake-token")
+
+    captured_payload = {}
+
+    async def mock_post(url, json=None, headers=None):
+        nonlocal captured_payload
+        captured_payload = json
+        mock_resp = MagicMock()
+        mock_resp.status_code = 202
+        return mock_resp
+
+    mock_client = AsyncMock()
+    mock_client.__aenter__.return_value.post = mock_post
+
+    monkeypatch.setattr(httpx, "AsyncClient", lambda **kwargs: mock_client)
+
+    result = asyncio.run(
+        notifier.send_report(
+            jobs=create_sample_jobs(),
+            excel_path=None,
+            query="Azure Ai engineer",
+            countries=["US"],
+            fromage="1",
+        )
+    )
+
+    assert result is True
+    recipients = [r["emailAddress"]["address"] for r in captured_payload["message"]["toRecipients"]]
+    assert "recipient@company.com" in recipients
+    assert "sender@company.com" in recipients  # Sender must be included!
+

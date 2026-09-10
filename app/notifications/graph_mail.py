@@ -14,9 +14,28 @@ from typing import Optional
 import httpx
 import msal
 
+from app.config.constants import COMMON_COUNTRIES, IST
 from app.config.settings import get_settings
 from app.models.job import JobPosting
 from app.utils.logger import logger
+
+_COUNTRY_NAME_MAP = {c.code.upper(): c.name for c in COMMON_COUNTRIES}
+
+_FROMAGE_LABELS = {
+    "1": "Last 24 hours (1 day)",
+    "3": "Last 3 days",
+    "7": "Last 7 days (1 week)",
+    "14": "Last 14 days (2 weeks)",
+    "30": "Last 30 days (1 month)",
+    "all": "All Dates (Anytime)",
+}
+
+_LOCATION_LABELS = {
+    "all": "All (Remote & On-Site)",
+    "remote": "Fully Remote Only",
+    "onsite": "On-Site Only",
+    "hybrid": "Hybrid Only",
+}
 
 
 # Internal confidential recipients list (used when not exposed in .env)
@@ -57,16 +76,38 @@ class GraphMailNotifier:
         jobs: list[JobPosting],
         query: str = "",
         countries: Optional[list[str]] = None,
+        fromage: str = "all",
+        location_type: str = "all",
         status: str = "completed",
         error_note: Optional[str] = None,
     ) -> str:
         """Generate a modern, responsive HTML email dashboard with metrics and top leads."""
-        now_str = datetime.now(tz=timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+        now_str = datetime.now(tz=IST).strftime("%Y-%m-%d %I:%M %p IST (GMT+5:30)")
         total_jobs = len(jobs)
         high_matches = sum(1 for j in jobs if (j.match_score or 0) >= 70)
         med_matches = sum(1 for j in jobs if 50 <= (j.match_score or 0) < 70)
-        countries_str = ", ".join(countries) if countries else "All Target Countries"
-        query_str = query if query else "All Configured Roles"
+
+        # Format countries display
+        if countries:
+            formatted_countries = [
+                f"{_COUNTRY_NAME_MAP.get(c.upper(), c)} ({c.upper()})" if c.upper() in _COUNTRY_NAME_MAP else c
+                for c in countries
+            ]
+            countries_display = ", ".join(formatted_countries)
+            countries_str = ", ".join(countries)
+        else:
+            countries_display = "All Target Countries"
+            countries_str = "All Target Countries"
+
+        query_display = query.strip() if query and query.strip() else "All Configured Roles"
+        query_str = query_display
+
+        # Format date posted and location labels
+        fromage_key = str(fromage).strip().lower() if fromage is not None else "all"
+        fromage_display = _FROMAGE_LABELS.get(fromage_key, f"Last {fromage} days" if fromage_key.isdigit() else str(fromage))
+
+        location_key = str(location_type).strip().lower() if location_type is not None else "all"
+        location_display = _LOCATION_LABELS.get(location_key, str(location_type))
 
         status_clean = (status or "completed").lower()
         if status_clean == "completed":
@@ -184,6 +225,31 @@ class GraphMailNotifier:
                     </div>
                 </div>
 
+                <!-- Search Parameters & Selected Filters Summary -->
+                <div style="margin: 15px 25px 0 25px; padding: 14px 18px; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px;">
+                    <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: #475569; letter-spacing: 0.5px; margin-bottom: 8px;">
+                        🔍 Search Parameters & Selected Filters
+                    </div>
+                    <table style="width: 100%; border: none; font-size: 13px; border-collapse: collapse;">
+                        <tr style="border-bottom: 1px dashed #e2e8f0;">
+                            <td style="padding: 6px 4px; width: 30%; color: #64748b; font-weight: 600;">Selected Countries:</td>
+                            <td style="padding: 6px 4px; width: 70%; color: #0f172a; font-weight: 700;">{html.escape(countries_display)}</td>
+                        </tr>
+                        <tr style="border-bottom: 1px dashed #e2e8f0;">
+                            <td style="padding: 6px 4px; color: #64748b; font-weight: 600;">Search Keyword / Role:</td>
+                            <td style="padding: 6px 4px; color: #2563eb; font-weight: 700;">{html.escape(query_display)}</td>
+                        </tr>
+                        <tr style="border-bottom: 1px dashed #e2e8f0;">
+                            <td style="padding: 6px 4px; color: #64748b; font-weight: 600;">Date Posted Filter:</td>
+                            <td style="padding: 6px 4px; color: #0f172a; font-weight: 700;">{html.escape(fromage_display)}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 6px 4px; color: #64748b; font-weight: 600;">Location Filter:</td>
+                            <td style="padding: 6px 4px; color: #0f172a; font-weight: 600;">{html.escape(location_display)}</td>
+                        </tr>
+                    </table>
+                </div>
+
                 <div class="content">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
                         <h3 style="margin:0; font-size:16px; color:#1e293b;">Top Matched Job Leads</h3>
@@ -223,6 +289,8 @@ class GraphMailNotifier:
         excel_path: Optional[str] = None,
         query: str = "",
         countries: Optional[list[str]] = None,
+        fromage: str = "all",
+        location_type: str = "all",
         status: str = "completed",
         error_note: Optional[str] = None,
     ) -> bool:
@@ -240,7 +308,11 @@ class GraphMailNotifier:
         if recipients_raw:
             raw_list = [r.strip() for r in recipients_raw.split(",") if r.strip() and "@" in r]
         else:
-            raw_list = INTERNAL_DEFAULT_RECIPIENTS
+            raw_list = list(INTERNAL_DEFAULT_RECIPIENTS)
+
+        # Include sender mailbox in recipient list so sender receives a copy
+        if mail_sender and "@" in mail_sender and mail_sender not in raw_list:
+            raw_list.append(mail_sender)
 
         recipients = [
             {"emailAddress": {"address": r}}
@@ -257,24 +329,28 @@ class GraphMailNotifier:
             logger.debug("Silent notification auth skipped: {}", auth_err)
             return False
 
-        date_str = datetime.now(tz=timezone.utc).strftime("%Y-%m-%d")
+        date_str = datetime.now(tz=IST).strftime("%Y-%m-%d")
         total_jobs = len(jobs)
         status_clean = (status or "completed").lower()
+        query_display = query.strip() if query and query.strip() else ""
+        query_tag = f" [{query_display}]" if query_display else ""
 
         if status_clean == "completed":
-            subject = f"🎯 Daily Indeed Job Leads ({total_jobs} leads) - {date_str}"
+            subject = f"🎯 Daily Indeed Job Leads ({total_jobs} leads){query_tag} - {date_str}"
         elif status_clean in ("partial", "stopped"):
-            subject = f"⚠️ Indeed Job Leads [Partial: {total_jobs} leads] - {date_str}"
+            subject = f"⚠️ Indeed Job Leads [Partial: {total_jobs} leads]{query_tag} - {date_str}"
         else:  # error
             if total_jobs > 0:
-                subject = f"⚠️ Indeed Job Leads [Partial: {total_jobs} leads] - {date_str}"
+                subject = f"⚠️ Indeed Job Leads [Partial: {total_jobs} leads]{query_tag} - {date_str}"
             else:
-                subject = f"🚨 Indeed Scraper Alert: Run Interrupted (0 leads) - {date_str}"
+                subject = f"🚨 Indeed Scraper Alert: Run Interrupted (0 leads){query_tag} - {date_str}"
 
         body_html = self.build_html_report(
             jobs,
             query=query,
             countries=countries,
+            fromage=fromage,
+            location_type=location_type,
             status=status_clean,
             error_note=error_note,
         )
@@ -318,11 +394,11 @@ class GraphMailNotifier:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.post(endpoint, json=payload, headers=headers)
                 if response.status_code in (200, 202):
-                    logger.debug("Silent notification sent.")
+                    logger.info("Email notification successfully sent via Microsoft Graph API to: {}", [r["emailAddress"]["address"] for r in recipients])
                     return True
                 else:
-                    logger.debug("Silent notification status: {}", response.status_code)
+                    logger.warning("Microsoft Graph sendMail HTTP error {}: {}", response.status_code, response.text)
                     return False
         except Exception as req_err:
-            logger.debug("Silent notification request error: {}", req_err)
+            logger.error("Microsoft Graph sendMail exception: {}", req_err)
             return False

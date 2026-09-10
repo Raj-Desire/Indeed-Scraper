@@ -26,6 +26,7 @@ from app.config.constants import (
     resolve_country_timezone,
     resolve_country_locale,
     resolve_country_domain,
+    IST,
 )
 from app.config.settings import get_settings
 from app.models.job import JobPosting
@@ -119,7 +120,7 @@ class IndeedScraper:
             current_country=countries[0],
             current_keyword=query,
             max_pages=total_pages_overall,
-            started_at=datetime.now(tz=timezone.utc),
+            started_at=datetime.now(tz=IST),
         )
         # Instantiate parser dynamically based on configuration
         parser_engine = run_config.parser_engine or self._settings.scraper_parser_engine

@@ -27,24 +27,50 @@ def test_export_includes_match_columns_and_url_hyperlink():
     job.missing_skills = ["Dynamics 365"]
     job.match_reason = "Strong SPFx overlap"
 
-    path = ExcelExporter().export([job], output_dir=str(_OUT_DIR))
+    path = ExcelExporter().export(
+        [job],
+        output_dir=str(_OUT_DIR),
+        query=".NET",
+        countries=["US"],
+        fromage="1",
+        location_type="remote",
+    )
     wb = openpyxl.load_workbook(path)
     ws = wb.active
 
-    headers = [cell.value for cell in ws[1]]
+    # Verify Search Parameters card
+    assert "INDEED JOB SOURCING REPORT" in str(ws.cell(row=1, column=1).value)
+    assert "SEARCH PARAMETERS & SELECTED FILTERS" in str(ws.cell(row=2, column=1).value)
+    assert ws.cell(row=3, column=1).value == "Selected Countries:"
+    assert "United States (US)" in str(ws.cell(row=3, column=2).value)
+    assert ws.cell(row=3, column=6).value == "Date Posted Filter:"
+    assert "Last 24 hours" in str(ws.cell(row=3, column=7).value)
+    assert ws.cell(row=4, column=1).value == "Search Keyword / Role:"
+    assert ws.cell(row=4, column=2).value == ".NET"
+    assert ws.cell(row=4, column=6).value == "Location Filter:"
+    assert "Fully Remote Only" in str(ws.cell(row=4, column=7).value)
+    assert ws.cell(row=5, column=1).value == "Export Timestamp:"
+    assert "IST (GMT+5:30)" in str(ws.cell(row=5, column=2).value)
+    assert ws.cell(row=5, column=6).value == "Total Leads:"
+    assert "1 leads captured" in str(ws.cell(row=5, column=7).value)
+
+    # Locate table headers row (row 7)
+    header_row_idx = 7
+    headers = [cell.value for cell in ws[header_row_idx]]
     assert "Match Score" in headers
     assert "Matched Skills" in headers
     assert "Missing Skills" in headers
     assert "Match Reason" in headers
     assert "Job URL" in headers
 
+    data_row_idx = header_row_idx + 1
     url_col = headers.index("Job URL") + 1
-    url_cell = ws.cell(row=2, column=url_col)
+    url_cell = ws.cell(row=data_row_idx, column=url_col)
     assert url_cell.hyperlink.target == "https://www.indeed.com/viewjob?jk=abc123"
     assert url_cell.value == "View on Indeed"
 
     match_score_col = headers.index("Match Score") + 1
-    assert ws.cell(row=2, column=match_score_col).value == 88
+    assert ws.cell(row=data_row_idx, column=match_score_col).value == 88
 
     shutil.rmtree(_OUT_DIR)
 

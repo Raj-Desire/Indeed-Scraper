@@ -6,6 +6,15 @@ Supports both selecting predefined countries and typing any custom country/role.
 """
 
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
+
+# India Standard Time (IST) - GMT+5:30
+IST = timezone(timedelta(hours=5, minutes=30), name="IST")
+
+
+def get_ist_now() -> datetime:
+    """Return the current datetime in India Standard Time (IST / GMT+5:30)."""
+    return datetime.now(tz=IST)
 
 
 @dataclass(frozen=True)

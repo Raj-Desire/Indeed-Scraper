@@ -48,17 +48,55 @@ function clearAllCountries() {
     updateSelectedCountriesDisplay();
 }
 
+// Company Service & Role Dropdown & Input Synchronization
+function onServiceRoleChange() {
+    const selector = document.getElementById('select-service-role');
+    const customWrapper = document.getElementById('custom-query-wrapper');
+    const queryInput = document.getElementById('input-query');
+    if (!selector) return;
+
+    if (selector.value === 'custom') {
+        if (customWrapper) customWrapper.classList.remove('hidden');
+        if (queryInput) {
+            queryInput.value = '';
+            queryInput.placeholder = 'Type custom keyword here...';
+            queryInput.focus();
+        }
+    } else {
+        if (customWrapper) customWrapper.classList.add('hidden');
+        if (queryInput) {
+            queryInput.value = '';
+        }
+    }
+}
+
 // Start User-Defined Search
 async function startSearch() {
     const countries = getSelectedCountries();
-    const query = document.getElementById('input-query')?.value || 'AI Developer';
+    const selector = document.getElementById('select-service-role');
+    const queryInput = document.getElementById('input-query');
+
+    let query = '';
+    if (selector && selector.value === 'custom') {
+        query = queryInput?.value?.trim() || '';
+    } else if (selector) {
+        query = selector.value.trim();
+    }
+
+    if (!query) {
+        alert(selector?.value === 'custom' ? 'Please enter your custom keyword.' : 'Please select a keyword.');
+        if (selector?.value === 'custom' && queryInput) {
+            queryInput.focus();
+        }
+        return;
+    }
     const locationType = document.getElementById('input-location')?.value || 'all';
     const fromage = document.getElementById('input-fromage')?.value || 'all';
     const pages = parseInt(document.getElementById('input-pages')?.value || '1');
     const parserEngine = document.getElementById('input-parser')?.value || 'beautifulsoup';
 
     if (!query.trim()) {
-        alert('Please enter a job role or keyword.');
+        alert('Please select or enter a job role or keyword.');
         return;
     }
 
@@ -588,7 +626,27 @@ function esc(str) {
     return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+function updateIstClock() {
+    const el = document.getElementById('ist-live-clock');
+    if (!el) return;
+    try {
+        const now = new Date();
+        const timeStr = now.toLocaleTimeString('en-US', {
+            timeZone: 'Asia/Kolkata',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: true
+        });
+        el.textContent = `${timeStr} IST`;
+    } catch (e) {
+        el.textContent = 'IST (GMT+5:30)';
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
+    updateIstClock();
+    setInterval(updateIstClock, 1000);
     updateSelectedCountriesDisplay();
     connectWebSocket();
     fetchLeads();

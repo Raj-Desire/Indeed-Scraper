@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from typing import Optional
 from uuid import uuid4
 
+from app.config.constants import IST
 from app.config.settings import get_settings
 from app.excel.exporter import ExcelExporter
 from app.filters.date_filter import DateFilter
@@ -38,6 +39,7 @@ class ScraperService:
         self._dedup_filter = DedupFilter()
         self._exporter = ExcelExporter()
         self._match_service: Optional[MatchService] = None
+        self._email_sent: bool = False
 
         logger.info("ScraperService initialized (simple mode)")
 
@@ -51,11 +53,12 @@ class ScraperService:
 
         self._dedup_filter.reset()
         self._results = []
+        self._email_sent = False
 
         session = ScraperSession(
             session_id=session_id,
             run_config=config,
-            started_at=datetime.now(tz=timezone.utc),
+            started_at=datetime.now(tz=IST),
         )
         self._current_session = session
 
@@ -96,6 +99,7 @@ class ScraperService:
 
     async def _run_pipeline(self, config: RunConfig) -> None:
         """Execute pipeline for a single run."""
+        pipeline_error: Optional[str] = None
         try:
             if self._match_service is None and self._settings.enable_kb_matching:
                 self._match_service = MatchService()
@@ -156,11 +160,16 @@ class ScraperService:
         is dispatched regardless of whether status was completed, partial, or stopped.
         """
         excel_path: Optional[str] = None
+        active_cfg = self._current_session.run_config if self._current_session else config
         if self._results:
             try:
                 exported = self._exporter.export(
                     self._results,
                     output_dir=self._settings.output_dir,
+                    query=active_cfg.query if active_cfg else "",
+                    countries=active_cfg.countries if active_cfg else [],
+                    fromage=active_cfg.fromage if active_cfg else "all",
+                    location_type=active_cfg.location_type if active_cfg else "all",
                 )
                 excel_path = str(exported)
                 if self._current_session:
@@ -187,7 +196,7 @@ class ScraperService:
             final_status = "completed"
 
         if self._current_session:
-            self._current_session.completed_at = datetime.now(tz=timezone.utc)
+            self._current_session.completed_at = datetime.now(tz=IST)
             self._current_session.total_scraped = len(self._results)
 
         # Background notification dispatch
@@ -195,17 +204,22 @@ class ScraperService:
             # Deliver if we collected leads OR if an error occurred (alert)
             if self._results or error_note:
                 try:
+                    active_cfg = self._current_session.run_config if self._current_session else config
                     logger.info(
                         "Dispatching Graph email notification (Status: '{}', Leads: {})...",
                         final_status, len(self._results)
                     )
-                    await self.send_email_notification(
+                    sent = await self.send_email_notification(
                         excel_path=excel_path,
-                        query=self._current_session.run_config.query if self._current_session else config.query,
-                        countries=self._current_session.run_config.countries if self._current_session else config.countries,
+                        query=active_cfg.query,
+                        countries=active_cfg.countries,
+                        fromage=active_cfg.fromage,
+                        location_type=active_cfg.location_type,
                         status=final_status,
                         error_note=error_note,
                     )
+                    if sent:
+                        self._email_sent = True
                 except Exception as mail_err:
                     logger.error("Notification dispatch failed: {}", mail_err)
 
@@ -220,20 +234,35 @@ class ScraperService:
         excel_path: Optional[str] = None,
         query: str = "",
         countries: Optional[list[str]] = None,
+        fromage: str = "all",
+        location_type: str = "all",
         status: str = "completed",
         error_note: Optional[str] = None,
     ) -> bool:
         """Send daily email report with Excel attachment via Microsoft Graph API."""
         from app.notifications.graph_mail import GraphMailNotifier
         notifier = GraphMailNotifier()
-        return await notifier.send_report(
+        sent = await notifier.send_report(
             jobs=self._results,
             excel_path=excel_path,
             query=query,
             countries=countries,
+            fromage=fromage,
+            location_type=location_type,
             status=status,
             error_note=error_note,
         )
+        if sent:
+            self._email_sent = True
+        return sent
+
+    def is_email_sent(self) -> bool:
+        """Return whether an email has already been dispatched for the current session."""
+        return self._email_sent
+
+    def mark_email_sent(self, sent: bool = True) -> None:
+        """Set the email sent status."""
+        self._email_sent = sent
 
     def _is_running(self) -> bool:
         return self._current_task is not None and not self._current_task.done()
