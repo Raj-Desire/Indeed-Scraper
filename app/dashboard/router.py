@@ -57,10 +57,15 @@ async def api_start_scraper(request: Request):
             c_single = body.get("country", "US")
             countries_raw = [c_single] if isinstance(c_single, str) else c_single
 
+        queries_raw = body.get("queries")
+        if not queries_raw:
+            q_single = body.get("query", "SharePoint")
+            queries_raw = [q.strip() for q in q_single.split(",") if q.strip()] if isinstance(q_single, str) else q_single
+
         run_config = RunConfig(
             countries=countries_raw,
-            query=body.get("query", "AI Developer"),
-            max_pages=int(body.get("max_pages", 3)),
+            queries=queries_raw,
+            max_pages=int(body.get("max_pages", 1)),
             location_type=body.get("location_type", "all"),
             fromage=str(body.get("fromage", "all")),
             parser_engine=body.get("parser_engine", settings.scraper_parser_engine),
@@ -162,9 +167,10 @@ async def api_export_excel():
             sent = await service.send_email_notification(
                 excel_path=str(output_path),
                 query=cfg.query if cfg else "",
+                queries=getattr(cfg, "queries", None) if cfg else None,
                 countries=cfg.countries if cfg else [],
-                fromage=cfg.fromage if cfg else "all",
-                location_type=cfg.location_type if cfg else "all",
+                fromage=cfg.fromage if cfg else "1",
+                location_type=cfg.location_type if cfg else "remote",
                 status="completed",
             )
             if sent:

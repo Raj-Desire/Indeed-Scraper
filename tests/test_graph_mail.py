@@ -190,3 +190,31 @@ def test_send_report_includes_sender_in_recipients(monkeypatch):
     assert "recipient@company.com" in recipients
     assert "sender@company.com" in recipients  # Sender must be included!
 
+
+def test_build_html_report_shows_all_selected_keywords_and_indeed_links():
+    notifier = GraphMailNotifier()
+    jobs = create_sample_jobs()
+    jobs[0].search_query = "SharePoint"
+    jobs[1].search_query = "Power Apps"
+    jobs[2].search_query = "React"
+
+    selected_keywords = ["SharePoint", "Power Apps", "Power Automate", "AI", ".NET", "React", "n8n"]
+
+    html_content = notifier.build_html_report(
+        jobs=jobs,
+        queries=selected_keywords,
+        countries=["US"],
+        fromage="1",
+        location_type="remote",
+    )
+
+    # Verify all selected keywords are shown in the email report
+    for kw in selected_keywords:
+        assert kw in html_content
+
+    # Verify direct Indeed links and View on Indeed button
+    assert "View on Indeed ↗" in html_content
+    for j in jobs:
+        assert j.job_url in html_content
+
+

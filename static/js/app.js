@@ -5,35 +5,52 @@ let pollTimer = null;
 let allLeads = [];
 
 function getSelectedCountries() {
+    const radios = document.querySelectorAll('input[name="country_radio"]:checked');
+    if (radios.length > 0) {
+        return Array.from(radios).map(cb => cb.value);
+    }
     const checkboxes = document.querySelectorAll('input[name="country_checkbox"]:checked');
     const selected = Array.from(checkboxes).map(cb => cb.value);
     return selected.length > 0 ? selected : ['US'];
 }
 
+function updateSelectedCountryDisplay() {
+    updateSelectedCountriesDisplay();
+}
+
 function updateSelectedCountriesDisplay() {
-    const checkboxes = document.querySelectorAll('input[name="country_checkbox"]:checked');
+    const selectedInput = document.querySelector('input[name="country_radio"]:checked') ||
+                          document.querySelector('input[name="country_checkbox"]:checked');
     const bar = document.getElementById('selected-countries-bar');
     const badge = document.getElementById('country-count-badge');
     
+    // Highlight the selected country card and reset others
+    document.querySelectorAll('.country-item-label').forEach(lbl => {
+        const radio = lbl.querySelector('input[type="radio"]');
+        if (radio && radio.checked) {
+            lbl.classList.add('border-blue-500', 'bg-blue-50/70', 'ring-1', 'ring-blue-400/40');
+            lbl.classList.remove('border-slate-200', 'bg-white');
+        } else {
+            lbl.classList.remove('border-blue-500', 'bg-blue-50/70', 'ring-1', 'ring-blue-400/40');
+            lbl.classList.add('border-slate-200', 'bg-white');
+        }
+    });
+
+    const code = selectedInput ? selectedInput.value : 'US';
+    const name = selectedInput ? (selectedInput.getAttribute('data-name') || code) : 'United States';
+
     if (badge) {
-        const count = checkboxes.length;
-        badge.textContent = count === 1 ? '1 Country Selected' : `${count} Countries Selected`;
+        badge.className = 'px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-200';
+        badge.textContent = `1 Selected (${code}) — Stealth Mode Active`;
     }
 
     if (!bar) return;
 
-    if (checkboxes.length === 0) {
-        bar.innerHTML = `<span class="text-amber-600 text-xs italic">No country selected. Defaulting to US.</span>`;
-        return;
-    }
-
-    bar.innerHTML = Array.from(checkboxes).map(cb => {
-        const code = cb.value;
-        const name = cb.getAttribute('data-name') || code;
-        return `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 shadow-sm shrink-0">
-            ${esc(name)} <span class="text-blue-500 text-[10px]">(${esc(code)})</span>
-        </span>`;
-    }).join('');
+    bar.innerHTML = `<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">
+        <span>🌐 ${esc(name)}</span>
+        <span class="text-emerald-500 font-mono text-[11px]">(${esc(code)})</span>
+        <span class="text-emerald-400 text-[10px] font-normal">&bull; Single Country Focus Active</span>
+    </span>`;
 }
 
 function selectAllCountries() {
@@ -48,57 +65,176 @@ function clearAllCountries() {
     updateSelectedCountriesDisplay();
 }
 
-// Company Service & Role Dropdown & Input Synchronization
-function onServiceRoleChange() {
-    const selector = document.getElementById('select-service-role');
-    const customWrapper = document.getElementById('custom-query-wrapper');
-    const queryInput = document.getElementById('input-query');
-    if (!selector) return;
+// 7 Core Keywords & Checkbox Management
+const DEFAULT_CORE_KEYWORDS = [
+    "SharePoint",
+    "Power Apps",
+    "Power Automate",
+    "AI",
+    ".NET",
+    "React",
+    "n8n"
+];
 
-    if (selector.value === 'custom') {
-        if (customWrapper) customWrapper.classList.remove('hidden');
-        if (queryInput) {
-            queryInput.value = '';
-            queryInput.placeholder = 'Type custom keyword here...';
-            queryInput.focus();
+function getSelectedKeywords() {
+    const checkedBoxes = document.querySelectorAll('input[name="keyword_checkbox"]:checked');
+    const selected = Array.from(checkedBoxes).map(cb => cb.value.trim()).filter(Boolean);
+    return selected.length > 0 ? selected : DEFAULT_CORE_KEYWORDS;
+}
+
+function selectAllKeywords(checkAll) {
+    const checkboxes = document.querySelectorAll('input[name="keyword_checkbox"]');
+    checkboxes.forEach(cb => cb.checked = !!checkAll);
+    updateSelectedKeywordsDisplay();
+}
+
+function updateSelectedKeywordsDisplay() {
+    const checkedBoxes = document.querySelectorAll('input[name="keyword_checkbox"]:checked');
+    const totalBoxes = document.querySelectorAll('input[name="keyword_checkbox"]');
+    const badge = document.getElementById('keyword-count-badge');
+    const queueBar = document.getElementById('active-keywords-queue');
+
+    const count = checkedBoxes.length;
+
+    if (badge) {
+        if (count === 0) {
+            badge.className = 'px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-700 border border-rose-200';
+            badge.textContent = '0 Selected (Select at least 1)';
+        } else if (count === totalBoxes.length) {
+            badge.className = 'px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-200';
+            badge.textContent = `${count} Active (All Core Selected)`;
+        } else {
+            badge.className = 'px-2 py-0.5 rounded-full text-[11px] font-bold bg-blue-100 text-blue-700 border border-blue-200';
+            badge.textContent = `${count} / ${totalBoxes.length} Selected`;
+        }
+    }
+
+    if (!queueBar) return;
+
+    if (count === 0) {
+        queueBar.innerHTML = `<span class="text-rose-500 text-xs italic">No keywords selected. Please check at least one role above.</span>`;
+        return;
+    }
+
+    queueBar.innerHTML = Array.from(checkedBoxes).map((cb, idx) => `
+        <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 shadow-2xs shrink-0">
+            <span class="w-3.5 h-3.5 rounded-full bg-blue-200 text-blue-800 text-[10px] flex items-center justify-center font-bold">${idx + 1}</span>
+            <span>${esc(cb.value)}</span>
+        </span>
+    `).join('');
+}
+
+function handleKeywordInputKey(e) {
+    if (e.key === 'Enter' || e.key === ',') {
+        e.preventDefault();
+        addCustomKeywordCheckbox();
+    }
+}
+
+function addCustomKeywordCheckbox() {
+    const input = document.getElementById('input-new-keyword');
+    if (!input) return;
+    const rawVal = (input.value || '').trim();
+    if (!rawVal) return;
+
+    const parts = rawVal.split(',').map(p => p.trim()).filter(Boolean);
+    const grid = document.getElementById('keywords-checkbox-grid');
+    if (!grid) return;
+
+    parts.forEach(kw => {
+        // Check if already exists
+        const existing = Array.from(document.querySelectorAll('input[name="keyword_checkbox"]'))
+            .some(cb => cb.value.toLowerCase() === kw.toLowerCase());
+        if (existing) return;
+
+        const label = document.createElement('label');
+        label.className = 'keyword-item flex items-center gap-2 bg-blue-50/50 hover:bg-blue-50 border border-blue-300 rounded-xl px-3 py-2 cursor-pointer transition-all shadow-2xs group';
+        label.innerHTML = `
+            <input type="checkbox" name="keyword_checkbox" value="${esc(kw)}" checked onchange="updateSelectedKeywordsDisplay()"
+                class="w-4 h-4 rounded bg-white border-slate-300 text-blue-600 focus:ring-blue-500/20 accent-blue-600 cursor-pointer">
+            <span class="text-xs text-slate-800 font-bold group-hover:text-blue-700 truncate">${esc(kw)}</span>
+            <button type="button" onclick="this.closest('label').remove(); updateSelectedKeywordsDisplay();" class="ml-auto text-slate-400 hover:text-rose-500 text-xs font-bold" title="Remove">&times;</button>
+        `;
+        grid.appendChild(label);
+    });
+
+    input.value = '';
+    updateSelectedKeywordsDisplay();
+}
+
+let isSearchRunning = false;
+
+function setSearchButtonState(disabled, text = 'Search Jobs') {
+    const btn = document.getElementById('btn-search');
+    const label = document.getElementById('btn-search-label') || btn;
+    const icon = document.getElementById('btn-search-icon');
+    if (!btn) return;
+
+    btn.disabled = !!disabled;
+    if (disabled) {
+        btn.classList.add('opacity-60', 'cursor-not-allowed');
+        if (label) label.textContent = text;
+        if (icon) {
+            icon.outerHTML = `<svg id="btn-search-icon" class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m0 14v1m8-8h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707"/></svg>`;
         }
     } else {
-        if (customWrapper) customWrapper.classList.add('hidden');
-        if (queryInput) {
-            queryInput.value = '';
+        btn.classList.remove('opacity-60', 'cursor-not-allowed');
+        if (label) label.textContent = 'Search Jobs';
+        if (icon) {
+            icon.outerHTML = `<svg id="btn-search-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>`;
         }
     }
 }
 
-// Start User-Defined Search
-async function startSearch() {
-    const countries = getSelectedCountries();
-    const selector = document.getElementById('select-service-role');
-    const queryInput = document.getElementById('input-query');
+function setStopButtonState(disabled, text = 'Stop') {
+    const btn = document.getElementById('btn-stop');
+    const label = document.getElementById('btn-stop-label') || btn;
+    const icon = document.getElementById('btn-stop-icon');
+    if (!btn) return;
 
-    let query = '';
-    if (selector && selector.value === 'custom') {
-        query = queryInput?.value?.trim() || '';
-    } else if (selector) {
-        query = selector.value.trim();
-    }
-
-    if (!query) {
-        alert(selector?.value === 'custom' ? 'Please enter your custom keyword.' : 'Please select a keyword.');
-        if (selector?.value === 'custom' && queryInput) {
-            queryInput.focus();
+    btn.disabled = !!disabled;
+    if (disabled) {
+        btn.classList.add('opacity-40', 'cursor-not-allowed');
+        if (label) label.textContent = text;
+        if (icon) {
+            icon.outerHTML = `<svg id="btn-stop-icon" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"/></svg>`;
         }
+    } else {
+        btn.classList.remove('opacity-40', 'cursor-not-allowed');
+        if (label) label.textContent = 'Stop';
+        if (icon) {
+            icon.outerHTML = `<svg id="btn-stop-icon" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"/></svg>`;
+        }
+    }
+}
+
+// Start User-Defined Search (1 Country + Selected Keywords)
+async function startSearch() {
+    const btnSearch = document.getElementById('btn-search');
+    // Prevent duplicate clicks: immediately return if already running or button disabled
+    if (isSearchRunning || (btnSearch && btnSearch.disabled)) {
         return;
     }
-    const locationType = document.getElementById('input-location')?.value || 'all';
-    const fromage = document.getElementById('input-fromage')?.value || 'all';
+
+    const countries = getSelectedCountries();
+    const keywords = getSelectedKeywords();
+
+    if (keywords.length === 0) {
+        alert('Please check at least 1 keyword to search.');
+        return;
+    }
+
+    const locationType = document.getElementById('input-location')?.value || 'remote';
+    const fromage = document.getElementById('input-fromage')?.value || '1';
     const pages = parseInt(document.getElementById('input-pages')?.value || '1');
     const parserEngine = document.getElementById('input-parser')?.value || 'beautifulsoup';
 
-    if (!query.trim()) {
-        alert('Please select or enter a job role or keyword.');
-        return;
-    }
+    // Lock UI immediately so no one can click again
+    isSearchRunning = true;
+    setSearchButtonState(true, 'Starting Search...');
+    setStopButtonState(false);
+    const countryCode = countries[0] || 'US';
+    document.getElementById('search-status').textContent = `Status: Initializing ${keywords.length} keywords in ${countryCode}...`;
 
     try {
         const res = await fetch('/api/scraper/start', {
@@ -106,7 +242,8 @@ async function startSearch() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 countries,
-                query,
+                queries: keywords,
+                query: keywords[0],
                 location_type: locationType,
                 fromage,
                 max_pages: pages,
@@ -116,13 +253,17 @@ async function startSearch() {
         const data = await res.json();
 
         if (!res.ok) {
-            alert(`Error: ${data.detail || 'Failed to start search'}`);
+            isSearchRunning = false;
+            setSearchButtonState(false);
+            setStopButtonState(true);
+            document.getElementById('search-status').textContent = 'Status: Ready';
+            alert(`Notice: ${data.detail || 'Failed to start search'}`);
             return;
         }
 
-        document.getElementById('search-status').textContent = `Status: Scraping ${countries.length} ${countries.length === 1 ? 'country' : 'countries'}...`;
-        document.getElementById('btn-search').disabled = true;
-        document.getElementById('btn-stop').disabled = false;
+        document.getElementById('search-status').textContent = `Status: Scraping ${keywords.length} keywords in ${countryCode}...`;
+        setSearchButtonState(true, 'Scraping Active...');
+        setStopButtonState(false);
 
         // Start polling for live table updates
         if (pollTimer) clearInterval(pollTimer);
@@ -130,7 +271,11 @@ async function startSearch() {
         pollTimer = setInterval(fetchLeads, 2000);
 
     } catch (e) {
-        alert(`Failed: ${e.message}`);
+        isSearchRunning = false;
+        setSearchButtonState(false);
+        setStopButtonState(true);
+        document.getElementById('search-status').textContent = 'Status: Ready';
+        alert(`Connection Failed: ${e.message}`);
     }
 }
 
@@ -139,8 +284,13 @@ async function stopSearch() {
         clearInterval(pollTimer);
         pollTimer = null;
     }
-    await fetch('/api/scraper/stop', { method: 'POST' });
-    document.getElementById('search-status').textContent = 'Status: Stopping...';
+    setStopButtonState(true, 'Stopping...');
+    document.getElementById('search-status').textContent = 'Status: Stopping Scraper...';
+    try {
+        await fetch('/api/scraper/stop', { method: 'POST' });
+    } catch (e) {
+        console.error('Failed to trigger stop:', e);
+    }
 }
 
 let lastLeadsHash = '';
@@ -531,8 +681,9 @@ function connectWebSocket() {
         if (statusText) {
             if (isCooldown) {
                 statusText.textContent = 'Anti-Bot Cooldown (60s)';
-            } else if (p.status === 'running' && p.current_country) {
-                statusText.textContent = `Running (${p.current_country})`;
+            } else if (p.status === 'running') {
+                const kwStr = p.current_keyword ? ` • "${p.current_keyword}"` : '';
+                statusText.textContent = `Running (${p.current_country || 'US'}${kwStr})`;
             } else {
                 statusText.textContent = p.status ? p.status.charAt(0).toUpperCase() + p.status.slice(1) : 'Idle';
             }
@@ -560,6 +711,9 @@ function connectWebSocket() {
         if (jobsFoundEl) jobsFoundEl.textContent = p.jobs_found || 0;
 
         if (p.status === 'running') {
+            isSearchRunning = true;
+            setSearchButtonState(true, 'Scraping Running...');
+            setStopButtonState(false);
             const searchStatusEl = document.getElementById('search-status');
             if (searchStatusEl) {
                 if (isCooldown) {
@@ -571,13 +725,14 @@ function connectWebSocket() {
         }
 
         if (p.status === 'completed' || p.status === 'idle' || p.status === 'stopped' || p.status === 'error') {
+            isSearchRunning = false;
             if (pollTimer) {
                 clearInterval(pollTimer);
                 pollTimer = null;
             }
             fetchLeads(); // Final update
-            document.getElementById('btn-search').disabled = false;
-            document.getElementById('btn-stop').disabled = true;
+            setSearchButtonState(false);
+            setStopButtonState(true);
             if (p.status === 'completed') {
                 document.getElementById('search-status').textContent = 'Status: Search Completed';
             } else if (p.status === 'stopped') {
@@ -647,7 +802,8 @@ function updateIstClock() {
 document.addEventListener('DOMContentLoaded', () => {
     updateIstClock();
     setInterval(updateIstClock, 1000);
-    updateSelectedCountriesDisplay();
+    updateSelectedCountryDisplay();
+    updateSelectedKeywordsDisplay();
     connectWebSocket();
     fetchLeads();
 });

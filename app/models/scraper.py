@@ -75,33 +75,73 @@ class ScraperProgress(BaseModel):
     model_config = {"use_enum_values": True}
 
 
+CORE_DEFAULT_KEYWORDS: list[str] = [
+    "SharePoint",
+    "Power Apps",
+    "Power Automate",
+    "AI",
+    ".NET",
+    "React",
+    "n8n",
+]
+
+
 class RunConfig(BaseModel):
     """
     Configuration for a single user-initiated scraping run.
-    Takes manual user inputs for countries, search query, and max pages.
+    Takes manual user inputs for countries, search queries (SharePoint, Power Apps, Power Automate, AI, .NET, React, n8n), and max pages.
     """
     countries: list[str] = Field(default_factory=lambda: ["US"], description="Target country codes or names")
-    query: str = Field(default="AI Developer", description="Role or keyword to search")
-    max_pages: int = Field(default=1, description="Number of pages to scrape per country")
+    queries: list[str] = Field(default_factory=lambda: list(CORE_DEFAULT_KEYWORDS), description="List of roles or keywords to search")
+    query: str = Field(default="SharePoint", description="Primary role or keyword (backward compatibility)")
+    max_pages: int = Field(default=1, description="Number of pages to scrape per keyword")
     max_leads: Optional[int] = Field(default=None, description="Max leads desired")
-    location_type: str = Field(default="all", description="Location filter type (all, remote, onsite)")
-    fromage: str = Field(default="all", description="Date posted filter: all, 1 (24h), 3 (3 days), 7 (7 days), 14 (14 days)")
+    location_type: str = Field(default="remote", description="Location filter type (all, remote, onsite)")
+    fromage: str = Field(default="1", description="Date posted filter: 1 (24h), 3 (3 days), 7 (7 days), 14 (14 days), all")
     sort_by: str = Field(default="date", description="Sort method: date or relevance")
     headless: Optional[bool] = Field(default=None, description="Run in background")
     parser_engine: str = Field(default="selectolax", description="Parser engine to use (beautifulsoup, selectolax)")
 
     @model_validator(mode="before")
     @classmethod
-    def populate_countries(cls, data: dict) -> dict:
+    def populate_search_params(cls, data: dict) -> dict:
         if isinstance(data, dict):
             if "fromage" in data and data["fromage"] is not None:
                 data["fromage"] = str(data["fromage"])
+
+            # Country normalization
             if "countries" not in data or not data["countries"]:
                 if "country" in data and data["country"]:
                     if isinstance(data["country"], list):
                         data["countries"] = data["country"]
                     elif isinstance(data["country"], str):
                         data["countries"] = [c.strip() for c in data["country"].split(",") if c.strip()]
+
+            # Queries normalization
+            if "queries" in data and data["queries"]:
+                if isinstance(data["queries"], list):
+                    clean_queries = [str(q).strip() for q in data["queries"] if str(q).strip()]
+                    data["queries"] = clean_queries
+                    if clean_queries and ("query" not in data or not data["query"]):
+                        data["query"] = clean_queries[0]
+                elif isinstance(data["queries"], str):
+                    clean_queries = [q.strip() for q in data["queries"].split(",") if q.strip()]
+                    data["queries"] = clean_queries
+                    if clean_queries and ("query" not in data or not data["query"]):
+                        data["query"] = clean_queries[0]
+            elif "query" in data and data["query"]:
+                if isinstance(data["query"], str):
+                    parts = [q.strip() for q in data["query"].split(",") if q.strip()]
+                    data["queries"] = parts if parts else [data["query"].strip()]
+                    data["query"] = parts[0] if parts else data["query"].strip()
+                elif isinstance(data["query"], list):
+                    clean_queries = [str(q).strip() for q in data["query"] if str(q).strip()]
+                    data["queries"] = clean_queries
+                    data["query"] = clean_queries[0] if clean_queries else "SharePoint"
+            elif "queries" not in data:
+                data["queries"] = list(CORE_DEFAULT_KEYWORDS)
+                data["query"] = CORE_DEFAULT_KEYWORDS[0]
+
         return data
 
     @property

@@ -82,6 +82,9 @@ class ScraperService:
     def stop(self) -> None:
         if self._scraper:
             self._scraper.stop()
+            self._scraper.progress.status = ScraperStatus.STOPPED
+            self._scraper.progress.add_log("🛑 Stop requested by user. Terminating active operations...")
+            self._broadcast_progress(self._scraper.progress, force=True)
 
     def get_progress(self) -> ScraperProgress:
         if self._scraper:
@@ -205,16 +208,19 @@ class ScraperService:
             if self._results or error_note:
                 try:
                     active_cfg = self._current_session.run_config if self._current_session else config
+                    cfg_queries = getattr(active_cfg, "queries", None) or getattr(config, "queries", None)
+                    cfg_query = getattr(active_cfg, "query", "") or getattr(config, "query", "")
                     logger.info(
                         "Dispatching Graph email notification (Status: '{}', Leads: {})...",
                         final_status, len(self._results)
                     )
                     sent = await self.send_email_notification(
                         excel_path=excel_path,
-                        query=active_cfg.query,
-                        countries=active_cfg.countries,
-                        fromage=active_cfg.fromage,
-                        location_type=active_cfg.location_type,
+                        query=cfg_query,
+                        queries=cfg_queries,
+                        countries=active_cfg.countries if active_cfg else config.countries,
+                        fromage=active_cfg.fromage if active_cfg else config.fromage,
+                        location_type=active_cfg.location_type if active_cfg else config.location_type,
                         status=final_status,
                         error_note=error_note,
                     )
@@ -233,9 +239,10 @@ class ScraperService:
         self,
         excel_path: Optional[str] = None,
         query: str = "",
+        queries: Optional[list[str]] = None,
         countries: Optional[list[str]] = None,
-        fromage: str = "all",
-        location_type: str = "all",
+        fromage: str = "1",
+        location_type: str = "remote",
         status: str = "completed",
         error_note: Optional[str] = None,
     ) -> bool:
@@ -246,6 +253,7 @@ class ScraperService:
             jobs=self._results,
             excel_path=excel_path,
             query=query,
+            queries=queries,
             countries=countries,
             fromage=fromage,
             location_type=location_type,

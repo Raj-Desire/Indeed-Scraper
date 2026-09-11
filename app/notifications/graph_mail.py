@@ -75,9 +75,10 @@ class GraphMailNotifier:
         self,
         jobs: list[JobPosting],
         query: str = "",
+        queries: Optional[list[str]] = None,
         countries: Optional[list[str]] = None,
-        fromage: str = "all",
-        location_type: str = "all",
+        fromage: str = "1",
+        location_type: str = "remote",
         status: str = "completed",
         error_note: Optional[str] = None,
     ) -> str:
@@ -99,14 +100,29 @@ class GraphMailNotifier:
             countries_display = "All Target Countries"
             countries_str = "All Target Countries"
 
-        query_display = query.strip() if query and query.strip() else "All Configured Roles"
+        # Collect all selected keywords
+        all_keywords: list[str] = []
+        if queries:
+            all_keywords = [str(q).strip() for q in queries if str(q).strip()]
+        elif query and query.strip():
+            all_keywords = [q.strip() for q in query.split(",") if q.strip()]
+
+        if all_keywords:
+            query_display = ", ".join(all_keywords)
+            keywords_badges = " ".join(
+                f'<span style="display:inline-block; margin:2px 4px 2px 0; padding:2px 8px; background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; border-radius:12px; font-size:12px; font-weight:600;">{html.escape(k)}</span>'
+                for k in all_keywords
+            )
+        else:
+            query_display = query.strip() if query and query.strip() else "All Configured Roles"
+            keywords_badges = f'<span style="color:#2563eb; font-weight:700;">{html.escape(query_display)}</span>'
         query_str = query_display
 
         # Format date posted and location labels
-        fromage_key = str(fromage).strip().lower() if fromage is not None else "all"
+        fromage_key = str(fromage).strip().lower() if fromage is not None else "1"
         fromage_display = _FROMAGE_LABELS.get(fromage_key, f"Last {fromage} days" if fromage_key.isdigit() else str(fromage))
 
-        location_key = str(location_type).strip().lower() if location_type is not None else "all"
+        location_key = str(location_type).strip().lower() if location_type is not None else "remote"
         location_display = _LOCATION_LABELS.get(location_key, str(location_type))
 
         status_clean = (status or "completed").lower()
@@ -132,7 +148,7 @@ class GraphMailNotifier:
 
         # Sort jobs by match score descending
         sorted_jobs = sorted(jobs, key=lambda x: (x.match_score or 0), reverse=True)
-        top_jobs = sorted_jobs[:15]  # Display up to 15 top leads in email body
+        top_jobs = sorted_jobs[:50]  # Display up to 50 top leads directly in email body
 
         table_rows = []
         for j in top_jobs:
@@ -159,9 +175,21 @@ class GraphMailNotifier:
                 skills_html = '<span style="color:#94a3b8; font-size:11px;">-</span>'
 
             title_link = (
-                f'<a href="{html.escape(j.job_url)}" target="_blank" style="color:#2563eb; text-decoration:none; font-weight:600;">{html.escape(j.job_title)}</a>'
+                f'<a href="{html.escape(j.job_url)}" target="_blank" style="color:#2563eb; text-decoration:none; font-weight:700; font-size:14px;">{html.escape(j.job_title)}</a>'
                 if j.job_url
                 else html.escape(j.job_title)
+            )
+
+            keyword_pill = (
+                f'<span style="display:inline-block; margin-top:3px; padding:1px 6px; font-size:10px; font-weight:700; background:#f1f5f9; color:#475569; border:1px solid #e2e8f0; border-radius:4px;">🔑 {html.escape(j.search_query)}</span>'
+                if j.search_query
+                else ""
+            )
+
+            indeed_button = (
+                f'<a href="{html.escape(j.job_url)}" target="_blank" style="display:inline-block; padding:6px 12px; background-color:#2563eb; color:#ffffff !important; text-decoration:none; font-weight:700; font-size:11px; border-radius:6px; white-space:nowrap; box-shadow:0 1px 2px rgba(0,0,0,0.08);">View on Indeed ↗</a>'
+                if j.job_url
+                else '<span style="color:#94a3b8; font-size:11px;">—</span>'
             )
 
             table_rows.append(
@@ -171,14 +199,22 @@ class GraphMailNotifier:
                     <td style="padding: 10px 12px;">
                         <div style="font-size: 14px; margin-bottom: 3px;">{title_link}</div>
                         <div style="color: #64748b; font-size: 12px;">{html.escape(j.company)} &bull; {html.escape(j.location or j.country)} ({html.escape(j.remote_type.value if hasattr(j.remote_type, 'value') else str(j.remote_type))})</div>
+                        {keyword_pill}
                     </td>
                     <td style="padding: 10px 12px; color: #334155; font-size: 12px;">{html.escape(j.salary_range or 'Not listed')}</td>
                     <td style="padding: 10px 12px;">{skills_html}</td>
+                    <td style="padding: 10px 12px; text-align: center; vertical-align: middle;">{indeed_button}</td>
                 </tr>
                 """
             )
 
-        rows_html = "".join(table_rows) if table_rows else "<tr><td colspan='4' style='padding:20px; text-align:center; color:#64748b;'>No jobs scraped in this run.</td></tr>"
+        rows_html = "".join(table_rows) if table_rows else "<tr><td colspan='5' style='padding:20px; text-align:center; color:#64748b;'>No jobs scraped in this run.</td></tr>"
+
+        limit_note = (
+            f'<div style="padding:10px 12px; text-align:center; background:#f8fafc; font-size:12px; color:#64748b; border-top:1px solid #e2e8f0;">Showing top 50 leads of {total_jobs}. All leads are included in the attached Excel workbook.</div>'
+            if total_jobs > 50
+            else ""
+        )
 
         return f"""
         <!DOCTYPE html>
@@ -187,7 +223,7 @@ class GraphMailNotifier:
             <meta charset="utf-8">
             <style>
                 body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 0; background-color: #f8fafc; color: #0f172a; }}
-                .container {{ max-width: 860px; margin: 20px auto; background: #ffffff; border-radius: 8px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }}
+                .container {{ max-width: 920px; margin: 20px auto; background: #ffffff; border-radius: 8px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }}
                 .header {{ background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%); color: #ffffff; padding: 24px 30px; }}
                 .stats-grid {{ display: flex; flex-wrap: wrap; background: #f1f5f9; padding: 15px 25px; border-bottom: 1px solid #e2e8f0; }}
                 .stat-box {{ flex: 1; min-width: 120px; margin: 5px 10px; }}
@@ -203,7 +239,7 @@ class GraphMailNotifier:
             <div class="container">
                 <div class="header">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                        <h2 style="margin: 0; font-size: 22px; font-weight: 700;">🎯 Indeed Job Sourcing Daily Report</h2>
+                        <h2 style="margin: 0; font-size: 22px; font-weight: 700;">  Indeed Job Sourcing Daily Report</h2>
                         <div>{badge_html}</div>
                     </div>
                     <div style="font-size: 13px; opacity: 0.9;">Run Timestamp: {now_str} &bull; Target: {html.escape(query_str)} ({html.escape(countries_str)})</div>
@@ -237,7 +273,7 @@ class GraphMailNotifier:
                         </tr>
                         <tr style="border-bottom: 1px dashed #e2e8f0;">
                             <td style="padding: 6px 4px; color: #64748b; font-weight: 600;">Search Keyword / Role:</td>
-                            <td style="padding: 6px 4px; color: #2563eb; font-weight: 700;">{html.escape(query_display)}</td>
+                            <td style="padding: 6px 4px;">{keywords_badges}</td>
                         </tr>
                         <tr style="border-bottom: 1px dashed #e2e8f0;">
                             <td style="padding: 6px 4px; color: #64748b; font-weight: 600;">Date Posted Filter:</td>
@@ -253,30 +289,28 @@ class GraphMailNotifier:
                 <div class="content">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
                         <h3 style="margin:0; font-size:16px; color:#1e293b;">Top Matched Job Leads</h3>
-                        <span style="font-size:12px; color:#64748b;">📎 Full details attached in Excel</span>
+                        <span style="font-size:12px; color:#64748b;">📎 Full details in Attached Workbook (Excel)</span>
                     </div>
 
                     <table>
                         <thead>
                             <tr>
-                                <th style="text-align:center; width: 90px;">Match</th>
+                                <th style="text-align:center; width: 85px;">Match</th>
                                 <th>Job Title & Company</th>
                                 <th style="width: 130px;">Salary</th>
-                                <th style="width: 220px;">Key Matched Skills</th>
+                                <th style="width: 200px;">Key Matched Skills</th>
+                                <th style="text-align:center; width: 125px;">Indeed Post</th>
                             </tr>
                         </thead>
                         <tbody>
                             {rows_html}
                         </tbody>
                     </table>
-
-                    <div style="margin-top: 25px; padding: 14px 18px; background-color: #eff6ff; border-left: 4px solid #3b82f6; border-radius: 4px; font-size: 13px; color: #1e3a8a;">
-                        <strong>📁 Attached Workbook:</strong> The complete Excel workbook is attached to this email containing full job descriptions, qualification criteria, and SharePoint sync metadata.
-                    </div>
+                    {limit_note}
                 </div>
 
                 <div class="footer">
-                    Indeed Automated Sourcing System &bull; Microsoft 365 Graph Integration &bull; Powered by AI Knowledge Base Matching
+                    Indeed Automated Sourcing System &bull;&bull; Powered by AI Knowledge Base Matching
                 </div>
             </div>
         </body>
@@ -288,9 +322,10 @@ class GraphMailNotifier:
         jobs: list[JobPosting],
         excel_path: Optional[str] = None,
         query: str = "",
+        queries: Optional[list[str]] = None,
         countries: Optional[list[str]] = None,
-        fromage: str = "all",
-        location_type: str = "all",
+        fromage: str = "1",
+        location_type: str = "remote",
         status: str = "completed",
         error_note: Optional[str] = None,
     ) -> bool:
@@ -332,8 +367,23 @@ class GraphMailNotifier:
         date_str = datetime.now(tz=IST).strftime("%Y-%m-%d")
         total_jobs = len(jobs)
         status_clean = (status or "completed").lower()
-        query_display = query.strip() if query and query.strip() else ""
-        query_tag = f" [{query_display}]" if query_display else ""
+
+        # Extract keywords for subject line
+        all_keywords: list[str] = []
+        if queries:
+            all_keywords = [str(q).strip() for q in queries if str(q).strip()]
+        elif query and query.strip():
+            all_keywords = [q.strip() for q in query.split(",") if q.strip()]
+
+        if all_keywords:
+            if len(all_keywords) <= 3:
+                query_tag = f" [{', '.join(all_keywords)}]"
+            else:
+                query_tag = f" [{', '.join(all_keywords[:3])} +{len(all_keywords)-3} more]"
+        elif query and query.strip():
+            query_tag = f" [{query.strip()}]"
+        else:
+            query_tag = ""
 
         if status_clean == "completed":
             subject = f"🎯 Daily Indeed Job Leads ({total_jobs} leads){query_tag} - {date_str}"
@@ -348,6 +398,7 @@ class GraphMailNotifier:
         body_html = self.build_html_report(
             jobs,
             query=query,
+            queries=queries,
             countries=countries,
             fromage=fromage,
             location_type=location_type,

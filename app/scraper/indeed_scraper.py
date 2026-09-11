@@ -108,9 +108,13 @@ class IndeedScraper:
         self._stop_event.clear()
 
         countries = run_config.countries or ["US"]
-        query = run_config.query or "AI Developer"
-        max_pages_per_country = run_config.max_pages or 3
-        total_pages_overall = max_pages_per_country * len(countries)
+        queries = run_config.queries if (run_config.queries and len(run_config.queries) > 0) else [run_config.query or "SharePoint"]
+        queries = [q.strip() for q in queries if q and q.strip()]
+        if not queries:
+            queries = ["SharePoint"]
+
+        max_pages_per_keyword = run_config.max_pages or 1
+        total_pages_overall = max_pages_per_keyword * len(queries) * len(countries)
         # Resolve once for the entire run — both are constant per run_config
         fromage_param = run_config.fromage or "all"
         location_param = "remote" if run_config.location_type.lower() == "remote" else ""
@@ -118,7 +122,7 @@ class IndeedScraper:
         self._progress = ScraperProgress(
             status=ScraperStatus.RUNNING,
             current_country=countries[0],
-            current_keyword=query,
+            current_keyword=queries[0],
             max_pages=total_pages_overall,
             started_at=datetime.now(tz=IST),
         )
@@ -126,7 +130,8 @@ class IndeedScraper:
         parser_engine = run_config.parser_engine or self._settings.scraper_parser_engine
         self._parser = get_parser(parser_engine)
         self._progress.add_log(f"Using parser engine: {self._parser.__class__.__name__}")
-        self._progress.add_log(f"Targeting {len(countries)} countries: {', '.join(countries)}")
+        self._progress.add_log(f"Targeting {len(countries)} country/countries: {', '.join(countries)}")
+        self._progress.add_log(f"Keywords to search ({len(queries)}): {', '.join(queries)}")
         self._emit_progress()
 
         async with async_playwright() as pw:
@@ -158,149 +163,171 @@ class IndeedScraper:
                     country_page = await country_context.new_page()
 
                     try:
-                        for page_num in range(max_pages_per_country):
+                        for q_idx, query in enumerate(queries):
                             if self._stop_event.is_set():
                                 break
 
-                            await self._pause_event.wait()
+                            self._progress.current_keyword = query
+                            self._progress.add_log(f"🔍 Keyword {q_idx+1}/{len(queries)}: Searching '{query}' in {country}...")
+                            self._emit_progress(force=True)
 
-                            url = get_indeed_search_url(
-                                country_input=country,
-                                query=query,
-                                location=location_param,
-                                page=page_num,
-                                fromage=fromage_param,
-                            )
+                            for page_num in range(max_pages_per_keyword):
+                                if self._stop_event.is_set():
+                                    break
 
-                            processed_pages_count += 1
-                            self._progress.current_page = processed_pages_count
-                            log_msg = f"Fetching Page {page_num + 1}/{max_pages_per_country} ({country}): {query}"
-                            logger.info("{} | Target URL: {}", log_msg, url)
-                            self._progress.add_log(log_msg)
-                            self._emit_progress()
+                                await self._pause_event.wait()
 
-                            jobs = await self._scrape_page(
-                                country_context, country_page, url, country, query
-                            )
+                                url = get_indeed_search_url(
+                                    country_input=country,
+                                    query=query,
+                                    location=location_param,
+                                    page=page_num,
+                                    fromage=fromage_param,
+                                )
 
-                            if not jobs:
-                                is_blocked = self._consecutive_blocks > 0
-                                if is_blocked:
-                                    # 60-second cooldown break to let Indeed anti-bot trust score recover
-                                    cooldown_secs = 60
-                                    logger.warning(
-                                        "Indeed verification detected for {} on Page {}. Pausing for {}s cooldown before retrying...",
-                                        country, page_num + 1, cooldown_secs
-                                    )
-                                    self._progress.add_log(
-                                        f"⚠️ Bot verification on {country}. Pausing {cooldown_secs}s cooldown to reset trust..."
-                                    )
-                                    self._emit_progress(force=True)
+                                processed_pages_count += 1
+                                self._progress.current_page = processed_pages_count
+                                log_msg = f"Fetching Page {page_num + 1}/{max_pages_per_keyword} ({country}) [Keyword {q_idx+1}/{len(queries)}]: {query}"
+                                logger.info("{} | Target URL: {}", log_msg, url)
+                                self._progress.add_log(log_msg)
+                                self._emit_progress()
 
-                                    for remaining in range(cooldown_secs, 0, -15):
-                                        if self._stop_event.is_set():
-                                            break
-                                        await asyncio.sleep(min(15.0, remaining))
-                                        if remaining > 15 and not self._stop_event.is_set():
-                                            self._progress.add_log(
-                                                f"Cooldown active for {country}: retrying in {remaining - 15}s..."
-                                            )
-                                            self._emit_progress(force=True)
+                                jobs = await self._scrape_page(
+                                    country_context, country_page, url, country, query
+                                )
 
-                                    if not self._stop_event.is_set():
+                                if not jobs:
+                                    is_blocked = self._consecutive_blocks > 0
+                                    if is_blocked:
+                                        # 60-second cooldown break to let Indeed anti-bot trust score recover
+                                        cooldown_secs = 60
+                                        logger.warning(
+                                            "Indeed verification detected for {} on Page {}. Pausing for {}s cooldown before retrying...",
+                                            country, page_num + 1, cooldown_secs
+                                        )
                                         self._progress.add_log(
-                                            f"🔄 Cooldown complete. Retrying {country} with fresh session..."
+                                            f"⚠️ Bot verification on {country}. Pausing {cooldown_secs}s cooldown to reset trust..."
                                         )
                                         self._emit_progress(force=True)
+
+                                        for remaining in range(cooldown_secs, 0, -15):
+                                            if self._stop_event.is_set():
+                                                break
+                                            await asyncio.sleep(min(15.0, remaining))
+                                            if remaining > 15 and not self._stop_event.is_set():
+                                                self._progress.add_log(
+                                                    f"Cooldown active for {country}: retrying in {remaining - 15}s..."
+                                                )
+                                                self._emit_progress(force=True)
+
+                                        if not self._stop_event.is_set():
+                                            self._progress.add_log(
+                                                f"🔄 Cooldown complete. Retrying {country} with fresh session..."
+                                            )
+                                            self._emit_progress(force=True)
+                                            country_page, country_context = await self._recycle_context(
+                                                browser, country_context, country, proxy_url=proxy_url
+                                            )
+                                            self._consecutive_blocks = 0
+                                            jobs = await self._scrape_page(
+                                                country_context, country_page, url, country, query
+                                            )
+                                            if jobs:
+                                                self._progress.add_log(
+                                                    f"✅ Cooldown retry succeeded! Captured {len(jobs)} jobs for {country}."
+                                                )
+                                                self._emit_progress(force=True)
+                                    else:
+                                        # Zero results on clean search: recycle context once and retry
+                                        logger.info(
+                                            "Page {} ({}) returned 0 jobs for '{}'. Recalibrating session with fresh context...",
+                                            page_num + 1, country, query
+                                        )
                                         country_page, country_context = await self._recycle_context(
                                             browser, country_context, country, proxy_url=proxy_url
                                         )
-                                        self._consecutive_blocks = 0
                                         jobs = await self._scrape_page(
                                             country_context, country_page, url, country, query
                                         )
-                                        if jobs:
-                                            self._progress.add_log(
-                                                f"✅ Cooldown retry succeeded! Captured {len(jobs)} jobs for {country}."
-                                            )
-                                            self._emit_progress(force=True)
-                                else:
-                                    # Zero results on clean search: recycle context once and retry
-                                    logger.info(
-                                        "Page {} ({}) returned 0 jobs. Recalibrating session with fresh context...",
-                                        page_num + 1, country,
-                                    )
-                                    country_page, country_context = await self._recycle_context(
-                                        browser, country_context, country, proxy_url=proxy_url
-                                    )
-                                    jobs = await self._scrape_page(
-                                        country_context, country_page, url, country, query
-                                    )
 
-                            if not jobs:
-                                if self._consecutive_blocks > 0:
-                                    self._progress.add_log(
-                                        f"⚠️ {country} still restricted after cooldown. Preserving {self._progress.jobs_found} leads; transitioning to next country..."
-                                    )
-                                else:
-                                    self._progress.add_log(f"No more results found for {country} on Page {page_num + 1}")
+                                if not jobs:
+                                    if self._consecutive_blocks > 0:
+                                        self._progress.add_log(
+                                            f"⚠️ {country} still restricted after cooldown for '{query}'. Preserving {self._progress.jobs_found} leads; moving forward..."
+                                        )
+                                    else:
+                                        self._progress.add_log(f"No more results found for '{query}' on {country} (Page {page_num + 1})")
 
-                                # Advance progress counter to the end of this country so progress bar doesn't stall
-                                processed_pages_count = (c_idx + 1) * max_pages_per_country
-                                self._progress.current_page = processed_pages_count
-                                self._emit_progress(force=True)
-                                await self._adaptive_delay(status="zero_results", page_num=page_num)
-                                break
+                                    # Advance progress counter for remaining pages of this keyword so progress doesn't stall
+                                    remaining_pages_kw = max_pages_per_keyword - (page_num + 1)
+                                    if remaining_pages_kw > 0:
+                                        processed_pages_count += remaining_pages_kw
+                                        self._progress.current_page = processed_pages_count
+                                    self._emit_progress(force=True)
+                                    await self._adaptive_delay(status="zero_results", page_num=page_num)
+                                    break
 
-                            # Phase 3.3: Save successful session state for country
-                            await self._save_session_state(country_context, country)
+                                # Phase 3.3: Save successful session state for country
+                                await self._save_session_state(country_context, country)
 
-                            matched_jobs_count = 0
-                            for job in jobs:
-                                # Post-scrape location type filter
-                                loc_filter = run_config.location_type.lower()
-                                if loc_filter != "all":
-                                    remote_val = job.remote_type.value if hasattr(job.remote_type, "value") else str(job.remote_type)
-                                    if loc_filter == "remote" and remote_val != "Fully Remote":
-                                        desc_lower = f"{job.job_title} {job.location} {job.job_description or ''}".lower()
-                                        if any(term in desc_lower for term in ["remote", "work from home", "wfh", "telecommute"]):
-                                            pass
-                                        else:
+                                matched_jobs_count = 0
+                                for job in jobs:
+                                    # Post-scrape location type filter
+                                    loc_filter = run_config.location_type.lower()
+                                    if loc_filter != "all":
+                                        remote_val = job.remote_type.value if hasattr(job.remote_type, "value") else str(job.remote_type)
+                                        if loc_filter == "remote" and remote_val != "Fully Remote":
+                                            desc_lower = f"{job.job_title} {job.location} {job.job_description or ''}".lower()
+                                            if any(term in desc_lower for term in ["remote", "work from home", "wfh", "telecommute"]):
+                                                pass
+                                            else:
+                                                continue
+                                        elif loc_filter == "onsite" and remote_val != "On-Site":
                                             continue
-                                    elif loc_filter == "onsite" and remote_val != "On-Site":
-                                        continue
-                                    elif loc_filter == "hybrid" and remote_val != "Hybrid":
-                                        continue
+                                        elif loc_filter == "hybrid" and remote_val != "Hybrid":
+                                            continue
 
-                                # Strict job role / keyword match filter
-                                if run_config.query and run_config.query.strip():
-                                    if not is_job_matching_query(
-                                        job_title=job.job_title,
-                                        company=job.company,
-                                        location=job.location,
-                                        description=job.job_description,
-                                        query=run_config.query,
-                                    ):
-                                        continue
+                                    # Strict job role / keyword match filter using the active query
+                                    if query and query.strip():
+                                        if not is_job_matching_query(
+                                            job_title=job.job_title,
+                                            company=job.company,
+                                            location=job.location,
+                                            description=job.job_description,
+                                            query=query,
+                                        ):
+                                            continue
 
-                                matched_jobs_count += 1
-                                logger.info("Job passed query filter: '{}' at '{}' ({})", job.job_title, job.company, job.location)
-                                self._progress.jobs_found += 1
-                                self._emit_progress()
-                                yield job
+                                    matched_jobs_count += 1
+                                    logger.info("Job passed query filter: '{}' at '{}' ({})", job.job_title, job.company, job.location)
+                                    self._progress.jobs_found += 1
+                                    self._emit_progress()
+                                    yield job
 
-                            if matched_jobs_count == 0 and len(jobs) > 0:
-                                log_note = f"Parsed {len(jobs)} raw jobs for {country} (Page {page_num + 1}), but none matched location/query filters."
-                                logger.info(log_note)
-                                self._progress.add_log(log_note)
+                                if matched_jobs_count == 0 and len(jobs) > 0:
+                                    log_note = f"Parsed {len(jobs)} raw jobs for '{query}' ({country}, Page {page_num + 1}), but none matched location/query filters."
+                                    logger.info(log_note)
+                                    self._progress.add_log(log_note)
+                                    self._emit_progress(force=True)
+                                elif matched_jobs_count > 0:
+                                    log_note = f"✅ Captured {matched_jobs_count} matching leads for '{query}' in {country} (Page {page_num + 1}). Total leads: {self._progress.jobs_found}"
+                                    self._progress.add_log(log_note)
+                                    self._emit_progress(force=True)
+
+                                # Phase 3.5: Adaptive inter-page delay based on page index and result count
+                                await self._adaptive_delay(status="success", page_num=page_num, jobs_count=len(jobs))
+
+                            # Natural human-like pause between keywords within the same country session
+                            if q_idx < len(queries) - 1 and not self._stop_event.is_set():
+                                inter_query_delay = round(random.uniform(4.0, 7.0), 1)
+                                self._progress.add_log(
+                                    f"☕ Pausing {inter_query_delay}s before next keyword to ensure human-like pacing & stealth..."
+                                )
                                 self._emit_progress(force=True)
-                            elif matched_jobs_count > 0:
-                                log_note = f"✅ Captured {matched_jobs_count} matching leads for {country} (Page {page_num + 1}). Total leads: {self._progress.jobs_found}"
-                                self._progress.add_log(log_note)
-                                self._emit_progress(force=True)
-
-                            # Phase 3.5: Adaptive inter-page delay based on page index and result count
-                            await self._adaptive_delay(status="success", page_num=page_num, jobs_count=len(jobs))
+                                for _ in range(int(inter_query_delay * 2)):
+                                    if self._stop_event.is_set():
+                                        break
+                                    await asyncio.sleep(0.5)
 
                     finally:
                         try:
@@ -793,6 +820,14 @@ class IndeedScraper:
         except Exception as e:
             logger.debug("Could not save session state: {}", e)
 
+    async def _interruptible_sleep(self, seconds: float) -> None:
+        """Sleep in small slices so stopping is recognized immediately."""
+        end = time.monotonic() + seconds
+        while time.monotonic() < end:
+            if self._stop_event.is_set():
+                break
+            await asyncio.sleep(min(0.2, max(0.01, end - time.monotonic())))
+
     async def _adaptive_delay(
         self,
         status: str = "success",
@@ -806,6 +841,9 @@ class IndeedScraper:
         - After success: 2–4s (engaged) + fatigue after page 4
         - Occasional coffee/tab-switch pause every 4–6 pages
         """
+        if self._stop_event.is_set():
+            return
+
         if status == "zero_results":
             delay = random.uniform(4.0, 7.0)
         elif status == "blocked":
@@ -822,7 +860,7 @@ class IndeedScraper:
                 logger.debug("Simulating natural micro-break: {:.1f}s", pause)
                 delay += pause
 
-        await asyncio.sleep(delay)
+        await self._interruptible_sleep(delay)
 
     async def _is_blocked(self, page: Page) -> bool:
         """
@@ -888,7 +926,7 @@ class IndeedScraper:
 
     async def _random_delay(self) -> None:
         delay = random.uniform(self._settings.scraper_delay_min, self._settings.scraper_delay_max)
-        await asyncio.sleep(delay)
+        await self._interruptible_sleep(delay)
 
     def _emit_progress(self, force: bool = False) -> None:
         """Throttle progress updates to maximum 2/sec when running unless state changed."""
