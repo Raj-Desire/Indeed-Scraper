@@ -9,6 +9,7 @@ jinja2
 python-multipart
 websockets
 httpx
+aiohttp
 
 # Web Scraping & HTML Parsing
 playwright
