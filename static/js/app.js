@@ -402,15 +402,17 @@ async function fetchLeads() {
             }
         }
 
-        // Show download & SharePoint sync buttons if leads exist
+        // Show download, SharePoint sync, and Clear buttons if leads exist
         const navDl = document.getElementById('nav-download-btn');
         const tblDl = document.getElementById('table-download-btn');
         const navSp = document.getElementById('nav-sharepoint-btn');
         const tblSp = document.getElementById('table-sharepoint-btn');
+        const tblClr = document.getElementById('table-clear-btn');
         const hasLeads = allLeads.length > 0;
 
         [navDl, tblDl].forEach(b => b && b.classList.toggle('hidden', !hasLeads));
         [navSp, tblSp].forEach(b => b && b.classList.toggle('hidden', !hasLeads));
+        if (tblClr) tblClr.classList.toggle('hidden', !hasLeads);
     } catch (e) {
         console.error('Error fetching leads:', e);
     }
@@ -813,6 +815,165 @@ function updateIstClock() {
         el.textContent = `${timeStr} IST`;
     } catch (e) {
         el.textContent = 'IST (GMT+5:30)';
+    }
+}
+
+// ==========================================
+// Mode Switcher (Scraper vs Manual Evaluator)
+// ==========================================
+function switchMode(mode) {
+    const btnScraper = document.getElementById('tab-btn-scraper');
+    const btnManual = document.getElementById('tab-btn-manual');
+    const panelScraper = document.getElementById('panel-scraper');
+    const panelManual = document.getElementById('panel-manual');
+
+    if (!btnScraper || !btnManual || !panelScraper || !panelManual) return;
+
+    if (mode === 'scraper') {
+        btnScraper.className = 'px-4 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 bg-blue-600 text-white shadow-xs cursor-pointer';
+        btnManual.className = 'px-4 py-2 text-xs font-semibold rounded-xl transition-all flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer';
+        panelScraper.classList.remove('hidden');
+        panelManual.classList.add('hidden');
+    } else {
+        btnManual.className = 'px-4 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 bg-blue-600 text-white shadow-xs cursor-pointer';
+        btnScraper.className = 'px-4 py-2 text-xs font-semibold rounded-xl transition-all flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer';
+        panelManual.classList.remove('hidden');
+        panelScraper.classList.add('hidden');
+    }
+}
+
+// ==========================================
+// Manual Job Description Evaluation
+// ==========================================
+async function evaluateManualJob() {
+    const descEl = document.getElementById('manual-description');
+    const titleEl = document.getElementById('manual-job-title');
+    const companyEl = document.getElementById('manual-company');
+    const remoteEl = document.getElementById('manual-remote-type');
+    const countryEl = document.getElementById('manual-country');
+    const urlEl = document.getElementById('manual-job-url');
+    const salaryEl = document.getElementById('manual-salary');
+    const expEl = document.getElementById('manual-experience');
+    const noteEl = document.getElementById('manual-status-note');
+    const btn = document.getElementById('btn-manual-eval');
+    const btnLabel = document.getElementById('btn-manual-eval-label');
+    const btnIcon = document.getElementById('btn-manual-eval-icon');
+
+    const jobDescription = (descEl ? descEl.value : '').trim();
+    if (!jobDescription) {
+        alert('Please paste a job description or technical requirements first.');
+        if (descEl) descEl.focus();
+        return;
+    }
+
+    const payload = {
+        job_title: (titleEl ? titleEl.value : '').trim() || 'Untitled Opportunity',
+        company: (companyEl ? companyEl.value : '').trim() || 'Custom Evaluation',
+        remote_type: remoteEl ? remoteEl.value : 'Fully Remote',
+        country: countryEl ? countryEl.value : 'US',
+        job_url: (urlEl ? urlEl.value : '').trim(),
+        salary_range: (salaryEl ? salaryEl.value : '').trim() || 'Not listed',
+        experience: (expEl ? expEl.value : '').trim() || 'Not specified',
+        job_description: jobDescription,
+    };
+
+    if (btn) btn.disabled = true;
+    if (btnLabel) btnLabel.textContent = 'Evaluating with AI...';
+    if (btnIcon) {
+        btnIcon.innerHTML = `<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>`;
+        btnIcon.classList.add('animate-spin');
+    }
+    if (noteEl) {
+        noteEl.className = 'text-xs text-blue-600 font-semibold animate-pulse';
+        noteEl.textContent = 'Analyzing job description against company knowledge base...';
+    }
+
+    try {
+        const res = await fetch('/api/jobs/manual-evaluate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+            throw new Error(data.detail || 'Evaluation failed on server');
+        }
+
+        const lead = data.lead;
+        if (noteEl) {
+            noteEl.className = 'text-xs text-emerald-600 font-bold';
+            noteEl.textContent = `Match Score: ${lead.match_score !== null ? lead.match_score + '/100' : 'Evaluated'} — Added to table below!`;
+        }
+
+        // Add lead to current list and refresh table
+        allLeads.unshift(lead);
+        renderTable(allLeads);
+
+        // Show download, SharePoint, and Clear buttons
+        const navDl = document.getElementById('nav-download-btn');
+        const tblDl = document.getElementById('table-download-btn');
+        const navSp = document.getElementById('nav-sharepoint-btn');
+        const tblSp = document.getElementById('table-sharepoint-btn');
+        const tblClr = document.getElementById('table-clear-btn');
+        [navDl, tblDl, navSp, tblSp, tblClr].forEach(b => b && b.classList.remove('hidden'));
+
+        // Smooth scroll to table so user sees the newly evaluated card
+        const tableCard = document.getElementById('leads-body');
+        if (tableCard) {
+            tableCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+    } catch (err) {
+        console.error('Manual evaluate error:', err);
+        alert(`Evaluation error: ${err.message}`);
+        if (noteEl) {
+            noteEl.className = 'text-xs text-rose-600 font-semibold';
+            noteEl.textContent = `Failed: ${err.message}`;
+        }
+    } finally {
+        if (btn) btn.disabled = false;
+        if (btnLabel) btnLabel.textContent = 'Evaluate Fit with AI';
+        if (btnIcon) {
+            btnIcon.classList.remove('animate-spin');
+            btnIcon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>`;
+        }
+    }
+}
+
+function clearManualForm() {
+    ['manual-job-title', 'manual-company', 'manual-job-url', 'manual-salary', 'manual-experience', 'manual-description'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+    const noteEl = document.getElementById('manual-status-note');
+    if (noteEl) noteEl.textContent = '';
+}
+
+// ==========================================
+// Clear All Leads
+// ==========================================
+async function clearAllLeads() {
+    if (allLeads.length === 0) return;
+    if (!confirm('Are you sure you want to clear all job leads from the current dashboard table?')) {
+        return;
+    }
+
+    try {
+        const res = await fetch('/api/jobs/clear', { method: 'POST' });
+        if (res.ok) {
+            allLeads = [];
+            lastLeadsHash = '';
+            renderTable([]);
+            const navDl = document.getElementById('nav-download-btn');
+            const tblDl = document.getElementById('table-download-btn');
+            const navSp = document.getElementById('nav-sharepoint-btn');
+            const tblSp = document.getElementById('table-sharepoint-btn');
+            const tblClr = document.getElementById('table-clear-btn');
+            [navDl, tblDl, navSp, tblSp, tblClr].forEach(b => b && b.classList.add('hidden'));
+        }
+    } catch (e) {
+        console.error('Error clearing leads:', e);
     }
 }
 

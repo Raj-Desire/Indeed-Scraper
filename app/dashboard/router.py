@@ -88,6 +88,80 @@ async def api_stop_scraper():
     return {"status": "stopped"}
 
 
+def _serialize_job(j):
+    return {
+        "id": str(j.id),
+        "job_title": j.job_title,
+        "company": j.company,
+        "location_remote_type": j.location_remote_type,
+        "location": j.location,
+        "country": j.country,
+        "role": j.search_query,
+        "salary": j.salary_range,
+        "industry": j.industry,
+        "company_size": j.company_size,
+        "experience": j.experience or "Not specified",
+        "job_description": j.job_description or "",
+        "remote_type": j.remote_type.value if hasattr(j.remote_type, "value") else str(j.remote_type or "Unknown"),
+        "posted_date": j.posted_date.isoformat() if j.posted_date else j.posted_date_raw,
+        "job_url": j.job_url,
+        "match_score": j.match_score,
+        "matched_skills": j.matched_skills or [],
+        "missing_skills": j.missing_skills or [],
+        "match_reason": j.match_reason or "",
+        "job_summary": j.summary,
+        "summary": j.summary,
+    }
+
+
+@router.post("/api/jobs/manual-evaluate")
+async def api_manual_evaluate(request: Request):
+    """Manually evaluate a job description using LLM Knowledge Base matching."""
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload")
+
+    job_description = (body.get("job_description") or "").strip()
+    if not job_description:
+        raise HTTPException(status_code=422, detail="Job description is required")
+
+    job_title = (body.get("job_title") or "").strip() or "Untitled Role"
+    company = (body.get("company") or "").strip() or "Direct Evaluation"
+    location = (body.get("location") or "").strip() or "Remote"
+    country = (body.get("country") or "").strip() or "US"
+    job_url = (body.get("job_url") or "").strip()
+    salary_range = (body.get("salary_range") or "").strip() or "Not listed"
+    experience = (body.get("experience") or "").strip() or "Not specified"
+    remote_type_str = (body.get("remote_type") or "").strip() or location
+
+    service = get_scraper_service()
+    try:
+        job = await service.evaluate_manual_job(
+            job_title=job_title,
+            company=company,
+            job_description=job_description,
+            location=location,
+            country=country,
+            job_url=job_url,
+            salary_range=salary_range,
+            experience=experience,
+            remote_type_str=remote_type_str,
+        )
+        return {"status": "success", "lead": _serialize_job(job)}
+    except Exception as exc:
+        logger.error("Manual job evaluation failed: {}", exc)
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.post("/api/jobs/clear")
+async def api_clear_jobs():
+    """Clear all scraped or manually entered job leads from dashboard."""
+    service = get_scraper_service()
+    service.clear_results()
+    return {"status": "cleared", "total": 0}
+
+
 @router.get("/api/leads")
 async def api_get_leads(
     search: str = Query(default=""),
@@ -107,34 +181,9 @@ async def api_get_leads(
     # Sort leads by match_score descending (highest score on top, unranked at bottom)
     leads.sort(key=lambda j: (j.match_score is not None, j.match_score or 0), reverse=True)
 
-    def serialize(j):
-        return {
-            "id": str(j.id),
-            "job_title": j.job_title,
-            "company": j.company,
-            "location_remote_type": j.location_remote_type,
-            "location": j.location,
-            "country": j.country,
-            "role": j.search_query,
-            "salary": j.salary_range,
-            "industry": j.industry,
-            "company_size": j.company_size,
-            "experience": j.experience or "Not specified",
-            "job_description": j.job_description or "",
-            "remote_type": j.remote_type,
-            "posted_date": j.posted_date.isoformat() if j.posted_date else j.posted_date_raw,
-            "job_url": j.job_url,
-            "match_score": j.match_score,
-            "matched_skills": j.matched_skills or [],
-            "missing_skills": j.missing_skills or [],
-            "match_reason": j.match_reason or "",
-            "job_summary": j.summary,
-            "summary": j.summary,
-        }
-
     return {
         "total": len(leads),
-        "leads": [serialize(j) for j in leads],
+        "leads": [_serialize_job(j) for j in leads],
     }
 
 

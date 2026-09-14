@@ -31,5 +31,5 @@ ENV DASHBOARD_HOST=0.0.0.0
 ENV PORT=8000
 ENV SCRAPER_HEADLESS=true
 
-# Run the FastAPI server via uvicorn
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
+# Run the FastAPI server via uvicorn (dynamic PORT expansion for Render/Railway/Azure)
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1"]

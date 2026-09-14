@@ -19,9 +19,17 @@ from app.dashboard.router import router
 from app.utils.logger import setup_logging, logger
 
 
+import os
+
 async def _open_browser_later(url: str):
+    # Skip automatic browser launch in cloud/headless container environments
+    if any(os.environ.get(k) for k in ("RENDER", "RAILWAY_STATIC_URL", "CONTAINER", "DOCKER", "IS_DOCKER")):
+        return
     await asyncio.sleep(1.2)
-    webbrowser.open(url)
+    try:
+        webbrowser.open(url)
+    except Exception:
+        pass
 
 
 @asynccontextmanager

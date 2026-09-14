@@ -124,6 +124,97 @@ class ScraperService:
     def get_session(self) -> Optional[ScraperSession]:
         return self._current_session
 
+    async def evaluate_manual_job(
+        self,
+        job_title: str,
+        company: str,
+        job_description: str,
+        location: str = "Remote",
+        country: str = "US",
+        job_url: str = "",
+        salary_range: str = "Not listed",
+        experience: str = "Not specified",
+        remote_type_str: str = "Remote",
+    ) -> JobPosting:
+        """
+        Manually evaluate a single job description with AI knowledge-base matching
+        and store it in results for direct UI display and Excel export.
+        """
+        from app.models.job import RemoteType
+        
+        rem_lower = (remote_type_str or "").lower()
+        if "remote" in rem_lower:
+            rem_type = RemoteType.FULLY_REMOTE
+        elif "hybrid" in rem_lower:
+            rem_type = RemoteType.HYBRID
+        elif "site" in rem_lower or "onsite" in rem_lower:
+            rem_type = RemoteType.ON_SITE
+        else:
+            rem_type = RemoteType.UNKNOWN
+
+        job = JobPosting(
+            job_title=job_title.strip() or "Untitled Role",
+            company=company.strip() or "Confidential / Unknown",
+            location=location.strip() or "Remote",
+            country=country.strip() or "US",
+            job_url=job_url.strip(),
+            salary_range=salary_range.strip() or "Not listed",
+            experience=experience.strip() or "Not specified",
+            job_description=job_description.strip(),
+            remote_type=rem_type,
+            search_query="Manual Entry",
+            posted_date_raw="Just now",
+            posted_date=datetime.now(tz=IST),
+        )
+
+        if self._match_service is None and self._settings.enable_kb_matching:
+            self._match_service = MatchService()
+
+        if self._match_service is not None:
+            try:
+                logger.info("Evaluating manual job match for: '{}' at '{}'...", job.job_title, job.company)
+                await self._match_service.evaluate_job(job)
+                logger.info("Manual job match verdict: Score={}/100 | Skills={}", job.match_score, job.matched_skills)
+            except Exception as match_err:
+                logger.error("Error evaluating manual job '{}': {}", job.job_title, match_err)
+
+        # Prepend to results so newly added job appears at top
+        self._results.insert(0, job)
+
+        # Ensure session exists so Excel exporter has metadata
+        if self._current_session is None:
+            self._current_session = ScraperSession(
+                session_id=str(uuid4())[:8],
+                run_config=RunConfig(
+                    countries=[job.country],
+                    queries=["Manual Entry"],
+                    query="Manual Entry",
+                ),
+                started_at=datetime.now(tz=IST),
+                total_scraped=len(self._results),
+            )
+        else:
+            self._current_session.total_scraped = len(self._results)
+
+        if self._scraper:
+            self._scraper.progress.jobs_found = len(self._results)
+            self._scraper.progress.add_log(f"Added manual job '{job.job_title}' (Score: {job.match_score or 'N/A'}/100)")
+            self._broadcast_progress(self._scraper.progress, force=True)
+
+        return job
+
+    def clear_results(self) -> None:
+        """Clear gathered results and reset deduplication filter."""
+        self._results.clear()
+        self._dedup_filter.reset()
+        if self._scraper:
+            self._scraper.progress.jobs_found = 0
+            self._scraper.progress.add_log("Cleared all job leads from dashboard.")
+            self._broadcast_progress(self._scraper.progress, force=True)
+        if self._current_session:
+            self._current_session.total_scraped = 0
+        self._email_sent = False
+
     def add_progress_callback(self, callback: callable) -> None:
         self._progress_callbacks.append(callback)
 
