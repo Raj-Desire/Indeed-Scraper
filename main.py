@@ -5,10 +5,10 @@ from pathlib import Path
 
 from dotenv import find_dotenv, load_dotenv
 
-# Ensure .env is explicitly loaded before anything else
+# Ensure .env is loaded without overriding system environment variables (for Render/Railway)
 _env_path = find_dotenv(usecwd=True)
 if _env_path:
-    load_dotenv(_env_path, override=True)
+    load_dotenv(_env_path, override=False)
 
 import uvicorn
 from fastapi import FastAPI
@@ -70,10 +70,13 @@ app.include_router(router)
 
 if __name__ == "__main__":
     settings = get_settings()
+    is_cloud = any(os.environ.get(k) for k in ("RENDER", "RAILWAY_STATIC_URL", "CONTAINER", "DOCKER", "IS_DOCKER"))
+    host = "0.0.0.0" if is_cloud else settings.dashboard_host
+    port = int(os.environ.get("PORT", settings.dashboard_port))
     uvicorn.run(
         "main:app",
-        host=settings.dashboard_host,
-        port=settings.dashboard_port,
+        host=host,
+        port=port,
         reload=False,
         log_level="info",
         workers=1,
