@@ -60,7 +60,7 @@ def test_export_includes_match_columns_and_url_hyperlink():
     assert "Match Score" in headers
     assert "Matched Skills" in headers
     assert "Missing Skills" in headers
-    assert "Job Description Summary" in headers
+    assert "Match Reason" in headers
     assert "Job URL" in headers
 
     data_row_idx = header_row_idx + 1

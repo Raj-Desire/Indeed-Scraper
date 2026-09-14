@@ -48,16 +48,6 @@ class ScraperService:
         if self._is_running():
             raise RuntimeError("A scraping run is already in progress.")
 
-        # Clean up any lingering stopped/cancelled task before creating a new one
-        if self._current_task is not None and not self._current_task.done():
-            logger.info("Cleaning up lingering previous task before starting new scrape...")
-            self._current_task.cancel()
-            try:
-                await asyncio.wait_for(self._current_task, timeout=1.0)
-            except (asyncio.TimeoutError, asyncio.CancelledError, Exception):
-                pass
-            self._current_task = None
-
         config = run_config or RunConfig()
         session_id = str(uuid4())[:8] #generate unique id 
 
@@ -89,24 +79,7 @@ class ScraperService:
         if self._scraper:
             self._scraper.resume()
 
-    async def stop(self) -> None:
-        """Stop scraping and await graceful termination of background task."""
-        self.stop_signal()
-        if self._current_task and not self._current_task.done():
-            try:
-                await asyncio.wait_for(asyncio.shield(self._current_task), timeout=1.2)
-            except (asyncio.TimeoutError, asyncio.CancelledError):
-                if self._current_task and not self._current_task.done():
-                    logger.info("Cancelling lingering scraper task after stop...")
-                    self._current_task.cancel()
-                    try:
-                        await asyncio.wait_for(self._current_task, timeout=1.0)
-                    except (asyncio.TimeoutError, asyncio.CancelledError, Exception):
-                        pass
-        self._current_task = None
-
-    def stop_signal(self) -> None:
-        """Immediately signal stop to scraper and broadcast progress."""
+    def stop(self) -> None:
         if self._scraper:
             self._scraper.stop()
             self._scraper.progress.status = ScraperStatus.STOPPED
@@ -158,12 +131,6 @@ class ScraperService:
                 self._scraper.progress.jobs_found = len(self._results)
                 self._on_progress_update(self._scraper.progress)
 
-        except asyncio.CancelledError:
-            logger.info("Pipeline task cancelled by user request.")
-            if self._scraper:
-                self._scraper.progress.status = ScraperStatus.STOPPED
-                self._scraper.progress.add_log("🛑 Scraping stopped.")
-                self._broadcast_progress(self._scraper.progress, force=True)
         except Exception as exc:
             logger.error("Pipeline error: {}", exc)
             pipeline_error = str(exc)
@@ -176,7 +143,7 @@ class ScraperService:
             pipeline_error = None
         finally:
             try:
-                await asyncio.shield(self._finalize_run(config, error_note=pipeline_error))
+                await self._finalize_run(config, error_note=pipeline_error)
             except Exception as fin_err:
                 logger.error("Pipeline finalization error: {}", fin_err)
 
@@ -306,15 +273,7 @@ class ScraperService:
         self._email_sent = sent
 
     def _is_running(self) -> bool:
-        if self._current_task is None or self._current_task.done():
-            return False
-        # If scraper was marked stopped or stopping, it is NOT actively running
-        if self._scraper and (
-            self._scraper._stop_event.is_set()
-            or getattr(self._scraper.progress, "status", None) in (ScraperStatus.STOPPED, ScraperStatus.STOPPING)
-        ):
-            return False
-        return True
+        return self._current_task is not None and not self._current_task.done()
 
     def _on_progress_update(self, progress: ScraperProgress) -> None:
         self._broadcast_progress(progress)

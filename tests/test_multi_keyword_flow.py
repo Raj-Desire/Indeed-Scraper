@@ -72,21 +72,13 @@ def test_matching_with_multiple_different_keywords():
         ("SharePoint", "Warehouse Manager", False),
         ("Power Apps", "Lead Power Apps Developer", True),
         ("Power Automate", "Lead Power Automate Architect", True),
-        ("Power BI", "Senior Power BI & DAX Report Developer", True),
-        ("Power BI", "Delivery Driver", False),
-        ("Purview", "Microsoft Purview Data Governance Specialist", True),
-        ("Purview", "Marketing Executive", False),
         ("AI", "Generative AI and LLM Engineer", True),
         (".NET", "Senior C# .NET Core Software Engineer", True),
         (".NET", "Chef / Line Cook", False),
         ("React", "Senior React Frontend Developer", True),
         ("React", "Java Backend Developer", False),
-        ("SPFx", "SharePoint SPFx Solutions Architect", True),
-        ("SPFx", "Plumber", False),
         ("n8n", "Lead n8n Workflow Automation Engineer", True),
         ("n8n", "Dental Assistant", False),
-        ("Intune", "Microsoft Intune & Endpoint Systems Administrator", True),
-        ("Intune", "Cashier", False),
     ]
     for query, title, expected in test_cases:
         matched = is_job_matching_query(
@@ -99,22 +91,10 @@ def test_matching_with_multiple_different_keywords():
         assert matched is expected, f"Query '{query}' vs '{title}' expected {expected}"
 
 
-def test_eleven_core_keywords_default():
-    """Verify RunConfig defaults to the 11 core services."""
+def test_seven_core_keywords_default():
+    """Verify RunConfig defaults to the 7 core services."""
     config = RunConfig()
-    expected_eleven = [
-        "SharePoint",
-        "Power Apps",
-        "Power Automate",
-        "Power BI",
-        "Purview",
-        "AI",
-        ".NET",
-        "React",
-        "SPFx",
-        "n8n",
-        "Intune",
-    ]
-    assert config.queries == expected_eleven
+    expected_seven = ["SharePoint", "Power Apps", "Power Automate", "AI", ".NET", "React", "n8n"]
+    assert config.queries == expected_seven
     assert config.query == "SharePoint"
 

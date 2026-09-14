@@ -41,8 +41,6 @@ class MatchService:
             job.matched_skills = result.matched_skills
             job.missing_skills = result.missing_skills
             job.match_reason = result.match_reason
-            if getattr(result, "job_summary", None):
-                job.job_summary = result.job_summary
         except Exception as exc:
             logger.error("Job matching pipeline failed for '{}' at '{}': {}", job.job_title, job.company, exc)
         return job
