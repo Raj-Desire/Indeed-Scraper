@@ -226,7 +226,7 @@ class ExcelExporter:
             "Match Score",
             "Matched Skills",
             "Missing Skills",
-            "Match Reason",
+            "Job Description Summary",
             "Job URL",
         ]
 
@@ -269,7 +269,7 @@ class ExcelExporter:
                 job.match_score if job.match_score is not None else "",
                 ", ".join(job.matched_skills),
                 ", ".join(job.missing_skills),
-                job.match_reason,
+                job.summary,
                 job.job_url,
             ]
 

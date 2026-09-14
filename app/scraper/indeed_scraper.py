@@ -94,8 +94,9 @@ class IndeedScraper:
         """Stop scraping."""
         self._stop_event.set()
         self._pause_event.set()
-        self._progress.status = ScraperStatus.STOPPING
-        self._emit_progress()
+        self._progress.status = ScraperStatus.STOPPED
+        self._progress.add_log("🛑 Stop requested by user. Terminating active operations...")
+        self._emit_progress(force=True)
 
     @property
     def progress(self) -> ScraperProgress:
@@ -576,18 +577,25 @@ class IndeedScraper:
         decide whether to recycle the context and retry.
         """
         for attempt in range(self._settings.scraper_retry_attempts):
+            if self._stop_event.is_set():
+                return []
             try:
                 await page.goto(url, wait_until="domcontentloaded", timeout=30000)
 
                 # Transient Turnstile / Cloudflare challenge settlement:
                 # If page title indicates a security check or challenge, give it a few seconds to auto-resolve
                 for _ in range(3):
+                    if self._stop_event.is_set():
+                        return []
                     t_title = (await page.title()).lower()
                     if any(t in t_title for t in ["security check", "just a moment", "verify you are human", "attention required"]):
                         logger.debug("Transient challenge detected (title: '{}'), waiting for settlement...", t_title)
                         await asyncio.sleep(2.0)
                     else:
                         break
+
+                if self._stop_event.is_set():
+                    return []
 
                 if await self._is_blocked(page):
                     self._consecutive_blocks += 1
@@ -606,6 +614,8 @@ class IndeedScraper:
                         timeout=10000
                     )
                 except PlaywrightTimeout:
+                    if self._stop_event.is_set():
+                        return []
                     if attempt < self._settings.scraper_retry_attempts - 1:
                         await asyncio.sleep(2.0)
                         continue
@@ -785,10 +795,12 @@ class IndeedScraper:
             target_max = min(total_height * 0.75, 2000)
             current = 0
             while current < target_max:
+                if self._stop_event.is_set():
+                    break
                 chunk = random.randint(350, 600)
                 current = min(current + chunk, int(target_max))
                 await page.evaluate(f"window.scrollTo({{top: {current}, behavior: 'smooth'}})")
-                await asyncio.sleep(random.uniform(0.1, 0.2))
+                await self._interruptible_sleep(random.uniform(0.1, 0.2))
         except Exception:
             pass
 

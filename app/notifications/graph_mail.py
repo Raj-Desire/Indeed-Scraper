@@ -192,6 +192,13 @@ class GraphMailNotifier:
                 else '<span style="color:#94a3b8; font-size:11px;">—</span>'
             )
 
+            summary_text = j.summary
+            summary_html = (
+                f'<div style="margin-top: 6px; padding: 6px 10px; background: #f8fafc; border-left: 3px solid #3b82f6; border-radius: 0 6px 6px 0; font-size: 11px; color: #334155; line-height: 1.45;">'
+                f'<strong style="color: #1e40af;">Summary:</strong> {html.escape(summary_text)}'
+                f'</div>'
+            ) if summary_text else ""
+
             table_rows.append(
                 f"""
                 <tr style="border-bottom: 1px solid #e2e8f0; font-size: 13px;">
@@ -199,6 +206,7 @@ class GraphMailNotifier:
                     <td style="padding: 10px 12px;">
                         <div style="font-size: 14px; margin-bottom: 3px;">{title_link}</div>
                         <div style="color: #64748b; font-size: 12px;">{html.escape(j.company)} &bull; {html.escape(j.location or j.country)} ({html.escape(j.remote_type.value if hasattr(j.remote_type, 'value') else str(j.remote_type))})</div>
+                        {summary_html}
                         {keyword_pill}
                     </td>
                     <td style="padding: 10px 12px; color: #334155; font-size: 12px;">{html.escape(j.salary_range or 'Not listed')}</td>

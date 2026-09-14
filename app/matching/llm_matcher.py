@@ -27,12 +27,14 @@ _SYSTEM_PROMPT = (
     "3. 'missing_skills': ONLY list skills required by the job that are completely absent from the company capabilities.\n"
     "4. 'match_score': Integer (0-100) representing how well the company meets the required technical stack.\n"
     "5. 'match_reason': 1-2 sentence factual summary of the match.\n"
-    "6. Respond strictly with a JSON object:\n"
+    "6. 'job_summary': 1-2 sentence concise summary of the job description (core responsibilities and primary role focus).\n"
+    "7. Respond strictly with a JSON object:\n"
     '{\n'
     '  "match_score": 85,\n'
     '  "matched_skills": ["Skill1", "Skill2"],\n'
     '  "missing_skills": ["Skill3"],\n'
-    '  "match_reason": "Summary of fit."\n'
+    '  "match_reason": "Summary of fit.",\n'
+    '  "job_summary": "Summary of job description."\n'
     '}'
 )
 
@@ -282,6 +284,7 @@ class LLMMatcher:
             matched_list = [str(s) for s in payload.get("matched_skills", [])]
             missing_list = [str(s) for s in payload.get("missing_skills", [])]
             reason = str(payload.get("match_reason", "")).strip()
+            job_summary = str(payload.get("job_summary", "")).strip()
 
             # --- Fully Dynamic Semantic & Substring Reconciliation ---
             # Automatically verifies any skill phrase against the retrieved knowledge context.
@@ -474,10 +477,11 @@ class LLMMatcher:
                 matched_skills=matched_list,
                 missing_skills=cleaned_missing,
                 match_reason=reason,
+                job_summary=job_summary,
             )
         except Exception as exc:
             logger.error("LLM match evaluation failed: {}", exc)
-            return MatchResult(match_score=None, matched_skills=[], missing_skills=[], match_reason=f"Evaluation failed: {exc}")
+            return MatchResult(match_score=None, matched_skills=[], missing_skills=[], match_reason=f"Evaluation failed: {exc}", job_summary="")
 
     async def close(self) -> None:
         if self._client and hasattr(self._client, "close"):

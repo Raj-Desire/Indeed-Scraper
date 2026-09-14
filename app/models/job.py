@@ -52,6 +52,43 @@ class JobPosting(BaseModel):
     matched_skills: list[str] = Field(default_factory=list, description="Skills/technologies the company can demonstrate for this job")
     missing_skills: list[str] = Field(default_factory=list, description="Required skills the KB shows no evidence of")
     match_reason: str = Field(default="", description="Short LLM explanation of the match score")
+    job_summary: str = Field(default="", description="Concise summary of the job description")
+
+    @property
+    def summary(self) -> str:
+        """Returns LLM-produced job_summary if available, otherwise generates a clean excerpt from job_description."""
+        if self.job_summary and self.job_summary.strip():
+            return self.job_summary.strip()
+        return self._generate_fallback_summary()
+
+    def _generate_fallback_summary(self) -> str:
+        if not self.job_description or not self.job_description.strip():
+            return "No description available."
+
+        import re
+        text = re.sub(r"<[^>]+>", " ", self.job_description)
+        text = re.sub(r"\s+", " ", text).strip()
+
+        boilerplate_patterns = [
+            r"^(?:About the job|Job Description|Role Overview|Position Summary|About Us|Summary)[:\s-]*",
+            r"Equal Opportunity Employer.*$",
+            r"We are an equal opportunity employer.*$",
+            r"Indeed Prime.*$",
+        ]
+        for pat in boilerplate_patterns:
+            text = re.sub(pat, "", text, flags=re.IGNORECASE).strip()
+
+        if len(text) <= 220:
+            return text
+
+        truncated = text[:220]
+        last_period = truncated.rfind(".")
+        if last_period > 80:
+            return truncated[:last_period + 1].strip()
+        last_space = truncated.rfind(" ")
+        if last_space > 80:
+            return truncated[:last_space].strip() + "..."
+        return truncated + "..."
 
     @property
     def location_remote_type(self) -> str:

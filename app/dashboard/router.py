@@ -84,8 +84,8 @@ async def api_start_scraper(request: Request):
 @router.post("/api/scraper/stop")
 async def api_stop_scraper():
     """Stop running scraper."""
-    get_scraper_service().stop()
-    return {"status": "stopping"}
+    await get_scraper_service().stop()
+    return {"status": "stopped"}
 
 
 @router.get("/api/leads")
@@ -128,6 +128,8 @@ async def api_get_leads(
             "matched_skills": j.matched_skills or [],
             "missing_skills": j.missing_skills or [],
             "match_reason": j.match_reason or "",
+            "job_summary": j.summary,
+            "summary": j.summary,
         }
 
     return {
@@ -187,6 +189,32 @@ async def api_export_excel():
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         filename=output_path.name,
     )
+
+
+@router.get("/direct-matcher", response_class=HTMLResponse)
+async def direct_matcher_page(request: Request):
+    """Serve the direct job description matching interface."""
+    countries = [{"name": c.name, "code": c.code} for c in COMMON_COUNTRIES]
+    return templates.TemplateResponse(
+        request=request,
+        name="direct_matcher.html",
+        context={"countries": countries},
+    )
+
+
+@router.post("/api/direct-match")
+async def api_direct_match(request: Request):
+    """Directly evaluate a user-pasted job description against Azure KB & LLM."""
+    from app.direct_matcher.direct_match_service import DirectMatchRequest, get_direct_match_orchestrator
+    try:
+        body = await request.json()
+        match_req = DirectMatchRequest(**body)
+        orchestrator = get_direct_match_orchestrator()
+        result = await orchestrator.evaluate_direct_jd(match_req)
+        return result.model_dump()
+    except Exception as exc:
+        logger.error("Direct match request failed: {}", exc)
+        raise HTTPException(status_code=500, detail=str(exc))
 
 
 @router.post("/api/export/sharepoint")

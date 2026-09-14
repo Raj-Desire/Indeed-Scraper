@@ -65,15 +65,19 @@ function clearAllCountries() {
     updateSelectedCountriesDisplay();
 }
 
-// 7 Core Keywords & Checkbox Management
+// 11 Core Keywords & Checkbox Management
 const DEFAULT_CORE_KEYWORDS = [
     "SharePoint",
     "Power Apps",
     "Power Automate",
+    "Power BI",
+    "Purview",
     "AI",
     ".NET",
     "React",
-    "n8n"
+    "SPFx",
+    "n8n",
+    "Intune"
 ];
 
 function getSelectedKeywords() {
@@ -291,6 +295,15 @@ async function stopSearch() {
     } catch (e) {
         console.error('Failed to trigger stop:', e);
     }
+    // Immediately unlock UI and reset state so user can search again without delay
+    isSearchRunning = false;
+    setSearchButtonState(false);
+    setStopButtonState(true);
+    const searchStatusEl = document.getElementById('search-status');
+    if (searchStatusEl) {
+        searchStatusEl.textContent = 'Status: Stopped. Ready to search.';
+    }
+    fetchLeads();
 }
 
 let lastLeadsHash = '';
@@ -413,7 +426,7 @@ function renderTable(leads) {
     if (!leads || leads.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="13" class="px-5 py-12 text-center text-slate-400 font-medium">
+                <td colspan="12" class="px-5 py-12 text-center text-slate-400 font-medium">
                     No leads found yet. Click <strong class="text-slate-700">"Search Jobs"</strong> above.
                 </td>
             </tr>`;
@@ -486,8 +499,9 @@ function renderTable(leads) {
             `;
         }
 
-        // Match Reason snippet
-        const reasonSnippet = l.match_reason ? (l.match_reason.length > 90 ? l.match_reason.slice(0, 90) + '...' : l.match_reason) : '—';
+        // Job Summary snippet (instead of Match Reason)
+        const summaryText = (l.job_summary || l.summary || l.match_reason || '').trim() || 'No summary available';
+        const summarySnippet = summaryText.length > 115 ? summaryText.slice(0, 115) + '...' : summaryText;
 
         return `
         <tr class="border-b border-slate-100 hover:bg-slate-50/80 transition-colors">
@@ -517,8 +531,8 @@ function renderTable(leads) {
                     ${missingSkillsHtml}
                 </div>
             </td>
-            <td class="px-5 py-3 text-xs text-slate-600 max-w-[220px]">
-                <div class="text-[11px] leading-relaxed line-clamp-2" title="${esc(l.match_reason || '')}">${esc(reasonSnippet)}</div>
+            <td class="px-5 py-3 text-xs text-slate-700 max-w-[240px]">
+                <div class="text-[11px] leading-relaxed line-clamp-2 font-normal" title="${esc(summaryText)}">${esc(summarySnippet)}</div>
             </td>
             <td class="px-5 py-3 text-xs">
                 <span class="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${expBadgeClass}">
@@ -534,9 +548,6 @@ function renderTable(leads) {
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
                     Full Description
                 </button>
-            </td>
-            <td class="px-5 py-3 text-xs text-slate-500">
-                ${esc(l.industry || 'Not listed')}
             </td>
             <td class="px-5 py-3 text-xs text-center">
                 <div class="flex items-center justify-center gap-2">
@@ -556,7 +567,12 @@ function openDescriptionModal(jobId) {
     document.getElementById('modal-experience').textContent = job.experience || 'Not specified';
     document.getElementById('modal-salary').textContent = job.salary || 'Not listed';
     document.getElementById('modal-location').textContent = job.location_remote_type || job.location || 'Not listed';
-    document.getElementById('modal-industry').textContent = job.industry || 'Not listed';
+    
+    // Summary population
+    const summaryEl = document.getElementById('modal-job-summary');
+    if (summaryEl) {
+        summaryEl.textContent = job.job_summary || job.summary || job.match_reason || 'No description summary available.';
+    }
     
     // AI Match Card population
     const matchScoreEl = document.getElementById('modal-match-score');
@@ -636,6 +652,7 @@ function filterTable() {
         (l.company || '').toLowerCase().includes(q) ||
         (l.country || '').toLowerCase().includes(q) ||
         (l.experience || '').toLowerCase().includes(q) ||
+        (l.job_summary || '').toLowerCase().includes(q) ||
         (l.job_description || '').toLowerCase().includes(q)
     );
     renderTable(filtered);

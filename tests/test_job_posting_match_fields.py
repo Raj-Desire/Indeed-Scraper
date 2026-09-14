@@ -32,8 +32,23 @@ def test_job_posting_match_fields_are_settable():
     assert dumped["matched_skills"] == ["Python", "Azure"]
 
 
+def test_job_posting_summary_fallback_and_override():
+    job = JobPosting(
+        job_title="Software Engineer",
+        company="Tech Co",
+        job_description="About the job: We are looking for a Senior React Developer to design scalable cloud web apps.",
+    )
+    # Default fallback summary extracts from description
+    assert "Senior React Developer" in job.summary
+
+    # Explicit job_summary overrides fallback
+    job.job_summary = "Custom 2-sentence summary of the job."
+    assert job.summary == "Custom 2-sentence summary of the job."
+
+
 if __name__ == "__main__":
     test_job_posting_has_match_fields_with_safe_defaults()
     test_job_posting_existing_fields_still_work()
     test_job_posting_match_fields_are_settable()
+    test_job_posting_summary_fallback_and_override()
     print("OK")

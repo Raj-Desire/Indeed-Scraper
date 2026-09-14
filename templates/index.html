@@ -48,12 +48,12 @@
         </div>
     </div>
 
-    <!-- Target Role & Keywords Panel (7 Core Keywords with Checkboxes) -->
+    <!-- Target Role & Keywords Panel (11 Core Keywords with Checkboxes) -->
     <div class="bg-slate-50/80 border border-slate-200 rounded-xl p-4 space-y-3">
         <div class="flex items-center justify-between">
             <label class="block text-slate-700 text-xs font-bold uppercase tracking-wider flex items-center gap-2">
                 <span>Target Services & Roles</span>
-                <span id="keyword-count-badge" class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">7 Active (Default All Selected)</span>
+                <span id="keyword-count-badge" class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">11 Active (Default All Selected)</span>
             </label>
             <div class="flex items-center gap-2 text-xs font-semibold">
                 <button type="button" onclick="selectAllKeywords(true)" class="px-3 py-1 bg-white hover:bg-blue-50 text-blue-600 border border-slate-300 hover:border-blue-400 rounded-lg transition-all text-xs font-medium shadow-xs cursor-pointer">Select All</button>
@@ -62,7 +62,7 @@
         </div>
 
         <!-- Checkbox Grid for Core Keywords -->
-        <div id="keywords-checkbox-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2">
+        <div id="keywords-checkbox-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
             <!-- SharePoint -->
             <label class="keyword-item flex items-center gap-2 bg-white hover:bg-blue-50/60 border border-slate-200 hover:border-blue-300 rounded-xl px-3 py-2 cursor-pointer transition-all shadow-2xs group">
                 <input type="checkbox" name="keyword_checkbox" value="SharePoint" checked onchange="updateSelectedKeywordsDisplay()"
@@ -80,6 +80,18 @@
                 <input type="checkbox" name="keyword_checkbox" value="Power Automate" checked onchange="updateSelectedKeywordsDisplay()"
                     class="w-4 h-4 rounded bg-white border-slate-300 text-blue-600 focus:ring-blue-500/20 accent-blue-600 cursor-pointer">
                 <span class="text-xs text-slate-800 font-bold group-hover:text-blue-700 truncate">Power Automate</span>
+            </label>
+            <!-- Power BI -->
+            <label class="keyword-item flex items-center gap-2 bg-white hover:bg-blue-50/60 border border-slate-200 hover:border-blue-300 rounded-xl px-3 py-2 cursor-pointer transition-all shadow-2xs group">
+                <input type="checkbox" name="keyword_checkbox" value="Power BI" checked onchange="updateSelectedKeywordsDisplay()"
+                    class="w-4 h-4 rounded bg-white border-slate-300 text-blue-600 focus:ring-blue-500/20 accent-blue-600 cursor-pointer">
+                <span class="text-xs text-slate-800 font-bold group-hover:text-blue-700 truncate">Power BI</span>
+            </label>
+            <!-- Purview -->
+            <label class="keyword-item flex items-center gap-2 bg-white hover:bg-blue-50/60 border border-slate-200 hover:border-blue-300 rounded-xl px-3 py-2 cursor-pointer transition-all shadow-2xs group">
+                <input type="checkbox" name="keyword_checkbox" value="Purview" checked onchange="updateSelectedKeywordsDisplay()"
+                    class="w-4 h-4 rounded bg-white border-slate-300 text-blue-600 focus:ring-blue-500/20 accent-blue-600 cursor-pointer">
+                <span class="text-xs text-slate-800 font-bold group-hover:text-blue-700 truncate">Purview</span>
             </label>
             <!-- AI -->
             <label class="keyword-item flex items-center gap-2 bg-white hover:bg-blue-50/60 border border-slate-200 hover:border-blue-300 rounded-xl px-3 py-2 cursor-pointer transition-all shadow-2xs group">
@@ -99,11 +111,23 @@
                     class="w-4 h-4 rounded bg-white border-slate-300 text-blue-600 focus:ring-blue-500/20 accent-blue-600 cursor-pointer">
                 <span class="text-xs text-slate-800 font-bold group-hover:text-blue-700 truncate">React</span>
             </label>
+            <!-- SPFx -->
+            <label class="keyword-item flex items-center gap-2 bg-white hover:bg-blue-50/60 border border-slate-200 hover:border-blue-300 rounded-xl px-3 py-2 cursor-pointer transition-all shadow-2xs group">
+                <input type="checkbox" name="keyword_checkbox" value="SPFx" checked onchange="updateSelectedKeywordsDisplay()"
+                    class="w-4 h-4 rounded bg-white border-slate-300 text-blue-600 focus:ring-blue-500/20 accent-blue-600 cursor-pointer">
+                <span class="text-xs text-slate-800 font-bold group-hover:text-blue-700 truncate">SPFx</span>
+            </label>
             <!-- n8n -->
             <label class="keyword-item flex items-center gap-2 bg-white hover:bg-blue-50/60 border border-slate-200 hover:border-blue-300 rounded-xl px-3 py-2 cursor-pointer transition-all shadow-2xs group">
                 <input type="checkbox" name="keyword_checkbox" value="n8n" checked onchange="updateSelectedKeywordsDisplay()"
                     class="w-4 h-4 rounded bg-white border-slate-300 text-blue-600 focus:ring-blue-500/20 accent-blue-600 cursor-pointer">
                 <span class="text-xs text-slate-800 font-bold group-hover:text-blue-700 truncate">n8n</span>
+            </label>
+            <!-- Intune -->
+            <label class="keyword-item flex items-center gap-2 bg-white hover:bg-blue-50/60 border border-slate-200 hover:border-blue-300 rounded-xl px-3 py-2 cursor-pointer transition-all shadow-2xs group">
+                <input type="checkbox" name="keyword_checkbox" value="Intune" checked onchange="updateSelectedKeywordsDisplay()"
+                    class="w-4 h-4 rounded bg-white border-slate-300 text-blue-600 focus:ring-blue-500/20 accent-blue-600 cursor-pointer">
+                <span class="text-xs text-slate-800 font-bold group-hover:text-blue-700 truncate">Intune</span>
             </label>
         </div>
 
@@ -228,21 +252,20 @@
                     <th class="px-5 py-3.5 font-bold">Job Title</th>
                     <th class="px-5 py-3.5 font-bold">Company</th>
                     <th class="px-5 py-3.5 font-bold text-center">Country</th>
-                    <th class="px-5 py-3.5 font-bold">Location / Type</th>
+                    <th class="px-5 py-3.5 font-bold">Type</th>
                     <th class="px-5 py-3.5 font-bold text-center">Match Score</th>
                     <th class="px-5 py-3.5 font-bold">Matched Skills</th>
                     <th class="px-5 py-3.5 font-bold">Missing Skills</th>
-                    <th class="px-5 py-3.5 font-bold">Match Reason</th>
-                    <th class="px-5 py-3.5 font-bold">Experience Criteria</th>
-                    <th class="px-5 py-3.5 font-bold">Salary / Compensation</th>
+                    <th class="px-5 py-3.5 font-bold">Job Summary</th>
+                    <th class="px-5 py-3.5 font-bold">Experience</th>
+                    <th class="px-5 py-3.5 font-bold">Compensation</th>
                     <th class="px-5 py-3.5 font-bold">Job Description</th>
-                    <th class="px-5 py-3.5 font-bold">Industry</th>
                     <th class="px-5 py-3.5 font-bold text-center">Action</th>
                 </tr>
             </thead>
             <tbody id="leads-body" class="divide-y divide-slate-100 text-slate-700">
                 <tr>
-                    <td colspan="13" class="px-5 py-16 text-center text-slate-400 font-medium">
+                    <td colspan="12" class="px-5 py-16 text-center text-slate-400 font-medium">
                         Enter your job role above and click <strong class="text-slate-700">"Search Jobs"</strong> to fetch leads.
                     </td>
                 </tr>
@@ -264,7 +287,7 @@
             </button>
         </div>
 
-        <div class="px-6 py-3 bg-slate-100/70 border-b border-slate-200 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+        <div class="px-6 py-3 bg-slate-100/70 border-b border-slate-200 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
             <div class="bg-white p-2.5 rounded-lg border border-slate-200/80 shadow-2xs">
                 <span class="text-slate-400 block text-[10px] uppercase font-bold">Experience</span>
                 <span id="modal-experience" class="text-amber-700 font-bold text-xs mt-0.5 block">Not specified</span>
@@ -274,16 +297,20 @@
                 <span id="modal-salary" class="text-emerald-700 font-bold text-xs mt-0.5 block">Not listed</span>
             </div>
             <div class="bg-white p-2.5 rounded-lg border border-slate-200/80 shadow-2xs">
-                <span class="text-slate-400 block text-[10px] uppercase font-bold">Location</span>
+                <span class="text-slate-400 block text-[10px] uppercase font-bold">Location / Remote</span>
                 <span id="modal-location" class="text-slate-700 font-semibold text-xs mt-0.5 block truncate">Not listed</span>
-            </div>
-            <div class="bg-white p-2.5 rounded-lg border border-slate-200/80 shadow-2xs">
-                <span class="text-slate-400 block text-[10px] uppercase font-bold">Industry</span>
-                <span id="modal-industry" class="text-slate-700 font-semibold text-xs mt-0.5 block truncate">Not listed</span>
             </div>
         </div>
 
         <div class="p-6 overflow-y-auto max-h-[55vh] space-y-4 bg-white">
+            <!-- Job Description Summary Card -->
+            <div class="bg-blue-50/50 border border-blue-200 rounded-xl p-4 shadow-2xs">
+                <div class="flex items-center gap-1.5 mb-1.5">
+                    <span class="text-sm">📋</span>
+                    <span class="text-xs font-bold uppercase tracking-wider text-blue-900">Job Description Summary</span>
+                </div>
+                <p id="modal-job-summary" class="text-xs text-slate-800 leading-relaxed font-medium">No summary available.</p>
+            </div>
             <!-- AI Match Analysis Card -->
             <div id="modal-ai-card" class="bg-gradient-to-r from-blue-50/70 to-indigo-50/70 border border-blue-200/80 rounded-xl p-4.5 space-y-3">
                 <div class="flex items-center justify-between">

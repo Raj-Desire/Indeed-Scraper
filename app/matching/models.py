@@ -14,3 +14,4 @@ class MatchResult(BaseModel):
     matched_skills: list[str] = Field(default_factory=list, description="Skills/technologies the company can demonstrate for this job")
     missing_skills: list[str] = Field(default_factory=list, description="Skills/technologies the job requires but the KB shows no evidence of")
     match_reason: str = Field(default="", description="Short explanation of the score")
+    job_summary: str = Field(default="", description="Concise summary of the job description")

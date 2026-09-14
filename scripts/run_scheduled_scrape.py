@@ -104,7 +104,7 @@ async def run_scheduled(
 
         if max_leads and prog.jobs_found >= max_leads:
             logger.info("Reached target limit of {} leads; completing run.", max_leads)
-            service.stop()
+            await service.stop()
             break
 
     # Wait for pipeline to finish export, SharePoint sync, and silent dispatch

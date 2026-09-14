@@ -79,17 +79,21 @@ CORE_DEFAULT_KEYWORDS: list[str] = [
     "SharePoint",
     "Power Apps",
     "Power Automate",
+    "Power BI",
+    "Purview",
     "AI",
     ".NET",
     "React",
+    "SPFx",
     "n8n",
+    "Intune",
 ]
 
 
 class RunConfig(BaseModel):
     """
     Configuration for a single user-initiated scraping run.
-    Takes manual user inputs for countries, search queries (SharePoint, Power Apps, Power Automate, AI, .NET, React, n8n), and max pages.
+    Takes manual user inputs for countries, search queries (SharePoint, Power Apps, Power Automate, Power BI, Purview, AI, .NET, React, SPFx, n8n, Intune), and max pages.
     """
     countries: list[str] = Field(default_factory=lambda: ["US"], description="Target country codes or names")
     queries: list[str] = Field(default_factory=lambda: list(CORE_DEFAULT_KEYWORDS), description="List of roles or keywords to search")
