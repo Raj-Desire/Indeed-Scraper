@@ -40,3 +40,4 @@ tenacity
 
 # Testing & Quality Assurance
 pytest
+pytest-asyncio

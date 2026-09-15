@@ -90,11 +90,13 @@ echo Virtual environment ready.
 echo.
 
 :: -----------------------------------------------------------------------------
-:: Step 3: Install Required Dependencies
+:: Step 3: Upgrade pip and Install Required Dependencies
 :: -----------------------------------------------------------------------------
-echo [3/5] Installing dependencies from requirements.txt...
-echo Please wait, this may take 1-2 minutes on first install...
+echo [3/5] Updating pip and installing dependencies from requirements.txt...
+echo Upgrading package installer...
+venv\Scripts\python.exe -m pip install --upgrade pip setuptools wheel --no-warn-script-location >nul 2>nul
 
+echo Installing required Python packages (this may take 1-2 minutes on first install)...
 venv\Scripts\python.exe -m pip install --no-warn-script-location -r requirements.txt
 if %errorlevel% neq 0 (
     echo.
@@ -127,9 +129,16 @@ if %errorlevel% neq 0 (
 echo.
 
 :: -----------------------------------------------------------------------------
-:: Step 5: Environment File & Desktop Shortcut
+:: Step 5: Directory Structure, Environment File & Desktop Shortcut
 :: -----------------------------------------------------------------------------
-echo [5/5] Finalizing setup...
+echo [5/5] Finalizing setup and directory structure...
+
+:: Ensure required runtime directories exist
+if not exist "outputs" mkdir outputs
+if not exist "logs" mkdir logs
+if not exist "sessions" mkdir sessions
+if not exist "config" mkdir config
+
 if not exist ".env" (
     if exist ".env.example" (
         copy /y ".env.example" ".env" >nul

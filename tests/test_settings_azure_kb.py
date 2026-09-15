@@ -6,7 +6,17 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from app.config.settings import Settings
 
 
-def test_azure_kb_settings_have_safe_defaults():
+def test_azure_kb_settings_have_safe_defaults(monkeypatch):
+    for var in [
+        "AZURE_SEARCH_ENDPOINT",
+        "AZURE_SEARCH_INDEX",
+        "AZURE_SEARCH_API_KEY",
+        "AZURE_SEARCH_TOP_K",
+        "AZURE_OPENAI_ENDPOINT",
+        "AZURE_OPENAI_API_KEY",
+        "AZURE_OPENAI_CHAT_DEPLOYMENT",
+    ]:
+        monkeypatch.delenv(var, raising=False)
     s = Settings(_env_file=None)  # ignore local .env so defaults are exercised
     assert s.azure_search_endpoint == ""
     assert s.azure_search_index == ""
