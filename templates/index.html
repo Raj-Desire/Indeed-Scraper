@@ -15,17 +15,24 @@
         </span>
     </div>
 
-    <!-- Operation Mode Tabs -->
-    <div class="flex items-center gap-2 border-b border-slate-200 pb-2">
-        <button id="tab-btn-scraper" type="button" onclick="switchMode('scraper')"
-            class="px-4 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 bg-blue-600 text-white shadow-xs cursor-pointer">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-            Automated Indeed Scraper
-        </button>
-        <button id="tab-btn-manual" type="button" onclick="switchMode('manual')"
-            class="px-4 py-2 text-xs font-semibold rounded-xl transition-all flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-            Manual Job Evaluator (Paste Description)
+    <!-- Operation Mode Tabs & Global Clear -->
+    <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-2">
+        <div class="flex items-center gap-2">
+            <button id="tab-btn-scraper" type="button" onclick="switchMode('scraper')"
+                class="px-4 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 bg-blue-600 text-white shadow-xs cursor-pointer">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                Automated Indeed Scraper
+            </button>
+            <button id="tab-btn-manual" type="button" onclick="switchMode('manual')"
+                class="px-4 py-2 text-xs font-semibold rounded-xl transition-all flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                Manual Job Evaluator (Paste Description)
+            </button>
+        </div>
+        <button id="btn-global-reset" type="button" onclick="confirmResetPage()"
+            class="px-4 py-2 text-xs font-bold rounded-xl text-rose-600 hover:text-white bg-rose-50 hover:bg-rose-600 border border-rose-200 hover:border-rose-600 transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+            Clear / Reset Page
         </button>
     </div>
 
@@ -38,7 +45,7 @@
                     <span>Target Country</span>
                     <span id="country-count-badge" class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">1 Selected (Stealth Mode)</span>
                 </label>
-                <span class="text-slate-400 text-[11px] italic">🛡️ Single country domain keeps session warm and avoids bot detection</span>
+                <span class="text-slate-400 text-[11px] italic"> Single country domain keeps session warm and avoids bot detection</span>
             </div>
 
             <!-- Structured Country Selection Grid (Bigger boxes, 3 lines visible) -->
@@ -217,85 +224,249 @@
 
     <!-- PANEL 2: Manual Job Evaluator -->
     <div id="panel-manual" class="space-y-5 hidden">
-        <div class="bg-blue-50/60 border border-blue-200/80 rounded-xl p-4 flex items-start gap-3">
-            <span class="text-blue-600 text-lg">💡</span>
-            <div class="text-xs text-slate-700 leading-relaxed">
-                <strong class="text-blue-900 font-bold">Paste any job description</strong> from LinkedIn, Indeed, Upwork, or company career sites.
-                The AI will evaluate technical fit against your company's knowledge base, generate match scores, extract matched & missing skills, and add the lead to your exportable table.
-            </div>
-        </div>
+        <!-- <div class="bg-gradient-to-r from-blue-50/90 to-indigo-50/90 border border-blue-200 rounded-xl p-4 flex items-start gap-3.5 shadow-2xs">
+            <span class="text-blue-600 text-xl"></span>
+             <div class="text-xs text-slate-700 leading-relaxed">
+                <strong class="text-blue-900 font-bold">Step 1: Paste Job Description.</strong> Paste any raw job description or profile text below and click <strong class="text-blue-700">"Evaluate & Auto-Fill with AI"</strong>.
+                The system will automatically extract all matching parameters (Title, Experience, Email, Phone, Tech stack, and unmapped profile parameters into Notes) and auto-populate all fields below.
+            </div> 
+        </div> -->
 
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div>
-                <label class="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Job Title</label>
-                <input id="manual-job-title" type="text" placeholder="e.g. Senior Power Platform Developer"
-                    class="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 shadow-2xs font-medium">
-            </div>
-            <div>
-                <label class="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Company Name</label>
-                <input id="manual-company" type="text" placeholder="e.g. Microsoft / Acme Corp"
-                    class="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 shadow-2xs font-medium">
-            </div>
-            <div>
-                <label class="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Work Type / Location</label>
-                <select id="manual-remote-type" class="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-800 focus:outline-none focus:border-blue-500 shadow-2xs font-medium cursor-pointer">
-                    <option value="Fully Remote" selected>Fully Remote</option>
-                    <option value="Hybrid">Hybrid</option>
-                    <option value="On-Site">On-Site</option>
-                </select>
-            </div>
-            <div>
-                <label class="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Country</label>
-                <select id="manual-country" class="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-800 focus:outline-none focus:border-blue-500 shadow-2xs font-medium cursor-pointer">
-                    {% for c in countries %}
-                    <option value="{{ c.code }}" {% if c.code == 'US' %}selected{% endif %}>{{ c.name }} ({{ c.code }})</option>
-                    {% endfor %}
-                </select>
-            </div>
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-                <label class="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Job URL (Optional)</label>
-                <input id="manual-job-url" type="url" placeholder="https://..."
-                    class="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 shadow-2xs font-medium">
-            </div>
-            <div>
-                <label class="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Salary / Compensation (Optional)</label>
-                <input id="manual-salary" type="text" placeholder="e.g. $120,000 - $150,000 / yr"
-                    class="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 shadow-2xs font-medium">
-            </div>
-            <div>
-                <label class="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Experience (Optional)</label>
-                <input id="manual-experience" type="text" placeholder="e.g. 5+ years"
-                    class="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 shadow-2xs font-medium">
-            </div>
-        </div>
-
-        <div>
-            <div class="flex items-center justify-between mb-1.5">
-                <label class="block text-slate-700 text-xs font-bold uppercase tracking-wider">
-                    Job Description / Requirements <span class="text-rose-500">*</span>
+        <!-- 1. Top Primary Input: Job Description / Profile Text -->
+        <div class="space-y-2">
+            <div class="flex items-center justify-between">
+                <label class="block text-slate-800 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
+                    <span class="w-2 h-2 rounded-full bg-blue-600"></span>
+                    Job Description / Profile Text <span class="text-rose-500">*</span>
                 </label>
-                <span class="text-slate-400 text-[11px]">Paste full job description or core technical requirements</span>
+                <span class="text-slate-500 text-[11px] font-medium">Paste entire job posting, email, or role description</span>
             </div>
-            <textarea id="manual-description" rows="6" placeholder="Paste full job description here (responsibilities, required tech stack, qualifications)..."
+            <textarea id="manual-description" rows="7" placeholder="Paste full job description here (Job Title, Location, Experience, Requirements, Tech Stack, Email, Phone, etc.)..."
                 class="w-full bg-white border border-slate-300 rounded-xl p-3.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 font-mono leading-relaxed shadow-2xs"></textarea>
+            
+            <div class="flex flex-wrap items-center justify-between gap-3 pt-1">
+                <div class="flex items-center gap-3">
+                    <button id="btn-manual-eval" type="button" onclick="evaluateManualJob()"
+                        class="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-sm transition-all shadow-md shadow-blue-500/20 hover:shadow-lg flex items-center gap-2 cursor-pointer">
+                        <svg id="btn-manual-eval-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                        <span id="btn-manual-eval-label">Evaluate & Auto-Fill with AI</span>
+                    </button>
+                    <button id="btn-manual-sharepoint-top" type="button" onclick="addManualToSharePoint()"
+                        class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-sm transition-all shadow-md shadow-emerald-500/20 hover:shadow-lg flex items-center gap-2 cursor-pointer">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                        <span>Sync to SharePoint</span>
+                    </button>
+                </div>
+                <p id="manual-status-note" class="text-xs text-slate-500 font-medium"></p>
+            </div>
         </div>
 
-        <div class="flex items-center justify-between pt-2 border-t border-slate-100">
+        <!-- 2. Step 2: Auto-Extracted & Opportunity Details (Auto-filled on Evaluate) -->
+        <div class="bg-slate-50/80 border border-slate-200/90 rounded-xl p-4 space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-200/70 pb-2">
+                <span class="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                    <span>📊</span> Auto-Extracted & Opportunity Details (30 Columns)
+                </span>
+                <!-- <span class="text-[11px] text-slate-500 font-medium">Auto-populated by AI • Review & Edit before Sync</span> -->
+            </div>
+
+            <!-- Core Role Details -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Title</label>
+                    <input id="manual-job-title" type="text" placeholder="Job Title"
+                        class="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 shadow-2xs font-medium">
+                </div>
+                <div>
+                    <label class="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Country</label>
+                    <select id="manual-country" class="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-800 focus:outline-none focus:border-blue-500 shadow-2xs font-medium cursor-pointer">
+                        <option value="US" selected>US</option>
+                        <option value="South Africa">South Africa</option>
+                        <option value="UK">UK</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                    <label class="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Website</label>
+                    <input id="manual-job-url" type="url" placeholder="https://..."
+                        class="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 shadow-2xs font-medium">
+                </div>
+                <div>
+                    <label class="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Salary Range</label>
+                    <input id="manual-salary" type="text" placeholder="e.g. $120,000 - $150,000 / yr"
+                        class="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 shadow-2xs font-medium">
+                </div>
+                <div>
+                    <label class="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Experience Criteria</label>
+                    <input id="manual-experience" type="text" placeholder="e.g. 10+ years"
+                        class="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 shadow-2xs font-medium">
+                </div>
+            </div>
+
+            <!-- CRM Metadata Row 1: Owner, Lead Source, Industry, Priority, Status -->
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 text-xs pt-1">
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">Owner</label>
+                    <select id="manual-owner" class="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-bold text-blue-700 focus:outline-none focus:border-blue-500 shadow-2xs">
+                        <option value="Meet" selected>Meet</option>
+                        <option value="Sizan">Sizan</option>
+                        <option value="Chetan">Chetan</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">Lead Source</label>
+                    <select id="manual-lead-source" class="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-500 shadow-2xs">
+                        <option value="Indeed" selected>Indeed</option>
+                        <option value="LinkedIn">LinkedIn</option>
+                        <option value="Upwork">Upwork</option>
+                        <option value="People Per Hour">People Per Hour</option>
+                        <option value="Dice">Dice</option>
+                        <option value="Referral">Referral</option>
+                        <option value="Website Inquiry">Website Inquiry</option>
+                        <option value="Cold Outreach">Cold Outreach</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">Industry</label>
+                    <select id="manual-industry" class="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-500 shadow-2xs">
+                        <option value="IT" selected>IT</option>
+                        <option value="Construction">Construction</option>
+                        <option value="Legal">Legal</option>
+                        <option value="Healthcare">Healthcare</option>
+                        <option value="Logistics">Logistics</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">Priority</label>
+                    <select id="manual-priority" class="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-500 shadow-2xs">
+                        <option value="High">High</option>
+                        <option value="Medium" selected>Medium</option>
+                        <option value="Low">Low</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">Status</label>
+                    <select id="manual-status" class="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-500 shadow-2xs">
+                        <option value="New" selected>New</option>
+                        <option value="Contacted">Contacted</option>
+                        <option value="Qualified">Qualified</option>
+                        <option value="Meeting Scheduled">Meeting Scheduled</option>
+                        <option value="Bid Submitted">Bid Submitted</option>
+                        <option value="Won">Won</option>
+                        <option value="Lost">Lost</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Technology MultiChoice Pills -->
+            <div class="text-xs pt-1">
+                <label class="block font-bold text-slate-700 mb-1.5">Technology</label>
+                <div id="manual-tech-container" class="flex flex-wrap gap-2">
+                    <label class="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl border border-slate-300 bg-white text-slate-700 font-semibold cursor-pointer hover:bg-slate-100 transition-all select-none">
+                        <input type="checkbox" value="AI" class="manual-tech-checkbox accent-blue-600 rounded">
+                        <span>AI</span>
+                    </label>
+                    <label class="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl border border-slate-300 bg-white text-slate-700 font-semibold cursor-pointer hover:bg-slate-100 transition-all select-none">
+                        <input type="checkbox" value="SharePoint" class="manual-tech-checkbox accent-blue-600 rounded" checked>
+                        <span>SharePoint</span>
+                    </label>
+                    <label class="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl border border-slate-300 bg-white text-slate-700 font-semibold cursor-pointer hover:bg-slate-100 transition-all select-none">
+                        <input type="checkbox" value="Power Platform" class="manual-tech-checkbox accent-blue-600 rounded">
+                        <span>Power Platform</span>
+                    </label>
+                    <label class="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl border border-slate-300 bg-white text-slate-700 font-semibold cursor-pointer hover:bg-slate-100 transition-all select-none">
+                        <input type="checkbox" value=".NET" class="manual-tech-checkbox accent-blue-600 rounded">
+                        <span>.NET</span>
+                    </label>
+                    <label class="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl border border-slate-300 bg-white text-slate-700 font-semibold cursor-pointer hover:bg-slate-100 transition-all select-none">
+                        <input type="checkbox" value="Dynamics" class="manual-tech-checkbox accent-blue-600 rounded">
+                        <span>Dynamics</span>
+                    </label>
+                    <label class="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl border border-slate-300 bg-white text-slate-700 font-semibold cursor-pointer hover:bg-slate-100 transition-all select-none">
+                        <input type="checkbox" value="Power BI" class="manual-tech-checkbox accent-blue-600 rounded">
+                        <span>Power BI</span>
+                    </label>
+                    <label class="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl border border-slate-300 bg-white text-slate-700 font-semibold cursor-pointer hover:bg-slate-100 transition-all select-none">
+                        <input type="checkbox" value="Admin" class="manual-tech-checkbox accent-blue-600 rounded">
+                        <span>Admin</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Currency Code, Estimated Value, Next Follow-up Date, Due Date -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs pt-1">
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">Currency Code</label>
+                    <select id="manual-currency" class="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-500 shadow-2xs">
+                        <option value="USD" selected>USD</option>
+                        <option value="INR">INR</option>
+                        <option value="GBP">GBP</option>
+                        <option value="CAD">CAD</option>
+                        <option value="EUR">EUR</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">Estimated Value</label>
+                    <input id="manual-estimated-value" type="number" placeholder="e.g. 5000"
+                        class="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 shadow-2xs font-medium">
+                </div>
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">Next Follow-up Date</label>
+                    <input id="manual-followup-date" type="date"
+                        class="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-blue-500 shadow-2xs font-medium">
+                </div>
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">Due Date</label>
+                    <input id="manual-due-date" type="date"
+                        class="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-blue-500 shadow-2xs font-medium">
+                </div>
+            </div>
+
+            <!-- Contact Information -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs pt-1">
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">Contact Name</label>
+                    <input id="manual-contact-name" type="text" placeholder="e.g. Hiring Manager"
+                        class="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 shadow-2xs font-medium">
+                </div>
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">Email</label>
+                    <input id="manual-contact-email" type="email" placeholder="recruit@company.com"
+                        class="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 shadow-2xs font-medium">
+                </div>
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">Phone</label>
+                    <input id="manual-contact-phone" type="text" placeholder="+1 (555) 000-0000"
+                        class="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 shadow-2xs font-medium">
+                </div>
+            </div>
+
+            <!-- Notes -->
+            <div class="text-xs pt-1">
+                <label class="block font-bold text-slate-700 mb-1">Notes</label>
+                <textarea id="manual-notes" rows="2" placeholder="Notes..."
+                    class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 shadow-2xs font-medium"></textarea>
+            </div>
+        </div>
+
+        <!-- 3. Form Reset & Sync Actions -->
+        <div class="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-200">
             <div class="flex items-center gap-3">
-                <button id="btn-manual-eval" type="button" onclick="evaluateManualJob()"
-                    class="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-sm transition-all shadow-md shadow-blue-500/20 hover:shadow-lg flex items-center gap-2 cursor-pointer">
-                    <svg id="btn-manual-eval-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-                    <span id="btn-manual-eval-label">Evaluate Fit with AI</span>
+                <button id="btn-manual-sharepoint" type="button" onclick="addManualToSharePoint()"
+                    class="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition-all shadow-md shadow-emerald-500/20 hover:shadow-lg flex items-center gap-2 cursor-pointer">
+                    <svg id="btn-manual-sp-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                    <span id="btn-manual-sp-label">Sync to SharePoint</span>
                 </button>
                 <button type="button" onclick="clearManualForm()"
-                    class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold rounded-xl text-xs transition-colors cursor-pointer">
-                    Clear Form
+                    class="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors cursor-pointer flex items-center gap-1.5 shadow-2xs">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                    Clear / Reset Form
                 </button>
             </div>
-            <p id="manual-status-note" class="text-xs text-slate-400 font-medium"></p>
+            <p id="manual-bottom-note" class="text-xs text-slate-400 font-medium"></p>
         </div>
     </div>
 </div>
@@ -343,10 +514,6 @@
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
                 Sync to SharePoint
             </button>
-            <button id="table-clear-btn" onclick="clearAllLeads()" class="hidden px-3 py-1.5 bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-600 border border-slate-200 hover:border-rose-300 font-semibold rounded-xl text-xs transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                Clear Results
-            </button>
         </div>
     </div>
 
@@ -355,7 +522,7 @@
             <thead class="sticky top-0 bg-slate-100 border-b border-slate-200 text-xs font-bold text-slate-600 uppercase tracking-wider z-10 shadow-2xs">
                 <tr>
                     <th class="px-5 py-3.5 font-bold">Job Title</th>
-                    <th class="px-5 py-3.5 font-bold">Company</th>
+                    <th id="th-company" class="px-5 py-3.5 font-bold">Company</th>
                     <th class="px-5 py-3.5 font-bold text-center">Country</th>
                     <th class="px-5 py-3.5 font-bold">Type</th>
                     <th class="px-5 py-3.5 font-bold text-center">Match Score</th>
@@ -457,6 +624,48 @@
             </a>
             <button type="button" onclick="closeDescriptionModal()" class="px-4 py-2 bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 text-xs rounded-xl font-semibold transition-colors shadow-2xs">
                 Close
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Reset Confirmation Modal -->
+<div id="reset-confirm-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden transition-opacity duration-200">
+    <div class="bg-white border border-slate-200 rounded-2xl max-w-md w-full shadow-2xl overflow-hidden p-6 space-y-5 animate-fade-in-up">
+        <div class="flex items-start gap-4">
+            <div class="w-12 h-12 rounded-2xl bg-rose-50 border border-rose-200 text-rose-600 flex items-center justify-center shrink-0 shadow-2xs">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                </svg>
+            </div>
+            <div class="space-y-1 flex-1">
+                <h3 class="text-slate-900 font-extrabold text-base tracking-tight">Reset Entire Page?</h3>
+                <p class="text-slate-600 text-xs leading-relaxed">
+                    This will clear all search parameters, manual evaluation fields, active progress, and reset the Job Leads table.
+                </p>
+            </div>
+        </div>
+
+        <div class="bg-slate-50 border border-slate-200/80 rounded-xl p-3 text-xs text-slate-600 space-y-1.5 font-medium">
+            <div class="flex items-center gap-2">
+                <svg class="w-3.5 h-3.5 text-rose-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                <span>Resets Scraper & Manual Job forms</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <svg class="w-3.5 h-3.5 text-rose-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                <span>Clears all leads from current dashboard session</span>
+            </div>
+        </div>
+
+        <div class="flex items-center justify-end gap-3 pt-1 border-t border-slate-100">
+            <button type="button" onclick="closeResetModal()"
+                class="px-4 py-2.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-xl text-xs font-semibold transition-all shadow-2xs cursor-pointer">
+                Cancel
+            </button>
+            <button type="button" onclick="executeResetPage()"
+                class="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-rose-500/20 hover:shadow-lg flex items-center gap-1.5 cursor-pointer active:scale-95">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                Yes, Reset Everything
             </button>
         </div>
     </div>

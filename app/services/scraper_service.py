@@ -154,7 +154,7 @@ class ScraperService:
 
         job = JobPosting(
             job_title=job_title.strip() or "Untitled Role",
-            company=company.strip() or "Confidential / Unknown",
+            company=company.strip(),
             location=location.strip() or "Remote",
             country=country.strip() or "US",
             job_url=job_url.strip(),

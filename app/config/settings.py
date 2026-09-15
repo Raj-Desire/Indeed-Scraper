@@ -56,24 +56,36 @@ class Settings(BaseSettings):
     # SharePoint & Azure AD Graph API Settings (strictly loaded from .env)
     azure_tenant_id: str = Field(
         default="",
-        validation_alias=AliasChoices("AZURE_TENANT_ID", "azure_tenant_id", "GRAPH_TENANT_ID", "graph_tenant_id"),
+        validation_alias=AliasChoices("SP_TENANT_ID", "sp_tenant_id", "AZURE_TENANT_ID", "azure_tenant_id", "GRAPH_TENANT_ID", "graph_tenant_id"),
         description="Azure AD Tenant ID",
     )
     azure_client_id: str = Field(
         default="",
-        validation_alias=AliasChoices("AZURE_CLIENT_ID", "azure_client_id", "GRAPH_CLIENT_ID", "graph_client_id"),
+        validation_alias=AliasChoices("SP_CLIENT_ID", "sp_client_id", "AZURE_CLIENT_ID", "azure_client_id", "GRAPH_CLIENT_ID", "graph_client_id"),
         description="Azure AD Application (Client) ID",
     )
     azure_client_secret: str = Field(
         default="",
-        validation_alias=AliasChoices("AZURE_CLIENT_SECRET", "azure_client_secret", "GRAPH_CLIENT_SECRET", "graph_client_secret"),
+        validation_alias=AliasChoices("SP_CLIENT_SECRET", "sp_client_secret", "AZURE_CLIENT_SECRET", "azure_client_secret", "GRAPH_CLIENT_SECRET", "graph_client_secret"),
         description="Azure AD Client Secret",
     )
-    sharepoint_site_id: str = Field(default="", description="SharePoint Site ID")
+    sharepoint_site_id: str = Field(
+        default="",
+        validation_alias=AliasChoices("SP_SITE_ID", "sp_site_id", "SHAREPOINT_SITE_ID", "sharepoint_site_id"),
+        description="SharePoint Site ID",
+    )
     sharepoint_hostname: str = Field(default="", description="SharePoint Tenant Hostname (e.g. yourtenant.sharepoint.com)")
     sharepoint_site_path: str = Field(default="", description="SharePoint Site Path (e.g. /sites/yourteam)")
-    sharepoint_list_id: str = Field(default="", description="SharePoint List ID")
-    sharepoint_list_name: str = Field(default="", description="SharePoint List Name")
+    sharepoint_list_id: str = Field(
+        default="",
+        validation_alias=AliasChoices("SP_LIST_ID", "sp_list_id", "SHAREPOINT_LIST_ID", "sharepoint_list_id"),
+        description="SharePoint List ID",
+    )
+    sharepoint_list_name: str = Field(
+        default="",
+        validation_alias=AliasChoices("SP_LIST_NAME", "sp_list_name", "SHAREPOINT_LIST_NAME", "sharepoint_list_name"),
+        description="SharePoint List Name",
+    )
     sharepoint_auto_sync: bool = Field(default=False, description="Auto-upload scraped jobs to SharePoint List")
 
     # Microsoft 365 Graph API Email Notification Settings

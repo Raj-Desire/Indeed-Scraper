@@ -126,16 +126,39 @@ async def api_manual_evaluate(request: Request):
     if not job_description:
         raise HTTPException(status_code=422, detail="Job description is required")
 
-    job_title = (body.get("job_title") or "").strip() or "Untitled Role"
-    company = (body.get("company") or "").strip() or "Direct Evaluation"
-    location = (body.get("location") or "").strip() or "Remote"
-    country = (body.get("country") or "").strip() or "US"
-    job_url = (body.get("job_url") or "").strip()
-    salary_range = (body.get("salary_range") or "").strip() or "Not listed"
-    experience = (body.get("experience") or "").strip() or "Not specified"
-    remote_type_str = (body.get("remote_type") or "").strip() or location
+    from app.matching.jd_parser import parse_job_description_with_ai
 
     service = get_scraper_service()
+    kb_chunks = []
+    if service._match_service and getattr(service._match_service, "_kb", None):
+        try:
+            kb_chunks = await service._match_service._kb.retrieve(job_description, top_k=3)
+        except Exception:
+            pass
+
+    parsed = await parse_job_description_with_ai(job_description, kb_chunks=kb_chunks)
+
+    job_title = (body.get("job_title") or "").strip()
+    if not job_title or job_title in ["Untitled Role", "Untitled Opportunity"]:
+        job_title = parsed.get("job_title") or parsed.get("title") or "Untitled Opportunity"
+
+    country = (body.get("country") or "").strip()
+    if not country or country == "US":
+        country = parsed.get("country") or "US"
+
+    job_url = (body.get("job_url") or "").strip() or parsed.get("job_url", "") or parsed.get("website", "")
+    salary_range = (body.get("salary_range") or "").strip()
+    if not salary_range or salary_range == "Not listed":
+        salary_range = parsed.get("salary_range") or ""
+
+    experience = (body.get("experience") or "").strip()
+    if not experience or experience == "Not specified":
+        experience = parsed.get("experience") or ""
+
+    company = (body.get("company") or "").strip()
+    location = (body.get("location") or "").strip() or (parsed.get("country") or "Remote")
+    remote_type_str = (body.get("remote_type") or "").strip() or location
+
     try:
         job = await service.evaluate_manual_job(
             job_title=job_title,
@@ -144,11 +167,49 @@ async def api_manual_evaluate(request: Request):
             location=location,
             country=country,
             job_url=job_url,
-            salary_range=salary_range,
-            experience=experience,
+            salary_range=salary_range or "Not listed",
+            experience=experience or "Not specified",
             remote_type_str=remote_type_str,
         )
-        return {"status": "success", "lead": _serialize_job(job)}
+
+        # If the AI extractor calculated richer skill matches & score, enrich the job
+        if parsed.get("matched_skills") and not job.matched_skills:
+            job.matched_skills = parsed.get("matched_skills")
+        if parsed.get("missing_skills") and not job.missing_skills:
+            job.missing_skills = parsed.get("missing_skills")
+        if parsed.get("match_score") is not None and (job.match_score is None or job.match_score == 0):
+            job.match_score = parsed.get("match_score")
+        if parsed.get("match_reason") and not job.match_reason:
+            job.match_reason = parsed.get("match_reason")
+
+        return {
+            "status": "success",
+            "lead": _serialize_job(job),
+            "parsed_fields": {
+                "job_title": job.job_title,
+                "country": country,
+                "job_url": job.job_url,
+                "salary_range": salary_range,
+                "estimated_value": parsed.get("estimated_value") if parsed.get("estimated_value") is not None else "",
+                "currency_code": parsed.get("currency_code") or "USD",
+                "experience": experience,
+                "owner": parsed.get("owner") or "Meet",
+                "lead_source": parsed.get("lead_source") or "Indeed",
+                "industry": parsed.get("industry") or "IT",
+                "priority": parsed.get("priority") or "Medium",
+                "status": parsed.get("status") or "New",
+                "email": parsed.get("email", ""),
+                "phone": parsed.get("phone", ""),
+                "contact_name": parsed.get("contact_name", ""),
+                "technologies": parsed.get("technologies") or parsed.get("technology", []),
+                "extra_parameters": parsed.get("extra_parameters", []),
+                "notes": parsed.get("notes", ""),
+                "match_score": job.match_score,
+                "matched_skills": job.matched_skills or [],
+                "missing_skills": job.missing_skills or [],
+                "match_reason": job.match_reason or "",
+            },
+        }
     except Exception as exc:
         logger.error("Manual job evaluation failed: {}", exc)
         raise HTTPException(status_code=500, detail=str(exc))
@@ -240,29 +301,53 @@ async def api_export_excel():
     )
 
 
-@router.get("/direct-matcher", response_class=HTMLResponse)
-async def direct_matcher_page(request: Request):
-    """Serve the direct job description matching interface."""
-    countries = [{"name": c.name, "code": c.code} for c in COMMON_COUNTRIES]
-    return templates.TemplateResponse(
-        request=request,
-        name="direct_matcher.html",
-        context={"countries": countries},
-    )
-
-
-@router.post("/api/direct-match")
-async def api_direct_match(request: Request):
-    """Directly evaluate a user-pasted job description against Azure KB & LLM."""
-    from app.direct_matcher.direct_match_service import DirectMatchRequest, get_direct_match_orchestrator
+@router.post("/api/sharepoint/add-opportunity")
+async def api_sharepoint_add_opportunity(request: Request):
+    """Add a reviewed Opportunity directly to SharePoint List using the Opportunity Tracker schema."""
+    from app.models.opportunity import OpportunityPayload
+    from app.sharepoint.graph_exporter import GraphSharePointExporter
     try:
         body = await request.json()
-        match_req = DirectMatchRequest(**body)
-        orchestrator = get_direct_match_orchestrator()
-        result = await orchestrator.evaluate_direct_jd(match_req)
-        return result.model_dump()
+        payload = OpportunityPayload(**body)
+        exporter = GraphSharePointExporter()
+        res = await exporter.export_opportunity(payload.model_dump())
+
+        # Update in-memory scraper results so Excel export and leads endpoint match the newly edited opportunity
+        service = get_scraper_service()
+        results = service.get_results()
+        if results:
+            top_job = results[0]
+            if top_job.search_query == "Manual Entry" or len(results) == 1:
+                if payload.title:
+                    top_job.job_title = payload.title
+                if payload.country:
+                    top_job.country = payload.country
+                    top_job.location = payload.country
+                if payload.website:
+                    top_job.job_url = payload.website
+                if payload.salary_range:
+                    top_job.salary_range = payload.salary_range
+                if payload.experience_criteria:
+                    top_job.experience = payload.experience_criteria
+                if payload.industry:
+                    top_job.industry = payload.industry
+                if payload.matching_skills:
+                    if isinstance(payload.matching_skills, list):
+                        top_job.matched_skills = payload.matching_skills
+                    elif isinstance(payload.matching_skills, str) and payload.matching_skills.strip():
+                        top_job.matched_skills = [s.strip() for s in payload.matching_skills.split(",") if s.strip()]
+                if payload.notes:
+                    top_job.job_summary = payload.notes
+                if payload.job_requirement:
+                    top_job.job_description = payload.job_requirement
+
+        return {
+            "status": "success",
+            "message": "Opportunity successfully created in SharePoint list.",
+            "data": res,
+        }
     except Exception as exc:
-        logger.error("Direct match request failed: {}", exc)
+        logger.error("Failed to add opportunity to SharePoint: {}", exc)
         raise HTTPException(status_code=500, detail=str(exc))
 
 
