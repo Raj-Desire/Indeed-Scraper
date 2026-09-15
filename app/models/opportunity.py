@@ -41,3 +41,6 @@ class OpportunityPayload(BaseModel):
     missing_skills: Optional[Any] = Field(default="", description="Missing Skills (string or list)")
     experience_criteria: Optional[str] = Field(default="", description="Experience Criteria")
     salary_range: Optional[str] = Field(default="", description="Salary Range")
+    lead_id: Optional[str] = Field(default=None, description="Optional internal lead UUID for synchronization")
+
+    model_config = {"extra": "ignore"}

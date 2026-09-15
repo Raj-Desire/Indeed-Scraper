@@ -3,6 +3,10 @@
 let ws = null;
 let pollTimer = null;
 let allLeads = [];
+let lastEvaluatedManualLead = null;
+let stagedOpportunities = [];
+let editingStagedId = null;
+let currentEvaluatingLeadId = null;
 
 function getSelectedCountries() {
     const radios = document.querySelectorAll('input[name="country_radio"]:checked');
@@ -224,7 +228,7 @@ async function startSearch() {
     const keywords = getSelectedKeywords();
 
     if (keywords.length === 0) {
-        alert('Please check at least 1 keyword to search.');
+        showAlertModal('Selection Required', 'Please check at least 1 keyword to search.', 'warning');
         return;
     }
 
@@ -261,7 +265,7 @@ async function startSearch() {
             setSearchButtonState(false);
             setStopButtonState(true);
             document.getElementById('search-status').textContent = 'Status: Ready';
-            alert(`Notice: ${data.detail || 'Failed to start search'}`);
+            showAlertModal('Search Notice', data.detail || 'Failed to start search', 'warning');
             return;
         }
 
@@ -279,7 +283,7 @@ async function startSearch() {
         setSearchButtonState(false);
         setStopButtonState(true);
         document.getElementById('search-status').textContent = 'Status: Ready';
-        alert(`Connection Failed: ${e.message}`);
+        showAlertModal('Connection Error', e.message, 'error');
     }
 }
 
@@ -411,7 +415,8 @@ async function fetchLeads() {
         const hasLeads = allLeads.length > 0;
 
         [navDl, tblDl].forEach(b => b && b.classList.toggle('hidden', !hasLeads));
-        [navSp, tblSp].forEach(b => b && b.classList.toggle('hidden', !hasLeads));
+        const showSp = hasLeads && (currentAppMode === 'scraper');
+        [navSp, tblSp].forEach(b => b && b.classList.toggle('hidden', !showSp));
         if (tblClr) tblClr.classList.toggle('hidden', !hasLeads);
     } catch (e) {
         console.error('Error fetching leads:', e);
@@ -767,9 +772,9 @@ function connectWebSocket() {
 }
 
 async function exportSharePoint() {
-    // If currently in Manual Evaluator mode, sync the current manual opportunity with edited fields
+    // If currently in Manual Evaluator mode, route directly to the unified queue sync
     if (currentAppMode === 'manual') {
-        return await addManualToSharePoint();
+        return await syncAllStagedToSharePoint();
     }
 
     const btns = [
@@ -786,12 +791,12 @@ async function exportSharePoint() {
         const res = await fetch('/api/export/sharepoint', { method: 'POST' });
         const data = await res.json();
         if (res.ok) {
-            alert(`🎉 ${data.message}`);
+            showAlertModal('SharePoint Sync Complete', data.message || 'Successfully synced leads to SharePoint!', 'success');
         } else {
-            alert(`⚠️ SharePoint Sync Error: ${data.detail || data.message || 'Failed to sync'}`);
+            showAlertModal('SharePoint Sync Error', data.detail || data.message || 'Failed to sync', 'error');
         }
     } catch (e) {
-        alert(`❌ Network Error: ${e.message}`);
+        showAlertModal('Network Error', e.message, 'error');
     } finally {
         btns.forEach(b => {
             b.disabled = false;
@@ -835,6 +840,10 @@ function switchMode(mode) {
     const panelScraper = document.getElementById('panel-scraper');
     const panelManual = document.getElementById('panel-manual');
     const thCompany = document.getElementById('th-company');
+    const navSp = document.getElementById('nav-sharepoint-btn');
+    const tblSp = document.getElementById('table-sharepoint-btn');
+    const progressCard = document.getElementById('progress-card');
+    const stagedCard = document.getElementById('staged-queue-card');
 
     if (!btnScraper || !btnManual || !panelScraper || !panelManual) return;
 
@@ -843,22 +852,30 @@ function switchMode(mode) {
         btnManual.className = 'px-4 py-2 text-xs font-semibold rounded-xl transition-all flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer';
         panelScraper.classList.remove('hidden');
         panelManual.classList.add('hidden');
+        if (progressCard) progressCard.classList.remove('hidden');
+        if (stagedCard) stagedCard.classList.add('hidden');
         if (thCompany) thCompany.classList.remove('hidden');
         document.querySelectorAll('.col-company').forEach(el => el.classList.remove('hidden'));
+        if (navSp && allLeads.length > 0) navSp.classList.remove('hidden');
+        if (tblSp && allLeads.length > 0) tblSp.classList.remove('hidden');
     } else {
         btnManual.className = 'px-4 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 bg-blue-600 text-white shadow-xs cursor-pointer';
         btnScraper.className = 'px-4 py-2 text-xs font-semibold rounded-xl transition-all flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer';
         panelManual.classList.remove('hidden');
         panelScraper.classList.add('hidden');
+        if (progressCard) progressCard.classList.add('hidden');
+        if (stagedCard) stagedCard.classList.remove('hidden');
         if (thCompany) thCompany.classList.add('hidden');
         document.querySelectorAll('.col-company').forEach(el => el.classList.add('hidden'));
+        // In manual mode, hide redundant navbar and table header sync buttons to avoid conflict
+        if (navSp) navSp.classList.add('hidden');
+        if (tblSp) tblSp.classList.add('hidden');
     }
 }
 
 // ==========================================
 // Manual Job Description Evaluation & SharePoint Sync
 // ==========================================
-let lastEvaluatedManualLead = null;
 
 async function evaluateManualJob() {
     const titleEl = document.getElementById('manual-job-title');
@@ -874,7 +891,7 @@ async function evaluateManualJob() {
 
     const jobDescription = (descEl ? descEl.value : '').trim();
     if (!jobDescription) {
-        alert('Please paste a job description or technical requirements first.');
+        showAlertModal('Input Required', 'Please paste a job description or technical requirements first.', 'warning');
         if (descEl) descEl.focus();
         return;
     }
@@ -914,6 +931,7 @@ async function evaluateManualJob() {
         }
 
         const lead = data.lead;
+        currentEvaluatingLeadId = lead.id;
         const parsed = data.parsed_fields || {};
         lastEvaluatedManualLead = {
             ...lead,
@@ -1072,23 +1090,20 @@ async function evaluateManualJob() {
         allLeads.unshift(lead);
         renderTable(allLeads);
 
-        // Show download, SharePoint, and Clear buttons
+        // Show download and Clear buttons
         const navDl = document.getElementById('nav-download-btn');
         const tblDl = document.getElementById('table-download-btn');
         const navSp = document.getElementById('nav-sharepoint-btn');
         const tblSp = document.getElementById('table-sharepoint-btn');
         const tblClr = document.getElementById('table-clear-btn');
-        [navDl, tblDl, navSp, tblSp, tblClr].forEach(b => b && b.classList.remove('hidden'));
-
-        // Smooth scroll to table so user sees the newly evaluated card
-        const tableCard = document.getElementById('leads-body');
-        if (tableCard) {
-            tableCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        [navDl, tblDl, tblClr].forEach(b => b && b.classList.remove('hidden'));
+        if (currentAppMode === 'scraper') {
+            [navSp, tblSp].forEach(b => b && b.classList.remove('hidden'));
         }
 
     } catch (err) {
         console.error('Manual evaluate error:', err);
-        alert(`Evaluation error: ${err.message}`);
+        showAlertModal('Evaluation Error', err.message, 'error');
         if (noteEl) {
             noteEl.className = 'text-xs text-rose-600 font-semibold';
             noteEl.textContent = `Failed: ${err.message}`;
@@ -1135,7 +1150,7 @@ async function addManualToSharePoint() {
 
     const jobDescription = (descEl ? descEl.value : '').trim();
     if (!jobDescription) {
-        alert('Please enter or paste a job description first.');
+        showAlertModal('Input Required', 'Please enter or paste a job description first.', 'warning');
         if (descEl) descEl.focus();
         return;
     }
@@ -1232,6 +1247,15 @@ async function addManualToSharePoint() {
             lastEvaluatedManualLead.extra_notes = notesContent;
         }
 
+        if (editingStagedId) {
+            const stagedMatch = stagedOpportunities.find(o => o.id === editingStagedId);
+            if (stagedMatch) {
+                stagedMatch.synced = true;
+                stagedMatch.sync_status = 'Synced';
+                renderStagedQueue();
+            }
+        }
+
         const successMsg = `✅ Successfully created Opportunity in SharePoint list '${title}'!`;
         if (noteEl) {
             noteEl.className = 'text-xs text-emerald-600 font-bold';
@@ -1241,11 +1265,11 @@ async function addManualToSharePoint() {
             bottomNoteEl.className = 'text-xs text-emerald-600 font-bold';
             bottomNoteEl.textContent = successMsg;
         }
-        alert(`Successfully added "${title}" to SharePoint Opportunity Tracker!`);
+        showAlertModal('SharePoint Sync Complete', `Successfully added "${title}" to SharePoint Opportunity Tracker!`, 'success');
 
     } catch (err) {
         console.error('SharePoint Opportunity add error:', err);
-        alert(`SharePoint Error: ${err.message}`);
+        showAlertModal('SharePoint Error', err.message, 'error');
         const errMsg = `SharePoint Error: ${err.message}`;
         if (noteEl) {
             noteEl.className = 'text-xs text-rose-600 font-semibold';
@@ -1261,6 +1285,593 @@ async function addManualToSharePoint() {
         if (btnTop) btnTop.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg> <span>Sync to SharePoint</span>`;
         if (navSp) navSp.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg> Sync to SharePoint`;
         if (tblSp) tblSp.innerHTML = `<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg> Sync to SharePoint`;
+    }
+}
+
+// ==========================================
+// Multi-Job Staging Queue & Batch SharePoint Sync
+// ==========================================
+
+function readManualFormValues() {
+    const titleEl = document.getElementById('manual-job-title');
+    const countryEl = document.getElementById('manual-country');
+    const urlEl = document.getElementById('manual-job-url');
+    const salaryEl = document.getElementById('manual-salary');
+    const expEl = document.getElementById('manual-experience');
+    const descEl = document.getElementById('manual-description');
+    const ownerEl = document.getElementById('manual-owner');
+    const leadSourceEl = document.getElementById('manual-lead-source');
+    const industryEl = document.getElementById('manual-industry');
+    const priorityEl = document.getElementById('manual-priority');
+    const statusEl = document.getElementById('manual-status');
+    const currencyEl = document.getElementById('manual-currency');
+    const estValEl = document.getElementById('manual-estimated-value');
+    const followupEl = document.getElementById('manual-followup-date');
+    const dueEl = document.getElementById('manual-due-date');
+    const contactNameEl = document.getElementById('manual-contact-name');
+    const contactEmailEl = document.getElementById('manual-contact-email');
+    const contactPhoneEl = document.getElementById('manual-contact-phone');
+    const notesEl = document.getElementById('manual-notes');
+
+    const jobDescription = (descEl ? descEl.value : '').trim();
+    const selectedTech = [];
+    document.querySelectorAll('.manual-tech-checkbox:checked').forEach(cb => selectedTech.push(cb.value));
+
+    const title = (titleEl ? titleEl.value : '').trim() || (lastEvaluatedManualLead ? lastEvaluatedManualLead.job_title : 'Direct Opportunity');
+    const country = countryEl ? countryEl.value : 'US';
+    const industry = industryEl ? industryEl.value : 'IT';
+    const website = (urlEl ? urlEl.value : '').trim();
+    const salary = (salaryEl ? salaryEl.value : '').trim();
+    const experience = (expEl ? expEl.value : '').trim();
+    const notesContent = (notesEl ? notesEl.value : '').trim() || (lastEvaluatedManualLead ? (lastEvaluatedManualLead.extra_notes || lastEvaluatedManualLead.job_summary || '') : '');
+
+    return {
+        id: 'staged_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8),
+        title: title,
+        country: country,
+        industry: industry,
+        website: website,
+        owner: ownerEl ? ownerEl.value : 'Meet',
+        lead_source: leadSourceEl ? leadSourceEl.value : 'Indeed',
+        priority: priorityEl ? priorityEl.value : 'Medium',
+        status: statusEl ? statusEl.value : 'New',
+        technology: selectedTech,
+        currency_code: currencyEl ? currencyEl.value : 'USD',
+        estimated_value: estValEl && estValEl.value ? parseFloat(estValEl.value) : null,
+        next_follow_up_date: followupEl && followupEl.value ? followupEl.value : null,
+        due_date: dueEl && dueEl.value ? dueEl.value : null,
+        contact_name: contactNameEl ? contactNameEl.value.trim() : '',
+        email: contactEmailEl ? contactEmailEl.value.trim() : '',
+        phone: contactPhoneEl ? contactPhoneEl.value.trim() : '',
+        salary_range: salary,
+        experience_criteria: experience,
+        job_requirement: jobDescription,
+        matching_score: lastEvaluatedManualLead ? lastEvaluatedManualLead.match_score : null,
+        matching_skills: (selectedTech.length > 0) ? selectedTech : (lastEvaluatedManualLead ? lastEvaluatedManualLead.matched_skills : []),
+        matching_reason: lastEvaluatedManualLead ? lastEvaluatedManualLead.match_reason : '',
+        missing_skills: lastEvaluatedManualLead ? lastEvaluatedManualLead.missing_skills : [],
+        notes: notesContent,
+        synced: false,
+        sync_status: 'Pending'
+    };
+}
+
+function populateManualForm(opp) {
+    if (!opp) return;
+
+    const setVal = (id, val) => {
+        const el = document.getElementById(id);
+        if (el) el.value = (val !== null && val !== undefined) ? val : '';
+    };
+
+    setVal('manual-description', opp.job_requirement);
+    setVal('manual-job-title', opp.title);
+    setVal('manual-country', opp.country || 'US');
+    setVal('manual-industry', opp.industry || 'IT');
+    setVal('manual-job-url', opp.website);
+    setVal('manual-owner', opp.owner || 'Meet');
+    setVal('manual-lead-source', opp.lead_source || 'Indeed');
+    setVal('manual-priority', opp.priority || 'Medium');
+    setVal('manual-status', opp.status || 'New');
+    setVal('manual-currency', opp.currency_code || 'USD');
+    setVal('manual-estimated-value', opp.estimated_value);
+    setVal('manual-followup-date', opp.next_follow_up_date);
+    setVal('manual-due-date', opp.due_date);
+    setVal('manual-contact-name', opp.contact_name);
+    setVal('manual-contact-email', opp.email);
+    setVal('manual-contact-phone', opp.phone);
+    setVal('manual-salary', opp.salary_range);
+    setVal('manual-experience', opp.experience_criteria);
+    setVal('manual-notes', opp.notes);
+
+    const techList = (opp.technology || []).map(t => String(t).toLowerCase());
+    document.querySelectorAll('.manual-tech-checkbox').forEach(cb => {
+        cb.checked = techList.includes(cb.value.toLowerCase());
+    });
+
+    lastEvaluatedManualLead = {
+        job_title: opp.title,
+        country: opp.country,
+        match_score: opp.matching_score,
+        matched_skills: opp.matching_skills || opp.technology || [],
+        missing_skills: opp.missing_skills || [],
+        match_reason: opp.matching_reason || '',
+        salary: opp.salary_range,
+        experience: opp.experience_criteria,
+        job_summary: opp.notes,
+        extra_notes: opp.notes,
+    };
+}
+
+function resetManualFormOnly() {
+    [
+        'manual-description',
+        'manual-job-title',
+        'manual-job-url',
+        'manual-salary',
+        'manual-experience',
+        'manual-estimated-value',
+        'manual-contact-name',
+        'manual-contact-email',
+        'manual-contact-phone',
+        'manual-followup-date',
+        'manual-due-date',
+        'manual-notes',
+    ].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+
+    const countryEl = document.getElementById('manual-country');
+    if (countryEl) countryEl.value = 'US';
+    const ownerEl = document.getElementById('manual-owner');
+    if (ownerEl) ownerEl.value = 'Meet';
+    const leadSourceEl = document.getElementById('manual-lead-source');
+    if (leadSourceEl) leadSourceEl.value = 'Indeed';
+    const industryEl = document.getElementById('manual-industry');
+    if (industryEl) industryEl.value = 'IT';
+    const priorityEl = document.getElementById('manual-priority');
+    if (priorityEl) priorityEl.value = 'Medium';
+    const statusEl = document.getElementById('manual-status');
+    if (statusEl) statusEl.value = 'New';
+    const currencyEl = document.getElementById('manual-currency');
+    if (currencyEl) currencyEl.value = 'USD';
+
+    document.querySelectorAll('.manual-tech-checkbox').forEach(cb => {
+        cb.checked = (cb.value === 'SharePoint');
+    });
+
+    lastEvaluatedManualLead = null;
+
+    const noteEl = document.getElementById('manual-status-note');
+    if (noteEl) {
+        noteEl.className = 'text-xs text-slate-500 font-medium';
+        noteEl.textContent = '';
+    }
+    const bottomNoteEl = document.getElementById('manual-bottom-note');
+    if (bottomNoteEl) {
+        bottomNoteEl.className = 'text-xs text-slate-400 font-medium';
+        bottomNoteEl.textContent = '';
+    }
+}
+
+function stageCurrentManualJob() {
+    if (editingStagedId) {
+        updateStagedJob();
+        return;
+    }
+
+    const descEl = document.getElementById('manual-description');
+    const jobDescription = (descEl ? descEl.value : '').trim();
+    if (!jobDescription) {
+        showAlertModal('Input Required', 'Please enter or paste a job description first before adding to the queue.', 'warning');
+        if (descEl) descEl.focus();
+        return;
+    }
+
+    const opp = readManualFormValues();
+    opp.lead_id = currentEvaluatingLeadId;
+    stagedOpportunities.push(opp);
+
+    // Synchronize bottom table (allLeads) with user's edited values
+    let targetLead = null;
+    if (currentEvaluatingLeadId) {
+        targetLead = allLeads.find(l => String(l.id) === String(currentEvaluatingLeadId));
+    }
+    if (!targetLead && allLeads.length > 0) {
+        targetLead = allLeads[0];
+    }
+    if (targetLead) {
+        targetLead.job_title = opp.title;
+        targetLead.country = opp.country;
+        targetLead.location = opp.country;
+        targetLead.salary = opp.salary_range;
+        targetLead.experience = opp.experience_criteria;
+        targetLead.job_summary = opp.notes;
+        targetLead.matched_skills = opp.technology;
+        targetLead.priority = opp.priority;
+        targetLead.industry = opp.industry;
+        targetLead.staged_id = opp.id;
+    } else {
+        targetLead = {
+            id: opp.id,
+            job_title: opp.title,
+            company: opp.contact_name || 'Direct Opportunity',
+            location: opp.country,
+            country: opp.country,
+            salary: opp.salary_range,
+            experience: opp.experience_criteria,
+            job_summary: opp.notes,
+            job_description: opp.job_requirement,
+            job_url: opp.website,
+            matched_skills: opp.technology,
+            match_score: opp.matching_score,
+            match_reason: opp.matching_reason,
+            missing_skills: opp.missing_skills,
+            industry: opp.industry,
+            owner: opp.owner,
+            staged_id: opp.id,
+        };
+        allLeads.unshift(targetLead);
+    }
+    renderTable(allLeads);
+
+    // Sync to backend so periodic polling preserves edited values
+    fetch('/api/leads/update-manual', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            id: currentEvaluatingLeadId || targetLead.id,
+            title: opp.title,
+            country: opp.country,
+            salary: opp.salary_range,
+            experience: opp.experience_criteria,
+            notes: opp.notes,
+            technology: opp.technology,
+        })
+    }).catch(e => console.warn('Background lead update:', e));
+
+    currentEvaluatingLeadId = null;
+
+    resetManualFormOnly();
+    renderStagedQueue();
+
+    const noteEl = document.getElementById('manual-status-note');
+    if (noteEl) {
+        noteEl.className = 'text-xs text-indigo-600 font-bold';
+        noteEl.textContent = `✅ Staged "${opp.title}" (#${stagedOpportunities.length} in queue). Paste your next job description above!`;
+    }
+
+    const queueCard = document.getElementById('staged-queue-card');
+    if (queueCard) {
+        queueCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+}
+
+function editStagedJob(stagedId) {
+    const opp = stagedOpportunities.find(o => o.id === stagedId);
+    if (!opp) return;
+
+    editingStagedId = stagedId;
+    populateManualForm(opp);
+
+    const banner = document.getElementById('editing-staged-banner');
+    const titleSpan = document.getElementById('editing-staged-title');
+    const badgeSpan = document.getElementById('editing-staged-badge');
+    if (banner) banner.classList.remove('hidden');
+    if (titleSpan) titleSpan.textContent = opp.title || 'Untitled Opportunity';
+    if (badgeSpan) {
+        const itemNum = stagedOpportunities.indexOf(opp) + 1;
+        badgeSpan.textContent = `Editing Queue Item #${itemNum}`;
+    }
+
+    ['btn-update-staged-bottom'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.remove('hidden');
+    });
+    ['btn-stage-job-bottom'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.add('hidden');
+    });
+
+    renderStagedQueue();
+
+    const formCard = document.getElementById('editing-staged-banner');
+    if (formCard) {
+        formCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    const titleInput = document.getElementById('manual-job-title');
+    if (titleInput) titleInput.focus();
+}
+
+function updateStagedJob() {
+    if (!editingStagedId) return;
+    const idx = stagedOpportunities.findIndex(o => o.id === editingStagedId);
+    if (idx === -1) {
+        cancelEditStagedJob(false);
+        return;
+    }
+
+    const oldTitle = stagedOpportunities[idx].title;
+    const oldLeadId = stagedOpportunities[idx].lead_id;
+
+    const updated = readManualFormValues();
+    updated.id = editingStagedId;
+    updated.lead_id = oldLeadId;
+    updated.synced = false;
+    updated.sync_status = 'Pending';
+    stagedOpportunities[idx] = updated;
+
+    // Synchronize bottom table (allLeads) with updated values
+    let lead = allLeads.find(l => (oldLeadId && String(l.id) === String(oldLeadId)) || l.staged_id === editingStagedId || l.job_title === oldTitle);
+    if (lead) {
+        lead.job_title = updated.title;
+        lead.country = updated.country;
+        lead.location = updated.country;
+        lead.salary = updated.salary_range;
+        lead.experience = updated.experience_criteria;
+        lead.job_summary = updated.notes;
+        lead.matched_skills = updated.technology;
+        lead.priority = updated.priority;
+        lead.industry = updated.industry;
+        renderTable(allLeads);
+    }
+
+    // Update backend so polling keeps edited values
+    fetch('/api/leads/update-manual', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            id: oldLeadId || (lead ? lead.id : null),
+            title: updated.title,
+            country: updated.country,
+            salary: updated.salary_range,
+            experience: updated.experience_criteria,
+            notes: updated.notes,
+            technology: updated.technology,
+        })
+    }).catch(e => console.warn('Background lead update:', e));
+
+    cancelEditStagedJob(true);
+    renderStagedQueue();
+
+    const noteEl = document.getElementById('manual-status-note');
+    if (noteEl) {
+        noteEl.className = 'text-xs text-emerald-600 font-bold';
+        noteEl.textContent = `✅ Changes saved to Queue for "${updated.title}"!`;
+    }
+}
+
+function cancelEditStagedJob(shouldReset = true) {
+    editingStagedId = null;
+
+    const banner = document.getElementById('editing-staged-banner');
+    if (banner) banner.classList.add('hidden');
+
+    ['btn-update-staged-bottom'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.add('hidden');
+    });
+    ['btn-stage-job-bottom'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.remove('hidden');
+    });
+
+    if (shouldReset) {
+        resetManualFormOnly();
+    }
+    renderStagedQueue();
+}
+
+function removeStagedJob(stagedId) {
+    if (editingStagedId === stagedId) {
+        cancelEditStagedJob(true);
+    }
+    const target = stagedOpportunities.find(o => o.id === stagedId);
+    stagedOpportunities = stagedOpportunities.filter(o => o.id !== stagedId);
+    if (target) {
+        allLeads = allLeads.filter(l => l.staged_id !== stagedId && (!target.lead_id || String(l.id) !== String(target.lead_id)));
+        renderTable(allLeads);
+    }
+    renderStagedQueue();
+}
+
+async function clearStagedQueue() {
+    if (stagedOpportunities.length === 0) return;
+    const confirmed = await showConfirmModal('Clear Queue', 'Are you sure you want to clear all staged jobs from the queue?', 'Yes, Clear Queue');
+    if (confirmed) {
+        if (editingStagedId) {
+            cancelEditStagedJob(true);
+        }
+        // Remove manual staged leads from allLeads
+        const stagedIds = new Set(stagedOpportunities.map(o => o.id));
+        const leadIds = new Set(stagedOpportunities.map(o => o.lead_id).filter(Boolean).map(String));
+        allLeads = allLeads.filter(l => !stagedIds.has(l.staged_id) && !leadIds.has(String(l.id)));
+        renderTable(allLeads);
+
+        stagedOpportunities = [];
+        renderStagedQueue();
+    }
+}
+
+function renderStagedQueue() {
+    const badge = document.getElementById('staged-count-badge');
+    const syncBtn = document.getElementById('btn-batch-sync-sharepoint');
+    const syncLabel = document.getElementById('btn-batch-sync-label');
+    const emptyState = document.getElementById('staged-queue-empty');
+    const tableWrapper = document.getElementById('staged-queue-table-wrapper');
+    const tbody = document.getElementById('staged-queue-body');
+
+    const total = stagedOpportunities.length;
+
+    if (badge) {
+        badge.textContent = `${total} Job${total === 1 ? '' : 's'} Ready`;
+        badge.className = total > 0 
+            ? 'px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-700'
+            : 'px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-500';
+    }
+
+    if (syncLabel) {
+        syncLabel.textContent = total > 1 ? `Sync All (${total}) to SharePoint` : 'Sync to SharePoint';
+    }
+    if (syncBtn) {
+        // Keep enabled if queue has jobs or if manual form has text
+        const hasFormText = !!(document.getElementById('manual-description')?.value.trim());
+        syncBtn.disabled = (total === 0 && !hasFormText);
+    }
+
+    if (total === 0) {
+        if (emptyState) emptyState.classList.remove('hidden');
+        if (tableWrapper) tableWrapper.classList.add('hidden');
+        if (tbody) tbody.innerHTML = '';
+        return;
+    }
+
+    if (emptyState) emptyState.classList.add('hidden');
+    if (tableWrapper) tableWrapper.classList.remove('hidden');
+
+    if (tbody) {
+        tbody.innerHTML = stagedOpportunities.map((opp, idx) => {
+            const isEditing = (opp.id === editingStagedId);
+            const rowClass = isEditing 
+                ? 'bg-amber-50/80 ring-1 ring-amber-300 font-semibold transition-colors' 
+                : 'hover:bg-slate-50/80 transition-colors';
+
+            const techPills = (opp.technology && opp.technology.length > 0)
+                ? opp.technology.slice(0, 3).map(t => `<span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-700 border border-blue-200">${esc(t)}</span>`).join(' ') +
+                  (opp.technology.length > 3 ? ` <span class="text-[10px] text-slate-400 font-semibold">+${opp.technology.length - 3}</span>` : '')
+                : '<span class="text-slate-400 italic text-[11px]">None</span>';
+
+            const priorityColor = {
+                'High': 'bg-rose-100 text-rose-700 border-rose-200',
+                'Medium': 'bg-amber-100 text-amber-700 border-amber-200',
+                'Low': 'bg-blue-100 text-blue-700 border-blue-200'
+            }[opp.priority] || 'bg-slate-100 text-slate-700 border-slate-200';
+
+            const syncBadge = opp.synced
+                ? `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                    <svg class="w-3 h-3 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                    Synced
+                   </span>`
+                : `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                    <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                    Ready
+                   </span>`;
+
+            return `
+                <tr class="${rowClass}">
+                    <td class="px-3 py-3 text-center font-mono text-slate-400 text-[11px]">${idx + 1}</td>
+                    <td class="px-4 py-3">
+                        <div class="font-bold text-slate-800 text-xs flex items-center gap-1.5">
+                            <span class="truncate max-w-[200px]" title="${esc(opp.title)}">${esc(opp.title)}</span>
+                            ${isEditing ? '<span class="px-1.5 py-0.2 rounded text-[9px] bg-amber-200 text-amber-900 font-bold uppercase">Active</span>' : ''}
+                        </div>
+                        ${opp.contact_name ? `<div class="text-[11px] text-slate-400 font-normal">Contact: ${esc(opp.contact_name)}</div>` : ''}
+                    </td>
+                    <td class="px-3 py-3 text-center">
+                        <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200">${esc(opp.country)}</span>
+                    </td>
+                    <td class="px-3 py-3 text-slate-700 text-xs">${esc(opp.owner || '-')}</td>
+                    <td class="px-3 py-3">
+                        <span class="px-2 py-0.5 rounded text-[10px] font-bold border ${priorityColor}">${esc(opp.priority || 'Medium')}</span>
+                    </td>
+                    <td class="px-3 py-3">
+                        <span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-700">${esc(opp.status || 'New')}</span>
+                    </td>
+                    <td class="px-4 py-3">
+                        <div class="flex flex-wrap gap-1 items-center max-w-[220px]">
+                            ${techPills}
+                        </div>
+                    </td>
+                    <td class="px-3 py-3 text-slate-600 text-xs whitespace-nowrap">${esc(opp.salary_range || '-')}</td>
+                    <td class="px-3 py-3 text-slate-600 text-xs whitespace-nowrap">${esc(opp.experience_criteria || '-')}</td>
+                    <td class="px-3 py-3 text-center">${syncBadge}</td>
+                    <td class="px-4 py-3 text-right">
+                        <div class="flex items-center justify-end gap-1.5">
+                            <button type="button" onclick="editStagedJob('${esc(opp.id)}')"
+                                class="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 font-bold rounded-lg border border-amber-200 transition-colors text-[11px] cursor-pointer flex items-center gap-1 shadow-2xs">
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                                <span>Edit</span>
+                            </button>
+                            <button type="button" onclick="removeStagedJob('${esc(opp.id)}')"
+                                class="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-lg transition-colors cursor-pointer"
+                                title="Remove from queue">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+}
+
+async function syncAllStagedToSharePoint() {
+    // 1. If currently editing a staged job, automatically save edits to the queue
+    if (editingStagedId) {
+        updateStagedJob();
+    } else {
+        // 2. If user evaluated or entered a job in the form but hasn't clicked "Add to Queue", auto-stage it now
+        const descEl = document.getElementById('manual-description');
+        const descText = (descEl ? descEl.value : '').trim();
+        if (descText) {
+            stageCurrentManualJob();
+        }
+    }
+
+    // 3. If queue is still empty, alert user
+    if (stagedOpportunities.length === 0) {
+        showAlertModal('Queue Empty', 'No staged opportunities in the queue to sync. Please enter a job description or add jobs first.', 'warning');
+        return;
+    }
+
+    const btn = document.getElementById('btn-batch-sync-sharepoint');
+    const label = document.getElementById('btn-batch-sync-label');
+    const icon = document.getElementById('batch-sync-icon');
+
+    const totalToSync = stagedOpportunities.length;
+    if (btn) btn.disabled = true;
+    if (label) label.textContent = totalToSync > 1 ? `Syncing ${totalToSync} Jobs to SharePoint...` : 'Syncing to SharePoint...';
+    if (icon) {
+        icon.classList.add('animate-spin');
+        icon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m0 14v1m8-8h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707"/>`;
+    }
+
+    try {
+        const res = await fetch('/api/sharepoint/batch-add-opportunity', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(stagedOpportunities),
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+            throw new Error(data.detail || 'Batch SharePoint sync failed');
+        }
+
+        // Mark all opportunities as synced
+        stagedOpportunities.forEach(o => {
+            o.synced = true;
+            o.sync_status = 'Synced';
+        });
+
+        renderStagedQueue();
+        showAlertModal('SharePoint Sync Complete', data.message || `Successfully created ${data.count || totalToSync}/${stagedOpportunities.length} opportunities in SharePoint!`, 'success');
+
+    } catch (err) {
+        console.error('Batch SharePoint sync error:', err);
+        showAlertModal('SharePoint Sync Error', err.message, 'error');
+    } finally {
+        if (btn) btn.disabled = false;
+        if (label) {
+            label.textContent = stagedOpportunities.length > 1
+                ? `Sync All (${stagedOpportunities.length}) to SharePoint`
+                : 'Sync to SharePoint';
+        }
+        if (icon) {
+            icon.classList.remove('animate-spin');
+            icon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>`;
+        }
     }
 }
 
@@ -1392,19 +2003,121 @@ async function executeResetPage() {
     const tblSp = document.getElementById('table-sharepoint-btn');
     const tblClr = document.getElementById('table-clear-btn');
     [navDl, tblDl, navSp, tblSp, tblClr].forEach(b => b && b.classList.add('hidden'));
+
+    // 8. Reset Staged Queue
+    stagedOpportunities = [];
+    editingStagedId = null;
+    cancelEditStagedJob(false);
+    renderStagedQueue();
 }
 
 function clearManualForm() {
-    confirmResetPage();
+    if (editingStagedId) {
+        cancelEditStagedJob(true);
+        return;
+    }
+    resetManualFormOnly();
 }
 
 // ==========================================
-// Clear All Leads
+// Custom UI Modal Alerts & Confirmation Popups
 // ==========================================
-async function clearAllLeads() {
-    confirmResetPage();
+let customConfirmResolver = null;
+
+function showAlertModal(title, message, type = 'success') {
+    const modal = document.getElementById('custom-alert-modal');
+    const titleEl = document.getElementById('custom-alert-title');
+    const msgEl = document.getElementById('custom-alert-message');
+    const iconBox = document.getElementById('custom-alert-icon-box');
+    const btn = document.getElementById('custom-alert-btn');
+
+    if (!modal) {
+        alert(`${title}\n\n${message}`);
+        return;
+    }
+
+    if (titleEl) titleEl.textContent = title;
+    if (msgEl) msgEl.textContent = message;
+
+    const icons = {
+        success: {
+            bg: 'bg-emerald-50 border-emerald-200 text-emerald-600',
+            btnBg: 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-500/20',
+            btnText: 'OK',
+            svg: `<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>`
+        },
+        error: {
+            bg: 'bg-rose-50 border-rose-200 text-rose-600',
+            btnBg: 'bg-rose-600 hover:bg-rose-700 shadow-rose-500/20',
+            btnText: 'Close',
+            svg: `<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>`
+        },
+        warning: {
+            bg: 'bg-amber-50 border-amber-200 text-amber-600',
+            btnBg: 'bg-amber-600 hover:bg-amber-700 shadow-amber-500/20',
+            btnText: 'Got It',
+            svg: `<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>`
+        },
+        info: {
+            bg: 'bg-blue-50 border-blue-200 text-blue-600',
+            btnBg: 'bg-blue-600 hover:bg-blue-700 shadow-blue-500/20',
+            btnText: 'OK',
+            svg: `<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`
+        }
+    };
+
+    const cfg = icons[type] || icons.info;
+    if (iconBox) {
+        iconBox.className = `w-12 h-12 rounded-2xl border flex items-center justify-center shrink-0 shadow-2xs ${cfg.bg}`;
+        iconBox.innerHTML = cfg.svg;
+    }
+    if (btn) {
+        btn.className = `px-5 py-2.5 text-white rounded-xl text-xs font-bold transition-all shadow-md cursor-pointer active:scale-95 ${cfg.btnBg}`;
+        btn.textContent = cfg.btnText;
+    }
+
+    modal.classList.remove('hidden');
 }
 
+function closeCustomAlertModal() {
+    const modal = document.getElementById('custom-alert-modal');
+    if (modal) modal.classList.add('hidden');
+}
+
+function showConfirmModal(title, message, confirmBtnText = 'Confirm') {
+    return new Promise((resolve) => {
+        const modal = document.getElementById('custom-confirm-modal');
+        const titleEl = document.getElementById('custom-confirm-title');
+        const msgEl = document.getElementById('custom-confirm-message');
+        const btn = document.getElementById('custom-confirm-action-btn');
+
+        if (!modal) {
+            resolve(confirm(`${title}\n\n${message}`));
+            return;
+        }
+
+        if (titleEl) titleEl.textContent = title;
+        if (msgEl) msgEl.textContent = message;
+        if (btn) btn.textContent = confirmBtnText;
+
+        customConfirmResolver = resolve;
+        modal.classList.remove('hidden');
+    });
+}
+
+function closeCustomConfirmModal(result) {
+    const modal = document.getElementById('custom-confirm-modal');
+    if (modal) modal.classList.add('hidden');
+    if (customConfirmResolver) {
+        customConfirmResolver(result);
+        customConfirmResolver = null;
+    }
+}
+
+window.showAlertModal = showAlertModal;
+window.closeCustomAlertModal = closeCustomAlertModal;
+window.showConfirmModal = showConfirmModal;
+window.closeCustomConfirmModal = closeCustomConfirmModal;
 window.confirmResetPage = confirmResetPage;
 window.closeResetModal = closeResetModal;
 window.executeResetPage = executeResetPage;
@@ -1413,6 +2126,15 @@ window.clearAllLeads = clearAllLeads;
 window.switchMode = switchMode;
 window.evaluateManualJob = evaluateManualJob;
 window.addManualToSharePoint = addManualToSharePoint;
+window.stageCurrentManualJob = stageCurrentManualJob;
+window.editStagedJob = editStagedJob;
+window.updateStagedJob = updateStagedJob;
+window.cancelEditStagedJob = cancelEditStagedJob;
+window.removeStagedJob = removeStagedJob;
+window.clearStagedQueue = clearStagedQueue;
+window.syncAllStagedToSharePoint = syncAllStagedToSharePoint;
+window.renderStagedQueue = renderStagedQueue;
+window.resetManualFormOnly = resetManualFormOnly;
 window.selectAllKeywords = selectAllKeywords;
 window.addCustomKeywordCheckbox = addCustomKeywordCheckbox;
 window.handleKeywordInputKey = handleKeywordInputKey;
@@ -1430,4 +2152,5 @@ document.addEventListener('DOMContentLoaded', () => {
     updateSelectedKeywordsDisplay();
     connectWebSocket();
     fetchLeads();
+    renderStagedQueue();
 });

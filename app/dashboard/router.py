@@ -215,6 +215,48 @@ async def api_manual_evaluate(request: Request):
         raise HTTPException(status_code=500, detail=str(exc))
 
 
+@router.post("/api/leads/update-manual")
+async def api_update_manual_lead(request: Request):
+    """Update an existing in-memory lead when user edits title, country, salary, etc. in manual mode."""
+    try:
+        data = await request.json()
+        lead_id = data.get("id")
+        title = (data.get("title") or "").strip()
+        country = (data.get("country") or "").strip()
+        salary = (data.get("salary") or "").strip()
+        experience = (data.get("experience") or "").strip()
+        notes = (data.get("notes") or "").strip()
+        tech = data.get("technology")
+
+        service = get_scraper_service()
+        target = None
+        if lead_id:
+            target = next((j for j in service._results if str(j.id) == str(lead_id)), None)
+        if not target and service._results:
+            target = next((j for j in service._results if j.search_query == "Manual Entry"), None)
+
+        if target:
+            if title:
+                target.job_title = title
+            if country:
+                target.country = country
+                target.location = country
+            if salary:
+                target.salary_range = salary
+            if experience:
+                target.experience = experience
+            if notes:
+                target.job_summary = notes
+            if tech is not None and isinstance(tech, list):
+                target.matched_skills = tech
+            logger.info("Updated in-memory manual lead '{}' ({})", target.job_title, target.country)
+
+        return {"status": "success", "lead": _serialize_job(target) if target else None}
+    except Exception as exc:
+        logger.error("Failed to update manual lead: {}", exc)
+        return {"status": "error", "detail": str(exc)}
+
+
 @router.post("/api/jobs/clear")
 async def api_clear_jobs():
     """Clear all scraped or manually entered job leads from dashboard."""
@@ -348,6 +390,87 @@ async def api_sharepoint_add_opportunity(request: Request):
         }
     except Exception as exc:
         logger.error("Failed to add opportunity to SharePoint: {}", exc)
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.post("/api/sharepoint/batch-add-opportunity")
+async def api_sharepoint_batch_add_opportunity(request: Request):
+    """Batch add reviewed Opportunities directly to SharePoint List using the Opportunity Tracker schema."""
+    from app.models.opportunity import OpportunityPayload
+    from app.sharepoint.graph_exporter import GraphSharePointExporter
+    from app.models.job import JobPosting, RemoteType
+    from datetime import datetime
+    from app.models.scraper import IST
+
+    try:
+        body = await request.json()
+        raw_opps = body if isinstance(body, list) else body.get("opportunities", [])
+        if not raw_opps:
+            raise HTTPException(status_code=400, detail="No opportunities provided in request payload.")
+
+        payloads = [OpportunityPayload(**opp) for opp in raw_opps]
+        exporter = GraphSharePointExporter()
+        opp_dicts = [p.model_dump() for p in payloads]
+        res = await exporter.export_opportunities(opp_dicts)
+
+        # Update in-memory scraper leads with all staged opportunities
+        service = get_scraper_service()
+        for p in reversed(payloads):
+            # Check if this opportunity already exists in _results by lead_id or job_title
+            existing_match = None
+            if p.lead_id:
+                existing_match = next((j for j in service._results if str(j.id) == str(p.lead_id)), None)
+            if not existing_match:
+                existing_match = next((j for j in service._results if j.job_title == p.title and j.search_query == "Manual Entry"), None)
+            if existing_match:
+                existing_match.job_title = p.title
+                existing_match.country = p.country or existing_match.country
+                existing_match.location = p.country or existing_match.location
+                existing_match.salary_range = p.salary_range or existing_match.salary_range
+                existing_match.experience = p.experience_criteria or existing_match.experience
+                existing_match.industry = p.industry or existing_match.industry
+                existing_match.job_url = p.website or existing_match.job_url
+                if p.technology:
+                    existing_match.matched_skills = p.technology
+                if p.notes:
+                    existing_match.job_summary = p.notes
+                if p.job_requirement:
+                    existing_match.job_description = p.job_requirement
+            else:
+                new_job = JobPosting(
+                    job_title=p.title or "Untitled Role",
+                    company=p.contact_name or "Direct Opportunity",
+                    location=p.country or "Remote",
+                    country=p.country or "US",
+                    job_url=p.website or "",
+                    salary_range=p.salary_range or "Not listed",
+                    experience=p.experience_criteria or "Not specified",
+                    job_description=p.job_requirement or "",
+                    remote_type=RemoteType.FULLY_REMOTE,
+                    search_query="Manual Entry",
+                    posted_date_raw="Just now",
+                    posted_date=datetime.now(tz=IST),
+                    match_score=p.matching_score,
+                    matched_skills=p.technology if p.technology else (p.matching_skills if isinstance(p.matching_skills, list) else []),
+                    missing_skills=p.missing_skills if isinstance(p.missing_skills, list) else [],
+                    match_reason=p.matching_reason or "",
+                    job_summary=p.notes or "",
+                    industry=p.industry or "IT",
+                )
+                service._results.insert(0, new_job)
+
+        success_count = res.get("success_count", res.get("count", len(payloads)))
+        total_count = res.get("total", len(payloads))
+
+        return {
+            "status": "success",
+            "count": success_count,
+            "total": total_count,
+            "message": f"Successfully created {success_count}/{total_count} opportunities in SharePoint!",
+            "data": res,
+        }
+    except Exception as exc:
+        logger.error("Failed to batch add opportunities to SharePoint: {}", exc)
         raise HTTPException(status_code=500, detail=str(exc))
 
 

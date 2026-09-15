@@ -251,6 +251,78 @@ class GraphSharePointExporter:
 
             raise RuntimeError(f"SharePoint List Insert Failed ({resp.status_code}): {err_text}")
 
+    async def export_opportunities(self, opportunities: list[dict[str, Any]]) -> dict[str, Any]:
+        """
+        Batch create multiple items in the SharePoint list using the Opportunity Tracker schema.
+        Reuses token and HTTP client session.
+        Returns a summary dict with success_count, created_items, and errors.
+        """
+        if not opportunities:
+            return {"success_count": 0, "total": 0, "items": [], "errors": []}
+
+        site_id = self._settings.sharepoint_site_id.strip()
+        list_target = self._settings.sharepoint_list_id.strip() or self._settings.sharepoint_list_name.strip()
+
+        if not site_id or not list_target:
+            raise ValueError("SharePoint settings missing in .env (SP_SITE_ID / SHAREPOINT_SITE_ID, SP_LIST_ID / SP_LIST_NAME)")
+
+        token = self._acquire_token()
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        }
+        items_url = f"https://graph.microsoft.com/v1.0/sites/{site_id}/lists/{list_target}/items"
+
+        created_items = []
+        errors = []
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            for idx, opp in enumerate(opportunities, 1):
+                fields_dict = self.build_opportunity_fields(opp)
+                title = fields_dict.get("Title", f"Opportunity #{idx}")
+                payload = {"fields": fields_dict}
+                logger.info("Batch posting Opportunity {}/{}: '{}'", idx, len(opportunities), title)
+
+                try:
+                    resp = await client.post(items_url, headers=headers, json=payload)
+                    if resp.status_code in [200, 201]:
+                        res_data = resp.json()
+                        created_items.append({"id": res_data.get("id"), "title": title, "status": "created"})
+                        logger.info("Opportunity '{}' created in batch (ID: {}).", title, res_data.get("id"))
+                        continue
+
+                    # Fallback retry with core fields
+                    core_fields = {
+                        k: v for k, v in fields_dict.items()
+                        if k in [
+                            "Title", "Notes", "Country", "Industry", "LeadSource", "Owner",
+                            "Priority", "Status", "CurrencyCode", "Job_x0020_Requirement",
+                            "Matching_x0020_Score", "Matching_x0020_Skills", "Matching_x0020_Reason",
+                            "Missing_x0020_Skills", "Salary_x0020_Range", "Experience_x0020_Criteria",
+                            "Technology", "Technology@odata.type", "DateAdded"
+                        ]
+                    }
+                    retry_resp = await client.post(items_url, headers=headers, json={"fields": core_fields})
+                    if retry_resp.status_code in [200, 201]:
+                        res_data = retry_resp.json()
+                        created_items.append({"id": res_data.get("id"), "title": title, "status": "created_fallback"})
+                        logger.info("Opportunity '{}' created on fallback (ID: {}).", title, res_data.get("id"))
+                    else:
+                        err_msg = f"Failed to insert '{title}' ({resp.status_code}): {resp.text}"
+                        logger.error(err_msg)
+                        errors.append({"title": title, "error": err_msg})
+                except Exception as opp_err:
+                    err_msg = f"Exception inserting '{title}': {str(opp_err)}"
+                    logger.error(err_msg)
+                    errors.append({"title": title, "error": err_msg})
+
+        return {
+            "success_count": len(created_items),
+            "total": len(opportunities),
+            "items": created_items,
+            "errors": errors,
+        }
+
     async def export_jobs(self, jobs: list[JobPosting]) -> int:
         """
         Upload list of JobPosting objects directly to the SharePoint List.

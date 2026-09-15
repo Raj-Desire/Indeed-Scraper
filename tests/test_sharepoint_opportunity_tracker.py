@@ -174,3 +174,86 @@ def test_add_opportunity_api_endpoint():
         assert data["status"] == "success"
         assert data["data"]["id"] == "sp-item-999"
         mock_export.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_batch_export_opportunities_exporter():
+    """Verify GraphSharePointExporter.export_opportunities batches multiple items with single session."""
+    exporter = GraphSharePointExporter()
+    exporter._settings.sharepoint_site_id = "test-site-id"
+    exporter._settings.sharepoint_list_id = "3dd65b77-27a0-47bf-9068-e3d00b9ce18a"
+
+    batch_items = [
+        {"title": "Role 1", "country": "US", "job_requirement": "Description 1"},
+        {"title": "Role 2", "country": "UK", "job_requirement": "Description 2"},
+        {"title": "Role 3", "country": "South Africa", "job_requirement": "Description 3"},
+    ]
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 201
+    mock_resp.json.side_effect = [
+        {"id": "item-1"},
+        {"id": "item-2"},
+        {"id": "item-3"},
+    ]
+
+    with patch.object(exporter, "_acquire_token", return_value="fake-token"):
+        with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+            mock_post.return_value = mock_resp
+            res = await exporter.export_opportunities(batch_items)
+
+            assert res["success_count"] == 3
+            assert res["total"] == 3
+            assert len(res["items"]) == 3
+            assert len(res["errors"]) == 0
+            assert mock_post.call_count == 3
+
+
+def test_batch_add_opportunity_api_endpoint():
+    """Verify /api/sharepoint/batch-add-opportunity endpoint receives and processes multiple opportunities in 1 call."""
+    client = TestClient(app)
+
+    batch_data = [
+        {
+            "title": "Lead 1 - SharePoint Architect",
+            "country": "US",
+            "owner": "Meet",
+            "technology": ["SharePoint", "AI"],
+            "job_requirement": "Architect with Azure experience.",
+        },
+        {
+            "title": "Lead 2 - Power Platform Lead",
+            "country": "UK",
+            "owner": "Sizan",
+            "technology": ["Power Platform"],
+            "job_requirement": "Power Automate & Power Apps specialist.",
+        },
+        {
+            "title": "Lead 3 - Full Stack .NET",
+            "country": "South Africa",
+            "owner": "Chetan",
+            "technology": [".NET", "AI"],
+            "job_requirement": "C# ASP.NET Core developer.",
+        }
+    ]
+
+    mock_return = {
+        "success_count": 3,
+        "total": 3,
+        "items": [{"id": "sp-1"}, {"id": "sp-2"}, {"id": "sp-3"}],
+        "errors": [],
+    }
+
+    with patch("app.sharepoint.graph_exporter.GraphSharePointExporter.export_opportunities", new_callable=AsyncMock) as mock_batch_export:
+        mock_batch_export.return_value = mock_return
+        resp = client.post("/api/sharepoint/batch-add-opportunity", json=batch_data)
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "success"
+        assert data["count"] == 3
+        assert "Successfully created 3/3 opportunities" in data["message"]
+        mock_batch_export.assert_called_once()
+        called_args, _ = mock_batch_export.call_args
+        assert len(called_args[0]) == 3
+
