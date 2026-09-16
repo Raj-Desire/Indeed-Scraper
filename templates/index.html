@@ -285,10 +285,15 @@
             </div>
 
             <!-- Core Role Details -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                    <label class="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Title</label>
+                    <label class="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Job Title</label>
                     <input id="manual-job-title" type="text" placeholder="Job Title"
+                        class="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 shadow-2xs font-medium">
+                </div>
+                <div>
+                    <label class="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Prospect / Company Name</label>
+                    <input id="manual-company" type="text" placeholder="Company Name"
                         class="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 shadow-2xs font-medium">
                 </div>
                 <div>
@@ -530,6 +535,12 @@
                     class="bg-white border border-slate-300 rounded-xl pl-8 pr-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 w-64 shadow-2xs">
                 <svg class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
             </div>
+            <select id="leads-owner" title="Owner to assign when syncing to SharePoint"
+                class="bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-bold text-blue-700 focus:outline-none focus:border-blue-500 shadow-2xs cursor-pointer">
+                <option value="Meet">Owner: Meet</option>
+                <option value="Sizan">Owner: Sizan</option>
+                <option value="Chetan">Owner: Chetan</option>
+            </select>
             <button id="table-download-btn" type="button" onclick="exportExcel(event)" class="hidden px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-xs transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3"/></svg>
                 Download Excel

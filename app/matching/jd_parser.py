@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import re
 from typing import Any, Optional
+from app.config.constants import score_to_priority
 from app.utils.logger import logger
 
 
@@ -100,6 +101,7 @@ async def _extract_with_llm(matcher: Any, raw_text: str, kb_chunks: Optional[lis
         f"{raw_text}\n\n"
         f"EXTRACTION & MATCHING RULES:\n"
         f"1. 'title': Job role title explicitly stated (e.g. 'Senior SharePoint Consultant').\n"
+        f"1b. 'company': The hiring company / employer name explicitly stated in the text (e.g. 'Fujitsu', 'Microsoft'). This is the prospect/client company, NOT the recruiting agency unless no other company is named. If no company name is mentioned, return \"\".\n"
         f"2. 'country': 2-letter ISO country code matching location stated (e.g. 'person is from germany' -> 'DE', 'London, UK' -> 'GB', 'USA' -> 'US', 'India' -> 'IN'). Default 'US' if not mentioned.\n"
         f"3. 'salary_range': Raw text compensation/salary stated in the JD (e.g. '15000', '$120k-$150k', '€15,000/mo'). If NO salary or compensation is mentioned in the JD, return \"\". Do NOT guess.\n"
         f"4. 'estimated_value': Numeric budget/value extracted ONLY if a specific salary/budget number is stated in the JD (e.g. 15000). If NO salary/budget is mentioned, return null. Do NOT guess.\n"
@@ -123,6 +125,7 @@ async def _extract_with_llm(matcher: Any, raw_text: str, kb_chunks: Optional[lis
         f"Output MUST be valid JSON only with these exact keys (use empty string \"\" or null for missing fields):\n"
         f'{{\n'
         f'  "title": "",\n'
+        f'  "company": "",\n'
         f'  "country": "US",\n'
         f'  "salary_range": "",\n'
         f'  "estimated_value": null,\n'
@@ -235,6 +238,7 @@ async def _extract_with_llm(matcher: Any, raw_text: str, kb_chunks: Optional[lis
     return {
         "title": str(data.get("title", "")).strip() or heuristic.get("title", ""),
         "job_title": str(data.get("title", "")).strip() or heuristic.get("job_title", ""),
+        "company": str(data.get("company", "")).strip() or heuristic.get("company", ""),
         "country": c_code,
         "salary_range": str(data.get("salary_range", "")).strip() or heuristic.get("salary_range", ""),
         "estimated_value": est_float or heuristic.get("estimated_value"),
@@ -243,7 +247,7 @@ async def _extract_with_llm(matcher: Any, raw_text: str, kb_chunks: Optional[lis
         "owner": owner_val,
         "lead_source": data.get("lead_source") if data.get("lead_source") in VALID_LEAD_SOURCES else "Indeed",
         "industry": data.get("industry") if data.get("industry") in VALID_INDUSTRIES else "IT",
-        "priority": data.get("priority") if data.get("priority") in VALID_PRIORITIES else ("High" if (score_int and score_int >= 70) else "Medium"),
+        "priority": data.get("priority") if data.get("priority") in VALID_PRIORITIES else score_to_priority(score_int),
         "status": data.get("status") if data.get("status") in VALID_STATUSES else "New",
         "contact_name": str(data.get("contact_name", "")).strip() or heuristic.get("contact_name", ""),
         "email": str(data.get("email", "")).strip() or heuristic.get("email", ""),
@@ -270,6 +274,7 @@ def parse_job_description(text: str) -> dict[str, Any]:
         return {
             "title": "",
             "job_title": "",
+            "company": "",
             "country": "US",
             "job_url": "",
             "website": "",
@@ -303,6 +308,7 @@ def parse_job_description(text: str) -> dict[str, Any]:
     extracted: dict[str, Any] = {
         "title": "",
         "job_title": "",
+        "company": "",
         "country": "US",
         "job_url": "",
         "website": "",
@@ -339,12 +345,13 @@ def parse_job_description(text: str) -> dict[str, Any]:
         "compensation": "salary_range", "pay": "salary_range", "budget": "salary_range",
         "job url": "job_url", "website": "job_url", "url": "job_url", "link": "job_url",
         "owner": "owner", "industry": "industry", "country": "country",
+        "company": "company", "company name": "company", "employer": "company", "hiring company": "company", "client": "company",
     }
 
     extra_key_patterns = [
         "job location", "location", "job type", "employment type", "work type",
         "no. of positions", "positions", "date posted", "posted date",
-        "shift", "notice period", "company name", "company", "skills"
+        "shift", "notice period", "skills"
     ]
 
     found_extra_params: list[str] = []
@@ -462,6 +469,12 @@ def parse_job_description(text: str) -> dict[str, Any]:
             extracted["job_title"] = first_line
 
     extracted["title"] = extracted["job_title"]
+
+    # Company name fallback: common corporate JD opener "At <Company>, our purpose is..."
+    if not extracted["company"]:
+        at_m = re.search(r"\bAt\s+([A-Z][A-Za-z0-9&.'\- ]{1,60}?),", raw)
+        if at_m:
+            extracted["company"] = at_m.group(1).strip()
 
     # Technology tagging
     tech_tags: list[str] = []

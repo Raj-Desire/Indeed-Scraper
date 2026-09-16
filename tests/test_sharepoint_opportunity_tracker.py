@@ -41,6 +41,7 @@ def test_build_opportunity_fields_all_30_columns():
 
     raw_input = {
         "title": "Senior SharePoint SPFx Developer",
+        "company": "Acme Corp",
         "contact_name": "Alice Johnson",
         "email": "alice@example.com",
         "phone": "+1 555-0199",
@@ -73,7 +74,10 @@ def test_build_opportunity_fields_all_30_columns():
     fields = exporter.build_opportunity_fields(raw_input)
 
     # Validate exact SharePoint internal column names
-    assert fields["Title"] == "Senior SharePoint SPFx Developer"
+    # 'Title' displays as "Prospect/Company Name" in the Opportunity Tracker UI, so it
+    # holds the company name; the job title goes to the dedicated 'Job_x0020_Title' column.
+    assert fields["Title"] == "Acme Corp"
+    assert fields["Job_x0020_Title"] == "Senior SharePoint SPFx Developer"
     assert fields["ContactName"] == "Alice Johnson"
     assert fields["Email"] == "alice@example.com"
     assert fields["Phone"] == "+1 555-0199"
@@ -114,6 +118,7 @@ async def test_export_opportunity_graph_api_call():
 
     payload_data = {
         "title": "Lead from Upwork",
+        "company": "Upwork Client LLC",
         "owner": "Sizan",
         "lead_source": "Upwork",
         "technology": ["AI", ".NET"],
@@ -134,7 +139,8 @@ async def test_export_opportunity_graph_api_call():
             called_args, called_kwargs = mock_post.call_args
             assert "https://graph.microsoft.com/v1.0/sites/test-site-id/lists/3dd65b77-27a0-47bf-9068-e3d00b9ce18a/items" in called_args[0]
             fields = called_kwargs["json"]["fields"]
-            assert fields["Title"] == "Lead from Upwork"
+            assert fields["Title"] == "Upwork Client LLC"
+            assert fields["Job_x0020_Title"] == "Lead from Upwork"
             assert fields["Owner"] == "Sizan"
             assert fields["LeadSource"] == "Upwork"
             assert fields["Technology"] == ["AI", ".NET"]

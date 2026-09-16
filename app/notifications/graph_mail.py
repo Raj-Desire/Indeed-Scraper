@@ -14,7 +14,12 @@ from typing import Optional
 import httpx
 import msal
 
-from app.config.constants import COMMON_COUNTRIES, IST
+from app.config.constants import (
+    COMMON_COUNTRIES,
+    IST,
+    SCORE_PRIORITY_HIGH_THRESHOLD,
+    SCORE_PRIORITY_MEDIUM_THRESHOLD,
+)
 from app.config.settings import get_settings
 from app.models.job import JobPosting
 from app.utils.logger import logger
@@ -85,8 +90,11 @@ class GraphMailNotifier:
         """Generate a modern, responsive HTML email dashboard with metrics and top leads."""
         now_str = datetime.now(tz=IST).strftime("%Y-%m-%d %I:%M %p IST (GMT+5:30)")
         total_jobs = len(jobs)
-        high_matches = sum(1 for j in jobs if (j.match_score or 0) >= 70)
-        med_matches = sum(1 for j in jobs if 50 <= (j.match_score or 0) < 70)
+        high_matches = sum(1 for j in jobs if (j.match_score or 0) >= SCORE_PRIORITY_HIGH_THRESHOLD)
+        med_matches = sum(
+            1 for j in jobs
+            if SCORE_PRIORITY_MEDIUM_THRESHOLD <= (j.match_score or 0) < SCORE_PRIORITY_HIGH_THRESHOLD
+        )
 
         # Format countries display
         if countries:
@@ -154,9 +162,9 @@ class GraphMailNotifier:
         for j in top_jobs:
             score = j.match_score
             if score is not None:
-                if score >= 70:
+                if score >= SCORE_PRIORITY_HIGH_THRESHOLD:
                     badge_style = "background-color: #dcfce7; color: #15803d; border: 1px solid #86efac;"
-                elif score >= 50:
+                elif score >= SCORE_PRIORITY_MEDIUM_THRESHOLD:
                     badge_style = "background-color: #dbeafe; color: #1d4ed8; border: 1px solid #93c5fd;"
                 else:
                     badge_style = "background-color: #f1f5f9; color: #475569; border: 1px solid #cbd5e1;"
@@ -261,11 +269,11 @@ class GraphMailNotifier:
                     </div>
                     <div class="stat-box">
                         <div class="stat-num" style="color: #16a34a;">{high_matches}</div>
-                        <div class="stat-label">High Match (≥70%)</div>
+                        <div class="stat-label">High Match (≥{SCORE_PRIORITY_HIGH_THRESHOLD}%)</div>
                     </div>
                     <div class="stat-box">
                         <div class="stat-num" style="color: #2563eb;">{med_matches}</div>
-                        <div class="stat-label">Medium Match (50-69%)</div>
+                        <div class="stat-label">Medium Match ({SCORE_PRIORITY_MEDIUM_THRESHOLD}-{SCORE_PRIORITY_HIGH_THRESHOLD - 1}%)</div>
                     </div>
                 </div>
 

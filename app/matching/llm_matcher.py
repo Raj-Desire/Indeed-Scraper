@@ -302,7 +302,14 @@ class LLMMatcher:
                 # Check if significant terms appear in retrieved context
                 is_present_in_context = False
                 if tokens:
-                    significant_matches = [t for t in tokens if f" {t} " in context_lower or t in context_lower]
+                    # Whole-word match is always safe. The raw substring fallback is only
+                    # applied to tokens of 4+ chars - shorter tokens (e.g. "go", "ai") false-
+                    # match inside unrelated words ("ongoing", "algorithm"), which would
+                    # falsely promote a missing skill to matched and inflate match_score.
+                    significant_matches = [
+                        t for t in tokens
+                        if f" {t} " in context_lower or (len(t) >= 4 and t in context_lower)
+                    ]
                     if len(significant_matches) >= 1 and (len(significant_matches) / len(tokens) >= 0.5 or len(tokens) == 1):
                         is_present_in_context = True
 
@@ -451,18 +458,27 @@ class LLMMatcher:
                 elif "AI" not in matched_list and any(m in matched_list for m in ("Computer Vision", "Azure OpenAI", "Machine Learning")):
                     matched_list.append("AI")
 
+            # Coverage-ratio score from the FINAL matched/missing lists, i.e. after all
+            # reconciliation above. Reconciliation only ever moves a skill from "missing"
+            # to "matched" (never the reverse), so this ratio can only imply a score
+            # greater than or equal to what the LLM saw before reconciliation.
+            total_skills = len(matched_list) + len(cleaned_missing)
+            if total_skills > 0:
+                if len(cleaned_missing) == 0 and len(matched_list) > 0:
+                    ratio_score = 100
+                else:
+                    ratio_score = int(round((len(matched_list) / total_skills) * 100))
+            else:
+                ratio_score = 0
+
             raw_score = payload.get("match_score")
             if raw_score is not None:
-                score = int(raw_score)
+                # Never let reconciliation lower the LLM's own judgement - only correct
+                # the score upward when the final skills lists show better coverage than
+                # the LLM's raw score reflected.
+                score = max(int(raw_score), ratio_score)
             else:
-                total_skills = len(matched_list) + len(cleaned_missing)
-                if total_skills > 0:
-                    if len(cleaned_missing) == 0 and len(matched_list) > 0:
-                        score = 100
-                    else:
-                        score = int(round((len(matched_list) / total_skills) * 100))
-                else:
-                    score = 0
+                score = ratio_score
 
             if not reason or reason == "Evaluated by LLM":
                 if len(matched_list) > 0 and len(cleaned_missing) == 0:

@@ -353,7 +353,7 @@ class ScraperService:
                 except Exception as mail_err:
                     logger.error("Notification dispatch failed: {}", mail_err)
 
-    async def export_sharepoint(self, selected_ids: Optional[list[str]] = None) -> int:
+    async def export_sharepoint(self, selected_ids: Optional[list[str]] = None, owner: Optional[str] = None) -> int:
         """Export current session results to SharePoint List via Graph API."""
         from app.sharepoint.graph_exporter import GraphSharePointExporter
         sp_exporter = GraphSharePointExporter()
@@ -361,7 +361,7 @@ class ScraperService:
         if selected_ids is not None:
             id_set = {str(i) for i in selected_ids}
             leads_to_export = [j for j in self._results if str(j.id) in id_set]
-        return await sp_exporter.export_jobs(leads_to_export)
+        return await sp_exporter.export_jobs(leads_to_export, owner=owner)
 
     async def send_email_notification(
         self,

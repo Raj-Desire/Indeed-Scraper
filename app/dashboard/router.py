@@ -162,7 +162,7 @@ async def api_manual_evaluate(request: Request):
     if not experience or experience == "Not specified":
         experience = parsed.get("experience") or ""
 
-    company = (body.get("company") or "").strip()
+    company = (body.get("company") or "").strip() or (parsed.get("company") or "")
     location = (body.get("location") or "").strip() or (parsed.get("country") or "Remote")
     remote_type_str = (body.get("remote_type") or "").strip() or location
 
@@ -194,6 +194,7 @@ async def api_manual_evaluate(request: Request):
             "lead": _serialize_job(job),
             "parsed_fields": {
                 "job_title": job.job_title,
+                "company": job.company,
                 "country": country,
                 "job_url": job.job_url,
                 "salary_range": salary_range,
@@ -229,6 +230,7 @@ async def api_update_manual_lead(request: Request):
         data = await request.json()
         lead_id = data.get("id")
         title = (data.get("title") or "").strip()
+        company = (data.get("company") or "").strip()
         country = (data.get("country") or "").strip()
         salary = (data.get("salary") or "").strip()
         experience = (data.get("experience") or "").strip()
@@ -245,6 +247,8 @@ async def api_update_manual_lead(request: Request):
         if target:
             if title:
                 target.job_title = title
+            if company:
+                target.company = company
             if country:
                 target.country = country
                 target.location = country
@@ -422,6 +426,8 @@ async def api_sharepoint_add_opportunity(request: Request):
             if top_job.search_query == "Manual Entry" or len(results) == 1:
                 if payload.title:
                     top_job.job_title = payload.title
+                if payload.company:
+                    top_job.company = payload.company
                 if payload.country:
                     top_job.country = payload.country
                     top_job.location = payload.country
@@ -484,6 +490,7 @@ async def api_sharepoint_batch_add_opportunity(request: Request):
                 existing_match = next((j for j in service._results if j.job_title == p.title and j.search_query == "Manual Entry"), None)
             if existing_match:
                 existing_match.job_title = p.title
+                existing_match.company = p.company or existing_match.company
                 existing_match.country = p.country or existing_match.country
                 existing_match.location = p.country or existing_match.location
                 existing_match.salary_range = p.salary_range or existing_match.salary_range
@@ -499,7 +506,7 @@ async def api_sharepoint_batch_add_opportunity(request: Request):
             else:
                 new_job = JobPosting(
                     job_title=p.title or "Untitled Role",
-                    company=p.contact_name or "Direct Opportunity",
+                    company=p.company or "",
                     location=p.country or "Remote",
                     country=p.country or "US",
                     job_url=p.website or "",
@@ -550,9 +557,10 @@ async def api_export_sharepoint(request: Request):
         raise HTTPException(status_code=400, detail="No job leads to export. Run a search first.")
 
     selected_ids = body.get("selected_ids") if isinstance(body, dict) else None
+    owner = body.get("owner") if isinstance(body, dict) else None
 
     try:
-        inserted_count = await service.export_sharepoint(selected_ids=selected_ids)
+        inserted_count = await service.export_sharepoint(selected_ids=selected_ids, owner=owner)
         return {
             "status": "success",
             "message": f"Successfully exported {inserted_count} jobs to SharePoint List via Microsoft Graph API!",

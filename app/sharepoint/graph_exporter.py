@@ -13,9 +13,48 @@ from typing import Any, Optional
 import httpx
 import msal
 
+from app.config.constants import score_to_priority
 from app.config.settings import get_settings
 from app.models.job import JobPosting
 from app.utils.logger import logger
+
+# The Opportunity Tracker's 'Country' and 'Industry' columns are strict SharePoint
+# Choice fields (allowTextEntry disabled) - Graph API rejects the ENTIRE item with an
+# opaque "generalException" if the value isn't an exact match for one of these choices.
+# The scraper supports dozens of countries and free-text industry detection, so raw
+# scraped values (e.g. ISO codes like "IN"/"DE", or "Information Technology") must be
+# normalized to one of these exact choice strings before being sent, or omitted.
+SHAREPOINT_COUNTRY_CHOICES = {
+    "US": "US",
+    "ZA": "South Africa",
+    "GB": "UK",
+}
+
+SHAREPOINT_INDUSTRY_CHOICES = {
+    "IT": "IT",
+    "INFORMATION TECHNOLOGY": "IT",
+    "CONSTRUCTION": "Construction",
+    "ENGINEERING & CONSTRUCTION": "Construction",
+    "LEGAL": "Legal",
+    "HEALTHCARE": "Healthcare",
+    "HEALTHCARE & LIFE SCIENCES": "Healthcare",
+    "LOGISTICS": "Logistics",
+    "MANUFACTURING & LOGISTICS": "Logistics",
+}
+
+
+def _normalize_sharepoint_country(country: Optional[str]) -> Optional[str]:
+    """Map a scraped ISO country code to one of the SharePoint 'Country' choices, or None if unsupported."""
+    if not country:
+        return None
+    return SHAREPOINT_COUNTRY_CHOICES.get(country.strip().upper())
+
+
+def _normalize_sharepoint_industry(industry: Optional[str]) -> str:
+    """Map a scraped/detected industry label to one of the SharePoint 'Industry' choices, defaulting to 'IT'."""
+    if not industry:
+        return "IT"
+    return SHAREPOINT_INDUSTRY_CHOICES.get(industry.strip().upper(), "IT")
 
 
 class GraphSharePointExporter:
@@ -51,8 +90,20 @@ class GraphSharePointExporter:
         fields: dict[str, Any] = {}
 
         # 1. Text & Note Fields
-        if data.get("title") or data.get("Title"):
-            fields["Title"] = str(data.get("title") or data.get("Title")).strip()
+
+        # Job Title -> dedicated 'Job_x0020_Title' column. Our internal callers have always
+        # passed the job/opportunity title under the 'title'/'Title' alias, so that alias is
+        # kept pointing at the job title here - only the SharePoint OUTPUT column changes.
+        job_title_val = data.get("job_title") or data.get("Job_x0020_Title") or data.get("title") or data.get("Title")
+        if job_title_val:
+            fields["Job_x0020_Title"] = str(job_title_val).strip()
+
+        # Prospect/Company Name -> SharePoint's 'Title' column. The Opportunity Tracker list
+        # displays this column's label as "Prospect/Company Name" even though its internal
+        # name is 'Title', so the company name (not the job title) belongs here.
+        if data.get("company") or data.get("Company"):
+            fields["Title"] = str(data.get("company") or data.get("Company")).strip()
+
         if data.get("contact_name") or data.get("ContactName"):
             fields["ContactName"] = str(data.get("contact_name") or data.get("ContactName")).strip()
         if data.get("email") or data.get("Email"):
@@ -181,15 +232,24 @@ class GraphSharePointExporter:
                 else:
                     fields[target_field] = f"{str(dt_val).strip()}T00:00:00Z"
 
-        # Format Location and URL into Notes if provided so no information is lost
+        # Job Link: dedicated field (internal name Job_x0020_Link). Accepts the same
+        # aliases the job/opportunity link has been passed under historically
+        # (website, job_url, ...) so both the manual-entry and auto-scraper paths
+        # populate it without any caller changes.
+        website_val = (
+            data.get("job_link") or data.get("Job_x0020_Link")
+            or data.get("website") or data.get("Website")
+            or data.get("job_url") or data.get("Job_x0020_URL")
+        )
+        if website_val and str(website_val).strip() not in ["N/A", ""]:
+            fields["Job_x0020_Link"] = str(website_val).strip()
+
+        # Format Location into Notes if provided so no information is lost
         location_val = data.get("location_remote_type") or data.get("Location_x002f_RemoteType") or data.get("location") or data.get("Location")
-        website_val = data.get("website") or data.get("Website") or data.get("job_url") or data.get("Job_x0020_URL")
 
         extra_note_parts = []
         if location_val and str(location_val).strip() not in ["N/A", "Not specified", ""] and f"Location: {str(location_val).strip()}" not in fields.get("Notes", ""):
             extra_note_parts.append(f"Location: {str(location_val).strip()}")
-        if website_val and str(website_val).strip() not in ["N/A", ""] and f"URL: {str(website_val).strip()}" not in fields.get("Notes", ""):
-            extra_note_parts.append(f"URL: {str(website_val).strip()}")
 
         if extra_note_parts:
             existing_notes = fields.get("Notes", "")
@@ -219,34 +279,35 @@ class GraphSharePointExporter:
         items_url = f"https://graph.microsoft.com/v1.0/sites/{site_id}/lists/{list_target}/items"
 
         payload = {"fields": fields_dict}
-        logger.info("Posting Opportunity to SharePoint list '{}': {}", list_target, fields_dict.get("Title", "Untitled"))
+        log_title = fields_dict.get("Job_x0020_Title") or fields_dict.get("Title", "Untitled")
+        logger.info("Posting Opportunity to SharePoint list '{}': {}", list_target, log_title)
 
         async with httpx.AsyncClient(timeout=30.0) as client:
             resp = await client.post(items_url, headers=headers, json=payload)
             if resp.status_code in [200, 201]:
                 res_data = resp.json()
-                logger.info("Opportunity '{}' created successfully (ID: {}).", fields_dict.get("Title"), res_data.get("id"))
+                logger.info("Opportunity '{}' created successfully (ID: {}).", log_title, res_data.get("id"))
                 return res_data
 
             # If some fields are not recognized by a non-standard list schema, attempt graceful retry with core fields
             err_text = resp.text
-            logger.warning("SharePoint insertion error ({}) for '{}': {}", resp.status_code, fields_dict.get("Title"), err_text)
-            
+            logger.warning("SharePoint insertion error ({}) for '{}': {}", resp.status_code, log_title, err_text)
+
             # Retry without non-standard fields that might trigger schema errors
             core_fields = {
                 k: v for k, v in fields_dict.items()
                 if k in [
-                    "Title", "Notes", "Country", "Industry", "LeadSource", "Owner",
+                    "Title", "Job_x0020_Title", "Notes", "Country", "Industry", "LeadSource", "Owner",
                     "Priority", "Status", "CurrencyCode", "Job_x0020_Requirement",
                     "Matching_x0020_Score", "Matching_x0020_Skills", "Matching_x0020_Reason",
                     "Missing_x0020_Skills", "Salary_x0020_Range", "Experience_x0020_Criteria",
-                    "Technology", "Technology@odata.type", "DateAdded"
+                    "Technology", "Technology@odata.type", "DateAdded", "Job_x0020_Link"
                 ]
             }
             retry_resp = await client.post(items_url, headers=headers, json={"fields": core_fields})
             if retry_resp.status_code in [200, 201]:
                 res_data = retry_resp.json()
-                logger.info("Opportunity '{}' created on fallback attempt (ID: {}).", core_fields.get("Title"), res_data.get("id"))
+                logger.info("Opportunity '{}' created on fallback attempt (ID: {}).", core_fields.get("Job_x0020_Title") or core_fields.get("Title"), res_data.get("id"))
                 return res_data
 
             raise RuntimeError(f"SharePoint List Insert Failed ({resp.status_code}): {err_text}")
@@ -279,7 +340,7 @@ class GraphSharePointExporter:
         async with httpx.AsyncClient(timeout=30.0) as client:
             for idx, opp in enumerate(opportunities, 1):
                 fields_dict = self.build_opportunity_fields(opp)
-                title = fields_dict.get("Title", f"Opportunity #{idx}")
+                title = fields_dict.get("Job_x0020_Title") or fields_dict.get("Title", f"Opportunity #{idx}")
                 payload = {"fields": fields_dict}
                 logger.info("Batch posting Opportunity {}/{}: '{}'", idx, len(opportunities), title)
 
@@ -295,11 +356,11 @@ class GraphSharePointExporter:
                     core_fields = {
                         k: v for k, v in fields_dict.items()
                         if k in [
-                            "Title", "Notes", "Country", "Industry", "LeadSource", "Owner",
+                            "Title", "Job_x0020_Title", "Notes", "Country", "Industry", "LeadSource", "Owner",
                             "Priority", "Status", "CurrencyCode", "Job_x0020_Requirement",
                             "Matching_x0020_Score", "Matching_x0020_Skills", "Matching_x0020_Reason",
                             "Missing_x0020_Skills", "Salary_x0020_Range", "Experience_x0020_Criteria",
-                            "Technology", "Technology@odata.type", "DateAdded"
+                            "Technology", "Technology@odata.type", "DateAdded", "Job_x0020_Link"
                         ]
                     }
                     retry_resp = await client.post(items_url, headers=headers, json={"fields": core_fields})
@@ -323,13 +384,20 @@ class GraphSharePointExporter:
             "errors": errors,
         }
 
-    async def export_jobs(self, jobs: list[JobPosting]) -> int:
+    async def export_jobs(self, jobs: list[JobPosting], owner: Optional[str] = None) -> int:
         """
         Upload list of JobPosting objects directly to the SharePoint List.
         Maps all available job and AI evaluation fields into the list schema.
+
+        Args:
+            owner: Optional Owner choice (Sizan/Meet/Chetan) selected in the UI,
+                applied to every job in this batch.
         """
         if not jobs:
             return 0
+
+        from app.matching.jd_parser import VALID_OWNERS
+        owner_val = owner if owner in VALID_OWNERS else None
 
         site_id = self._settings.sharepoint_site_id.strip()
         list_target = self._settings.sharepoint_list_id.strip() or self._settings.sharepoint_list_name.strip()
@@ -348,15 +416,21 @@ class GraphSharePointExporter:
 
         async with httpx.AsyncClient(timeout=30.0) as client:
             for job in jobs:
+                sp_country = _normalize_sharepoint_country(job.country)
+                notes = job.job_summary or ""
+                if not sp_country and job.country:
+                    # Country isn't one of the SharePoint list's fixed choices - preserve
+                    # the real value in Notes instead of silently losing it.
+                    notes = f"Country: {job.country} | {notes}" if notes else f"Country: {job.country}"
+
                 job_dict = {
                     "Title": job.job_title or "Untitled Job",
                     "company": job.company or "",
-                    "Country": job.country or "US",
                     "location_remote_type": job.location_remote_type or "",
-                    "Industry": "IT" if job.industry in ["Not listed", ""] else (job.industry or "IT"),
+                    "Industry": _normalize_sharepoint_industry(job.industry),
                     "LeadSource": "Indeed",
                     "Status": "New",
-                    "Priority": "High" if (job.match_score and job.match_score >= 70) else ("Medium" if (job.match_score and job.match_score >= 40) else "Low"),
+                    "Priority": score_to_priority(job.match_score),
                     "DateAdded": job.posted_date.strftime("%Y-%m-%d") if job.posted_date else datetime.now(tz=timezone.utc).strftime("%Y-%m-%d"),
                     "Salary_x0020_Range": job.salary_range if job.salary_range != "Not listed" else "",
                     "Experience_x0020_Criteria": job.experience if job.experience != "Not specified" else "",
@@ -366,8 +440,11 @@ class GraphSharePointExporter:
                     "Matching_x0020_Reason": job.match_reason or "",
                     "Missing_x0020_Skills": job.missing_skills or [],
                     "website": job.job_url or "",
-                    "Notes": job.job_summary or "",
+                    "Notes": notes,
+                    "owner": owner_val or "",
                 }
+                if sp_country:
+                    job_dict["Country"] = sp_country
 
                 fields_dict = self.build_opportunity_fields(job_dict)
                 payload = {"fields": fields_dict}
@@ -379,12 +456,20 @@ class GraphSharePointExporter:
                     err_msg = resp.text
                     logger.warning("Failed to insert '{}' to SharePoint ({}): {}", job.job_title, resp.status_code, err_msg)
                     # Retry with basic valid SharePoint fields only
-                    notes_summary = f"Company: {job.company or 'N/A'} | Location: {job.location_remote_type or 'N/A'} | URL: {job.job_url or 'N/A'}"
+                    notes_summary = f"Location: {job.location_remote_type or 'N/A'}"
+                    if not sp_country and job.country:
+                        notes_summary = f"Country: {job.country} | {notes_summary}"
                     fallback_fields = {
-                        "Title": job.job_title or "Untitled Job",
-                        "Country": job.country or "US",
+                        "Title": job.company or "Unknown Company",
+                        "Job_x0020_Title": job.job_title or "Untitled Job",
                         "Notes": notes_summary,
                     }
+                    if sp_country:
+                        fallback_fields["Country"] = sp_country
+                    if job.job_url:
+                        fallback_fields["Job_x0020_Link"] = job.job_url
+                    if owner_val:
+                        fallback_fields["Owner"] = owner_val
                     if job.match_score is not None:
                         try:
                             num_score = float(job.match_score)

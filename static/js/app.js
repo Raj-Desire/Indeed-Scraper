@@ -9,6 +9,28 @@ let stagedOpportunities = [];
 let editingStagedId = null;
 let currentEvaluatingLeadId = null;
 
+// Canonical match_score -> Priority thresholds, mirrored from
+// app/config/constants.py's score_to_priority() so the dashboard, SharePoint
+// export, and AI JD extraction never disagree on what a score means.
+const SCORE_PRIORITY_HIGH_THRESHOLD = 70;
+const SCORE_PRIORITY_MEDIUM_THRESHOLD = 40;
+
+function scoreToPriority(score) {
+    if (score === null || score === undefined || isNaN(Number(score))) return 'Low';
+    const value = Number(score);
+    if (value >= SCORE_PRIORITY_HIGH_THRESHOLD) return 'High';
+    if (value >= SCORE_PRIORITY_MEDIUM_THRESHOLD) return 'Medium';
+    return 'Low';
+}
+
+function scoreBadgeClasses(score) {
+    switch (scoreToPriority(score)) {
+        case 'High': return 'bg-emerald-50 text-emerald-800 border-emerald-300 font-bold';
+        case 'Medium': return 'bg-blue-50 text-blue-800 border-blue-300 font-bold';
+        default: return 'bg-rose-50 text-rose-700 border-rose-300 font-semibold';
+    }
+}
+
 function toggleLeadSelection(leadId, isChecked) {
     const idStr = String(leadId);
     if (isChecked) {
@@ -559,16 +581,7 @@ function renderTable(leads) {
         let matchScoreBadge = '<span class="text-slate-400 text-[11px] font-medium">—</span>';
         if (l.match_score !== null && l.match_score !== undefined) {
             const score = Number(l.match_score);
-            let badgeBg = 'bg-slate-100 text-slate-700 border-slate-200';
-            if (score >= 75) {
-                badgeBg = 'bg-emerald-50 text-emerald-800 border-emerald-300 font-bold';
-            } else if (score >= 50) {
-                badgeBg = 'bg-blue-50 text-blue-800 border-blue-300 font-bold';
-            } else if (score >= 25) {
-                badgeBg = 'bg-amber-50 text-amber-800 border-amber-300 font-bold';
-            } else {
-                badgeBg = 'bg-rose-50 text-rose-700 border-rose-300 font-semibold';
-            }
+            const badgeBg = scoreBadgeClasses(score);
             matchScoreBadge = `<span class="inline-flex items-center justify-center min-w-[42px] px-2 py-0.5 rounded-full text-xs border shadow-2xs ${badgeBg}">${score}%</span>`;
         }
 
@@ -701,10 +714,7 @@ function openDescriptionModal(jobId) {
     if (job.match_score !== null && job.match_score !== undefined) {
         const score = Number(job.match_score);
         matchScoreEl.textContent = `${score}% Match`;
-        matchScoreEl.className = 'px-2.5 py-0.5 rounded-full text-xs font-bold border shadow-2xs ' + 
-            (score >= 75 ? 'bg-emerald-100 text-emerald-800 border-emerald-300' :
-             score >= 50 ? 'bg-blue-100 text-blue-800 border-blue-300' :
-             score >= 25 ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-rose-100 text-rose-800 border-rose-300');
+        matchScoreEl.className = 'px-2.5 py-0.5 rounded-full text-xs font-bold border shadow-2xs ' + scoreBadgeClasses(score);
     } else {
         matchScoreEl.textContent = 'Not Evaluated';
         matchScoreEl.className = 'px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-500 border border-slate-200';
@@ -998,6 +1008,11 @@ async function exportSharePoint() {
             ? { selected_ids: selectedIdsArray }
             : {};
 
+        const ownerEl = document.getElementById('leads-owner');
+        if (ownerEl && ownerEl.value) {
+            payload.owner = ownerEl.value;
+        }
+
         const res = await fetch('/api/export/sharepoint', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1093,6 +1108,7 @@ function switchMode(mode) {
 
 async function evaluateManualJob() {
     const titleEl = document.getElementById('manual-job-title');
+    const companyEl = document.getElementById('manual-company');
     const countryEl = document.getElementById('manual-country');
     const urlEl = document.getElementById('manual-job-url');
     const salaryEl = document.getElementById('manual-salary');
@@ -1112,7 +1128,7 @@ async function evaluateManualJob() {
 
     const payload = {
         job_title: (titleEl ? titleEl.value : '').trim() || 'Untitled Opportunity',
-        company: '',
+        company: (companyEl ? companyEl.value : '').trim(),
         remote_type: 'Fully Remote',
         country: countryEl ? countryEl.value : 'US',
         job_url: (urlEl ? urlEl.value : '').trim(),
@@ -1154,6 +1170,7 @@ async function evaluateManualJob() {
 
         // Reset previous extracted fields first before populating new values
         if (titleEl) titleEl.value = '';
+        if (companyEl) companyEl.value = '';
         if (urlEl) urlEl.value = '';
         if (salaryEl) salaryEl.value = '';
         if (expEl) expEl.value = '';
@@ -1177,6 +1194,10 @@ async function evaluateManualJob() {
         let autoFilledCount = 0;
         if (titleEl && parsed.job_title) {
             titleEl.value = parsed.job_title;
+            autoFilledCount++;
+        }
+        if (companyEl && parsed.company) {
+            companyEl.value = parsed.company;
             autoFilledCount++;
         }
         if (countryEl && parsed.country) {
@@ -1258,8 +1279,7 @@ async function evaluateManualJob() {
             if (parsed.priority) {
                 priorityEl.value = parsed.priority;
             } else if (lead.match_score !== null && lead.match_score !== undefined) {
-                const sc = Number(lead.match_score);
-                priorityEl.value = sc >= 75 ? 'High' : (sc >= 45 ? 'Medium' : 'Low');
+                priorityEl.value = scoreToPriority(lead.match_score);
             }
         }
 
@@ -1334,6 +1354,7 @@ async function evaluateManualJob() {
 
 async function addManualToSharePoint() {
     const titleEl = document.getElementById('manual-job-title');
+    const companyEl = document.getElementById('manual-company');
     const countryEl = document.getElementById('manual-country');
     const urlEl = document.getElementById('manual-job-url');
     const salaryEl = document.getElementById('manual-salary');
@@ -1375,6 +1396,7 @@ async function addManualToSharePoint() {
 
     // Strictly read current edited values from DOM
     const title = (titleEl ? titleEl.value : '').trim() || (lastEvaluatedManualLead ? lastEvaluatedManualLead.job_title : 'Direct Opportunity');
+    const company = (companyEl ? companyEl.value : '').trim() || (lastEvaluatedManualLead ? lastEvaluatedManualLead.company : '');
     const country = countryEl ? countryEl.value : 'US';
     const industry = industryEl ? industryEl.value : 'IT';
     const website = (urlEl ? urlEl.value : '').trim();
@@ -1384,6 +1406,7 @@ async function addManualToSharePoint() {
 
     const payload = {
         title: title,
+        company: company,
         country: country,
         industry: industry,
         website: website,
@@ -1508,6 +1531,7 @@ async function addManualToSharePoint() {
 
 function readManualFormValues() {
     const titleEl = document.getElementById('manual-job-title');
+    const companyEl = document.getElementById('manual-company');
     const countryEl = document.getElementById('manual-country');
     const urlEl = document.getElementById('manual-job-url');
     const salaryEl = document.getElementById('manual-salary');
@@ -1532,6 +1556,7 @@ function readManualFormValues() {
     document.querySelectorAll('.manual-tech-checkbox:checked').forEach(cb => selectedTech.push(cb.value));
 
     const title = (titleEl ? titleEl.value : '').trim() || (lastEvaluatedManualLead ? lastEvaluatedManualLead.job_title : 'Direct Opportunity');
+    const company = (companyEl ? companyEl.value : '').trim() || (lastEvaluatedManualLead ? lastEvaluatedManualLead.company : '');
     const country = countryEl ? countryEl.value : 'US';
     const industry = industryEl ? industryEl.value : 'IT';
     const website = (urlEl ? urlEl.value : '').trim();
@@ -1542,6 +1567,7 @@ function readManualFormValues() {
     return {
         id: 'staged_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8),
         title: title,
+        company: company,
         country: country,
         industry: industry,
         website: website,
@@ -1580,6 +1606,7 @@ function populateManualForm(opp) {
 
     setVal('manual-description', opp.job_requirement);
     setVal('manual-job-title', opp.title);
+    setVal('manual-company', opp.company);
     setVal('manual-country', opp.country || 'US');
     setVal('manual-industry', opp.industry || 'IT');
     setVal('manual-job-url', opp.website);
@@ -1621,6 +1648,7 @@ function resetManualFormOnly() {
     [
         'manual-description',
         'manual-job-title',
+        'manual-company',
         'manual-job-url',
         'manual-salary',
         'manual-experience',
@@ -1697,6 +1725,7 @@ function stageCurrentManualJob() {
     }
     if (targetLead) {
         targetLead.job_title = opp.title;
+        targetLead.company = opp.company;
         targetLead.country = opp.country;
         targetLead.location = opp.country;
         targetLead.salary = opp.salary_range;
@@ -1710,7 +1739,7 @@ function stageCurrentManualJob() {
         targetLead = {
             id: opp.id,
             job_title: opp.title,
-            company: opp.contact_name || 'Direct Opportunity',
+            company: opp.company || 'Direct Opportunity',
             location: opp.country,
             country: opp.country,
             salary: opp.salary_range,
@@ -2131,6 +2160,7 @@ async function executeResetPage() {
     [
         'manual-description',
         'manual-job-title',
+        'manual-company',
         'manual-job-url',
         'manual-salary',
         'manual-experience',
@@ -2336,7 +2366,6 @@ window.confirmResetPage = confirmResetPage;
 window.closeResetModal = closeResetModal;
 window.executeResetPage = executeResetPage;
 window.clearManualForm = clearManualForm;
-window.clearAllLeads = clearAllLeads;
 window.switchMode = switchMode;
 window.evaluateManualJob = evaluateManualJob;
 window.addManualToSharePoint = addManualToSharePoint;

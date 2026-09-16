@@ -7,6 +7,7 @@ Supports both selecting predefined countries and typing any custom country/role.
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from typing import Optional
 
 # India Standard Time (IST) - GMT+5:30
 IST = timezone(timedelta(hours=5, minutes=30), name="IST")
@@ -15,6 +16,28 @@ IST = timezone(timedelta(hours=5, minutes=30), name="IST")
 def get_ist_now() -> datetime:
     """Return the current datetime in India Standard Time (IST / GMT+5:30)."""
     return datetime.now(tz=IST)
+
+
+# Canonical match_score -> Priority thresholds. Single source of truth so the
+# SharePoint export, AI JD extraction, and dashboard UI never disagree on what
+# a given score means.
+SCORE_PRIORITY_HIGH_THRESHOLD = 70
+SCORE_PRIORITY_MEDIUM_THRESHOLD = 40
+
+
+def score_to_priority(score: Optional[float]) -> str:
+    """Map a 0-100 match_score to 'High' / 'Medium' / 'Low'. None/unparseable -> 'Low'."""
+    if score is None:
+        return "Low"
+    try:
+        value = float(score)
+    except (TypeError, ValueError):
+        return "Low"
+    if value >= SCORE_PRIORITY_HIGH_THRESHOLD:
+        return "High"
+    if value >= SCORE_PRIORITY_MEDIUM_THRESHOLD:
+        return "Medium"
+    return "Low"
 
 
 @dataclass(frozen=True)

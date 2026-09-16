@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 class OpportunityPayload(BaseModel):
     """Complete schema model matching SharePoint Opportunity Tracker."""
     title: str = Field(..., description="Job Title / Opportunity Title")
+    company: Optional[str] = Field(default="", description="Prospect / Company Name")
     contact_name: Optional[str] = Field(default="", description="Contact Name")
     email: Optional[str] = Field(default="", description="Contact Email")
     phone: Optional[str] = Field(default="", description="Contact Phone")

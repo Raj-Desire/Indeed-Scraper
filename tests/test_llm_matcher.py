@@ -67,6 +67,47 @@ def test_evaluate_parses_structured_json_response():
     assert "SharePoint" in result.match_reason or "Power BI" in result.match_reason or result.match_reason
 
 
+def test_evaluate_keeps_raw_score_when_no_reconciliation_occurs():
+    payload = json.dumps({
+        "match_score": 60,
+        "matched_skills": ["SharePoint"],
+        "missing_skills": ["Dynamics 365"],
+        "match_reason": "Partial overlap.",
+    })
+    fake_client = _FakeAzureOpenAIClient(payload)
+    matcher = LLMMatcher(client=fake_client, enabled=True, deployment="test-deployment")
+
+    # "Dynamics 365" does not appear in the retrieved KB context, so reconciliation
+    # should not move it into matched_skills, and the LLM's raw score should stand.
+    chunks = [RetrievedChunk(chunk_id="c1", parent_id="p1", title="SPFx Projects", chunk="Built SPFx web parts...", score=0.8)]
+    result = asyncio.run(matcher.evaluate("Looking for a SharePoint + Dynamics 365 developer", chunks))
+
+    assert result.match_score == 60
+    assert "Dynamics 365" in result.missing_skills
+
+
+def test_evaluate_bumps_score_when_reconciliation_moves_skills_to_matched():
+    payload = json.dumps({
+        "match_score": 40,
+        "matched_skills": ["SharePoint"],
+        "missing_skills": ["SPFx"],
+        "match_reason": "Some overlap.",
+    })
+    fake_client = _FakeAzureOpenAIClient(payload)
+    matcher = LLMMatcher(client=fake_client, enabled=True, deployment="test-deployment")
+
+    # "SPFx" actually appears in the retrieved KB context, so reconciliation moves it
+    # from missing_skills to matched_skills - the score must be corrected upward to
+    # stay consistent with the final skills lists shown to the user.
+    chunks = [RetrievedChunk(chunk_id="c1", parent_id="p1", title="SPFx Projects", chunk="Built SPFx web parts for SharePoint clients.", score=0.8)]
+    result = asyncio.run(matcher.evaluate("Looking for a SharePoint + SPFx developer", chunks))
+
+    assert "SPFx" in result.matched_skills
+    assert "SPFx" not in result.missing_skills
+    assert result.match_score == 100
+    assert result.match_score >= 40
+
+
 def test_evaluate_returns_disabled_default_when_not_configured():
     matcher = LLMMatcher(client=None, enabled=False, deployment="")
     result = asyncio.run(matcher.evaluate("some job description", []))
@@ -97,6 +138,8 @@ def test_evaluate_swallows_client_errors():
 
 if __name__ == "__main__":
     test_evaluate_parses_structured_json_response()
+    test_evaluate_keeps_raw_score_when_no_reconciliation_occurs()
+    test_evaluate_bumps_score_when_reconciliation_moves_skills_to_matched()
     test_evaluate_returns_disabled_default_when_not_configured()
     test_evaluate_swallows_client_errors()
     print("OK")
