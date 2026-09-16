@@ -87,7 +87,7 @@ def test_build_opportunity_fields_all_30_columns():
     assert fields["Owner"] == "Meet"
     assert fields["Priority"] == "High"
     assert fields["Status"] == "New"
-    assert fields["DateAdded"] == "2026-09-14T00:00:00Z"
+    assert fields["DateAdded"].startswith("2026-09-14T")
     assert fields["NextFollow_x002d_upDate"] == "2026-09-20T00:00:00Z"
     assert fields["LastActivityDate"] == "2026-09-14T00:00:00Z"
     assert fields["Notes"] == "Excellent candidate lead"

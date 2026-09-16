@@ -53,6 +53,10 @@ class JobPosting(BaseModel):
     missing_skills: list[str] = Field(default_factory=list, description="Required skills the KB shows no evidence of")
     match_reason: str = Field(default="", description="Short LLM explanation of the match score")
     job_summary: str = Field(default="", description="Concise summary of the job description")
+    outreach_email_subject: str = Field(default="", description="AI-generated outreach email subject line")
+    outreach_email_body: str = Field(default="", description="AI-generated outreach email body")
+    outreach_linkedin_variants: list[str] = Field(default_factory=list, description="AI-generated LinkedIn outreach message variants")
+    outreach_linkedin_message: str = Field(default="", description="Currently selected/edited LinkedIn outreach message")
 
     @property
     def summary(self) -> str:

@@ -18,6 +18,27 @@ def get_ist_now() -> datetime:
     return datetime.now(tz=IST)
 
 
+# --- Outreach Generation Rules ---
+# Tunable rules for the AI-generated outreach email/LinkedIn drafts (app.matching.outreach_generator).
+# Centralized here so the pitch tone/structure can be tuned without touching the LLM-calling code.
+OUTREACH_SENDER_COMPANY = "Desire Infoweb Pvt. Ltd."
+OUTREACH_SENDER_BLURB = "a Microsoft Solution Partner"
+OUTREACH_TEAM_SIZE = "40+"
+OUTREACH_RATE_PLACEHOLDER = "[Rate]"
+OUTREACH_ENGAGEMENT_MODELS = [
+    "Hourly Engagement",
+    "Fixed-Cost Project - based on the defined scope and requirements",
+    "Monthly Dedicated Resource",
+]
+OUTREACH_LINKEDIN_VARIANT_COUNT = 4
+OUTREACH_LINKEDIN_MAX_CHARS = 300
+OUTREACH_TONE_GUIDELINES = (
+    "Professional, warm, and confident - never generic or salesy. Reference the specific "
+    "role, company, and 1-3 concrete matched technical capabilities so the message clearly "
+    "reads as tailored to this exact job, not a template. Keep it concise and easy to skim."
+)
+
+
 # Canonical match_score -> Priority thresholds. Single source of truth so the
 # SharePoint export, AI JD extraction, and dashboard UI never disagree on what
 # a given score means.

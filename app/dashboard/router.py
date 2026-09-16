@@ -119,6 +119,10 @@ def _serialize_job(j):
         "match_reason": j.match_reason or "",
         "job_summary": j.summary,
         "summary": j.summary,
+        "outreach_email_subject": j.outreach_email_subject,
+        "outreach_email_body": j.outreach_email_body,
+        "outreach_linkedin_variants": j.outreach_linkedin_variants or [],
+        "outreach_linkedin_message": j.outreach_linkedin_message,
     }
 
 
@@ -190,6 +194,33 @@ async def api_manual_evaluate(request: Request):
         if parsed.get("match_reason") and not job.match_reason:
             job.match_reason = parsed.get("match_reason")
 
+        # Generate outreach email + LinkedIn message drafts alongside the AI evaluation,
+        # so the user can review and send/copy them immediately without a separate step.
+        from app.matching.outreach_generator import generate_outreach
+
+        kb_context = ""
+        if kb_chunks:
+            kb_context = "\n".join(f"- {(getattr(c, 'chunk', '') or '').strip()[:300]}" for c in kb_chunks if getattr(c, "chunk", ""))
+
+        try:
+            outreach = await generate_outreach(
+                job_title=job.job_title,
+                company=job.company,
+                job_description=job.job_description,
+                matched_skills=job.matched_skills,
+                missing_skills=job.missing_skills,
+                kb_context=kb_context,
+                contact_name=parsed.get("contact_name", ""),
+            )
+        except Exception as outreach_err:
+            logger.error("Outreach generation failed during manual evaluate: {}", outreach_err)
+            outreach = {"email_subject": "", "email_body": "", "linkedin_variants": []}
+
+        job.outreach_email_subject = outreach.get("email_subject", "")
+        job.outreach_email_body = outreach.get("email_body", "")
+        job.outreach_linkedin_variants = outreach.get("linkedin_variants", [])
+        job.outreach_linkedin_message = (outreach.get("linkedin_variants") or [""])[0]
+
         return {
             "status": "success",
             "lead": _serialize_job(job),
@@ -222,6 +253,72 @@ async def api_manual_evaluate(request: Request):
     except Exception as exc:
         logger.error("Manual job evaluation failed: {}", exc)
         raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.post("/api/jobs/{lead_id}/generate-outreach")
+async def api_generate_outreach(lead_id: str):
+    """
+    On-demand outreach draft generation for a scraped (or manual) lead already in memory.
+    Kept separate from bulk scraping/evaluation so it's only ever run for leads the user
+    is actually about to act on, not automatically for every scraped result.
+    """
+    service = get_scraper_service()
+    job = next((j for j in service._results if str(j.id) == str(lead_id)), None)
+    if not job:
+        raise HTTPException(status_code=404, detail="Lead not found")
+
+    from app.matching.outreach_generator import generate_outreach
+
+    kb_context = ""
+    if service._match_service and getattr(service._match_service, "_kb", None) and job.job_description:
+        try:
+            kb_chunks = await service._match_service._kb.retrieve(job.job_description, top_k=3)
+            kb_context = "\n".join(f"- {(getattr(c, 'chunk', '') or '').strip()[:300]}" for c in kb_chunks if getattr(c, "chunk", ""))
+        except Exception:
+            pass
+
+    try:
+        outreach = await generate_outreach(
+            job_title=job.job_title,
+            company=job.company,
+            job_description=job.job_description,
+            matched_skills=job.matched_skills,
+            missing_skills=job.missing_skills,
+            kb_context=kb_context,
+        )
+    except Exception as exc:
+        logger.error("On-demand outreach generation failed for lead {}: {}", lead_id, exc)
+        raise HTTPException(status_code=500, detail=str(exc))
+
+    job.outreach_email_subject = outreach.get("email_subject", "")
+    job.outreach_email_body = outreach.get("email_body", "")
+    job.outreach_linkedin_variants = outreach.get("linkedin_variants", [])
+    job.outreach_linkedin_message = (outreach.get("linkedin_variants") or [""])[0]
+
+    return {"status": "success", "lead": _serialize_job(job)}
+
+
+@router.post("/api/jobs/{lead_id}/update-outreach")
+async def api_update_outreach(lead_id: str, request: Request):
+    """Persist user edits to a lead's outreach email/LinkedIn message before syncing to SharePoint."""
+    try:
+        data = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload")
+
+    service = get_scraper_service()
+    job = next((j for j in service._results if str(j.id) == str(lead_id)), None)
+    if not job:
+        raise HTTPException(status_code=404, detail="Lead not found")
+
+    if "email_subject" in data:
+        job.outreach_email_subject = (data.get("email_subject") or "").strip()
+    if "email_body" in data:
+        job.outreach_email_body = (data.get("email_body") or "").strip()
+    if "linkedin_message" in data:
+        job.outreach_linkedin_message = (data.get("linkedin_message") or "").strip()
+
+    return {"status": "success", "lead": _serialize_job(job)}
 
 
 @router.post("/api/leads/update-manual")
@@ -449,6 +546,12 @@ async def api_sharepoint_add_opportunity(request: Request):
                     top_job.job_summary = payload.notes
                 if payload.job_requirement:
                     top_job.job_description = payload.job_requirement
+                if payload.outreach_email_subject:
+                    top_job.outreach_email_subject = payload.outreach_email_subject
+                if payload.outreach_email_body:
+                    top_job.outreach_email_body = payload.outreach_email_body
+                if payload.outreach_linkedin_message:
+                    top_job.outreach_linkedin_message = payload.outreach_linkedin_message
 
         return {
             "status": "success",
@@ -504,6 +607,12 @@ async def api_sharepoint_batch_add_opportunity(request: Request):
                     existing_match.job_summary = p.notes
                 if p.job_requirement:
                     existing_match.job_description = p.job_requirement
+                if p.outreach_email_subject:
+                    existing_match.outreach_email_subject = p.outreach_email_subject
+                if p.outreach_email_body:
+                    existing_match.outreach_email_body = p.outreach_email_body
+                if p.outreach_linkedin_message:
+                    existing_match.outreach_linkedin_message = p.outreach_linkedin_message
             else:
                 new_job = JobPosting(
                     job_title=p.title or "Untitled Role",
@@ -524,6 +633,9 @@ async def api_sharepoint_batch_add_opportunity(request: Request):
                     match_reason=p.matching_reason or "",
                     job_summary=p.notes or "",
                     industry=p.industry or "IT",
+                    outreach_email_subject=p.outreach_email_subject or "",
+                    outreach_email_body=p.outreach_email_body or "",
+                    outreach_linkedin_message=p.outreach_linkedin_message or "",
                 )
                 service._results.insert(0, new_job)
 

@@ -195,9 +195,9 @@ class GraphSharePointExporter:
 
         # Prospect/Company Name -> SharePoint's 'Title' column. The Opportunity Tracker list
         # displays this column's label as "Prospect/Company Name" even though its internal
-        # name is 'Title', so the company name (not the job title) belongs here.
-        if data.get("company") or data.get("Company"):
-            fields["Title"] = str(data.get("company") or data.get("Company")).strip()
+        # name is 'Title'. Ensure Title is never empty so SharePoint views and title filters display it.
+        company_val = str(data.get("company") or data.get("Company") or "").strip()
+        fields["Title"] = company_val or str(job_title_val or "Direct Opportunity").strip()
 
         if data.get("contact_name") or data.get("ContactName"):
             fields["ContactName"] = str(data.get("contact_name") or data.get("ContactName")).strip()
@@ -221,6 +221,26 @@ class GraphSharePointExporter:
             fields["Matching_x0020_Reason"] = _text_to_html_paragraphs(
                 data.get("matching_reason") or data.get("Matching_x0020_Reason")
             )
+
+        # Outreach Email -> 'Outreach_x0020_Email' (Rich Text column) - render as real
+        # HTML: bold "Subject:" line + the structured body (outreach_generator.py
+        # produces '•'-bulleted skill/engagement lists) converted to <p>/<ul><li>.
+        # Sending plain text with '\n'/'•' markers here would collapse into one
+        # run-on line, same issue we fixed for Job_x0020_Requirement.
+        email_subject = data.get("outreach_email_subject")
+        email_body = data.get("outreach_email_body")
+        if email_subject or email_body:
+            html_parts = []
+            if email_subject:
+                html_parts.append(f"<p><strong>Subject:</strong> {_html_escape(str(email_subject).strip())}</p>")
+            if email_body:
+                html_parts.append(_structured_text_to_html(email_body))
+            fields["Outreach_x0020_Email"] = "".join(html_parts)
+
+        # LinkedIn Message -> 'Linkedin_x0020_message' (Rich Text column).
+        linkedin_message = data.get("outreach_linkedin_message")
+        if linkedin_message:
+            fields["Linkedin_x0020_message"] = _text_to_html_paragraphs(linkedin_message)
 
         # Matched and Missing Skills (Formatted as styled HTML badges/square boxes)
         matched_skills = data.get("matching_skills") or data.get("Matching_x0020_Skills")
@@ -298,15 +318,18 @@ class GraphSharePointExporter:
                 pass
 
         # 5. DateTime Fields (ISO 8601 YYYY-MM-DDTHH:MM:SSZ)
-        now_date_str = datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT00:00:00Z")
+        # Store exact current timestamp (including hours, minutes, seconds) so SharePoint displays the exact entry time.
+        now_dt = datetime.now(tz=timezone.utc)
+        now_date_str = now_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
         date_added = data.get("date_added") or data.get("DateAdded")
         if date_added:
             if isinstance(date_added, datetime):
-                fields["DateAdded"] = date_added.strftime("%Y-%m-%dT00:00:00Z")
+                fields["DateAdded"] = date_added.strftime("%Y-%m-%dT%H:%M:%SZ")
             elif "T" in str(date_added):
                 fields["DateAdded"] = str(date_added)
             else:
-                fields["DateAdded"] = f"{str(date_added).strip()}T00:00:00Z"
+                # If date-only string (e.g. YYYY-MM-DD), append current UTC time so exact time of day is preserved
+                fields["DateAdded"] = f"{str(date_added).strip()}T{now_dt.strftime('%H:%M:%SZ')}"
         else:
             fields["DateAdded"] = now_date_str
 
@@ -396,7 +419,8 @@ class GraphSharePointExporter:
                     "Priority", "Status", "CurrencyCode", "Job_x0020_Requirement",
                     "Matching_x0020_Score", "Matching_x0020_Skills", "Matching_x0020_Reason",
                     "Missing_x0020_Skills", "Salary_x0020_Range", "Experience_x0020_Criteria",
-                    "Technology", "Technology@odata.type", "DateAdded", "Job_x0020_Link"
+                    "Technology", "Technology@odata.type", "DateAdded", "Job_x0020_Link",
+                    "Outreach_x0020_Email", "Linkedin_x0020_message"
                 ]
             }
             retry_resp = await client.post(items_url, headers=headers, json={"fields": core_fields})
@@ -455,7 +479,8 @@ class GraphSharePointExporter:
                             "Priority", "Status", "CurrencyCode", "Job_x0020_Requirement",
                             "Matching_x0020_Score", "Matching_x0020_Skills", "Matching_x0020_Reason",
                             "Missing_x0020_Skills", "Salary_x0020_Range", "Experience_x0020_Criteria",
-                            "Technology", "Technology@odata.type", "DateAdded", "Job_x0020_Link"
+                            "Technology", "Technology@odata.type", "DateAdded", "Job_x0020_Link",
+                            "Outreach_x0020_Email", "Linkedin_x0020_message"
                         ]
                     }
                     retry_resp = await client.post(items_url, headers=headers, json={"fields": core_fields})
@@ -537,6 +562,9 @@ class GraphSharePointExporter:
                     "website": job.job_url or "",
                     "Notes": notes,
                     "owner": owner_val or "",
+                    "outreach_email_subject": job.outreach_email_subject or "",
+                    "outreach_email_body": job.outreach_email_body or "",
+                    "outreach_linkedin_message": job.outreach_linkedin_message or "",
                 }
                 if sp_country:
                     job_dict["Country"] = sp_country

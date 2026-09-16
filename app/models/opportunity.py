@@ -43,5 +43,8 @@ class OpportunityPayload(BaseModel):
     experience_criteria: Optional[str] = Field(default="", description="Experience Criteria")
     salary_range: Optional[str] = Field(default="", description="Salary Range")
     lead_id: Optional[str] = Field(default=None, description="Optional internal lead UUID for synchronization")
+    outreach_email_subject: Optional[str] = Field(default="", description="AI-generated outreach email subject")
+    outreach_email_body: Optional[str] = Field(default="", description="AI-generated outreach email body")
+    outreach_linkedin_message: Optional[str] = Field(default="", description="Selected/edited LinkedIn outreach message")
 
     model_config = {"extra": "ignore"}

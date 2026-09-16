@@ -8,6 +8,7 @@ let lastEvaluatedManualLead = null;
 let stagedOpportunities = [];
 let editingStagedId = null;
 let currentEvaluatingLeadId = null;
+let manualLinkedinVariants = [];
 
 // Canonical match_score -> Priority thresholds, mirrored from
 // app/config/constants.py's score_to_priority() so the dashboard, SharePoint
@@ -720,9 +721,14 @@ function renderTable(leads) {
     updateSelectedLeadsUI();
 }
 
+let currentModalLeadId = null;
+let currentModalLinkedinVariants = [];
+
 function openDescriptionModal(jobId) {
     const job = allLeads.find(l => String(l.id) === String(jobId));
     if (!job) return;
+
+    currentModalLeadId = jobId;
 
     document.getElementById('modal-job-title').textContent = job.job_title || 'Job Description';
     document.getElementById('modal-company-info').textContent = `${job.company || 'Company'} • ${job.location_remote_type || job.location || 'Location'} (${job.country || 'US'})`;
@@ -780,8 +786,152 @@ function openDescriptionModal(jobId) {
         linkEl.classList.add('hidden');
     }
 
+    renderModalOutreach(job);
+
     const modal = document.getElementById('job-modal');
     if (modal) modal.classList.remove('hidden');
+}
+
+function renderManualOutreach(lead) {
+    const section = document.getElementById('manual-outreach-section');
+    const hasOutreach = !!(lead.outreach_email_subject || lead.outreach_email_body || (lead.outreach_linkedin_variants && lead.outreach_linkedin_variants.length));
+    if (!section) return;
+
+    if (!hasOutreach) {
+        section.classList.add('hidden');
+        manualLinkedinVariants = [];
+        return;
+    }
+
+    section.classList.remove('hidden');
+    document.getElementById('manual-outreach-email-subject').value = lead.outreach_email_subject || '';
+    document.getElementById('manual-outreach-email-body').value = lead.outreach_email_body || '';
+
+    manualLinkedinVariants = lead.outreach_linkedin_variants || [];
+    const selected = lead.outreach_linkedin_message || manualLinkedinVariants[0] || '';
+    document.getElementById('manual-outreach-linkedin').value = selected;
+    renderLinkedinVariantTabs('manual', manualLinkedinVariants, selected);
+}
+
+function renderModalOutreach(job) {
+    const emptyEl = document.getElementById('modal-outreach-empty');
+    const contentEl = document.getElementById('modal-outreach-content');
+    const statusEl = document.getElementById('modal-outreach-save-status');
+    if (statusEl) statusEl.textContent = '';
+
+    const hasOutreach = !!(job.outreach_email_subject || job.outreach_email_body || (job.outreach_linkedin_variants && job.outreach_linkedin_variants.length));
+    if (!hasOutreach) {
+        if (emptyEl) emptyEl.classList.remove('hidden');
+        if (contentEl) contentEl.classList.add('hidden');
+        currentModalLinkedinVariants = [];
+        return;
+    }
+
+    if (emptyEl) emptyEl.classList.add('hidden');
+    if (contentEl) contentEl.classList.remove('hidden');
+
+    document.getElementById('modal-outreach-email-subject').value = job.outreach_email_subject || '';
+    document.getElementById('modal-outreach-email-body').value = job.outreach_email_body || '';
+
+    currentModalLinkedinVariants = job.outreach_linkedin_variants || [];
+    const selected = job.outreach_linkedin_message || currentModalLinkedinVariants[0] || '';
+    document.getElementById('modal-outreach-linkedin').value = selected;
+    renderLinkedinVariantTabs('modal', currentModalLinkedinVariants, selected);
+}
+
+function renderLinkedinVariantTabs(context, variants, selectedText) {
+    const container = document.getElementById(context === 'modal' ? 'modal-linkedin-variant-tabs' : 'manual-linkedin-variant-tabs');
+    if (!container) return;
+    if (!variants || variants.length <= 1) {
+        container.innerHTML = '';
+        return;
+    }
+    container.innerHTML = variants.map((v, idx) => {
+        const isActive = v === selectedText;
+        const cls = isActive
+            ? 'px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-600 text-white cursor-pointer'
+            : 'px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 cursor-pointer';
+        return `<span class="${cls}" onclick="selectLinkedinVariant('${context}', ${idx})">V${idx + 1}</span>`;
+    }).join('');
+}
+
+function selectLinkedinVariant(context, index) {
+    const variants = context === 'modal' ? currentModalLinkedinVariants : manualLinkedinVariants;
+    const text = variants[index];
+    if (text === undefined) return;
+    const textareaId = context === 'modal' ? 'modal-outreach-linkedin' : 'manual-outreach-linkedin';
+    const textarea = document.getElementById(textareaId);
+    if (textarea) textarea.value = text;
+    renderLinkedinVariantTabs(context, variants, text);
+}
+
+async function generateModalOutreach() {
+    if (!currentModalLeadId) return;
+    const btn = document.getElementById('btn-generate-outreach');
+    const label = document.getElementById('btn-generate-outreach-label');
+    if (btn) btn.disabled = true;
+    if (label) label.textContent = 'Generating...';
+
+    try {
+        const res = await fetch(`/api/jobs/${currentModalLeadId}/generate-outreach`, { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) {
+            throw new Error(data.detail || 'Outreach generation failed');
+        }
+        const idx = allLeads.findIndex(l => String(l.id) === String(currentModalLeadId));
+        if (idx !== -1) allLeads[idx] = { ...allLeads[idx], ...data.lead };
+        renderModalOutreach(data.lead);
+    } catch (e) {
+        showAlertModal('Outreach Generation Failed', e.message, 'error');
+    } finally {
+        if (btn) btn.disabled = false;
+        if (label) label.textContent = 'Generate Outreach';
+    }
+}
+
+async function saveModalOutreach() {
+    if (!currentModalLeadId) return;
+    const statusEl = document.getElementById('modal-outreach-save-status');
+    const payload = {
+        email_subject: document.getElementById('modal-outreach-email-subject').value,
+        email_body: document.getElementById('modal-outreach-email-body').value,
+        linkedin_message: document.getElementById('modal-outreach-linkedin').value,
+    };
+
+    try {
+        const res = await fetch(`/api/jobs/${currentModalLeadId}/update-outreach`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Failed to save outreach');
+
+        const idx = allLeads.findIndex(l => String(l.id) === String(currentModalLeadId));
+        if (idx !== -1) allLeads[idx] = { ...allLeads[idx], ...data.lead };
+
+        if (statusEl) {
+            statusEl.textContent = 'Saved ✓';
+            statusEl.className = 'text-xs text-emerald-600 font-semibold';
+        }
+    } catch (e) {
+        if (statusEl) {
+            statusEl.textContent = 'Failed to save';
+            statusEl.className = 'text-xs text-rose-600 font-semibold';
+        }
+    }
+}
+
+function copyOutreachField(elementId) {
+    const el = document.getElementById(elementId);
+    if (!el || !el.value) return;
+    navigator.clipboard.writeText(el.value).then(() => {
+        const original = el.style.borderColor;
+        el.style.borderColor = '#10b981';
+        setTimeout(() => { el.style.borderColor = original; }, 600);
+    }).catch(() => {
+        showAlertModal('Copy Failed', 'Could not copy to clipboard. Please select and copy the text manually.', 'warning');
+    });
 }
 
 function closeDescriptionModal() {
@@ -1199,6 +1349,8 @@ async function evaluateManualJob() {
             extra_notes: parsed.notes || '',
         };
 
+        renderManualOutreach(lead);
+
         // Reset previous extracted fields first before populating new values
         if (titleEl) titleEl.value = '';
         if (companyEl) companyEl.value = '';
@@ -1412,6 +1564,9 @@ async function addManualToSharePoint() {
     const contactEmailEl = document.getElementById('manual-contact-email');
     const contactPhoneEl = document.getElementById('manual-contact-phone');
     const notesEl = document.getElementById('manual-notes');
+    const outreachSubjectEl = document.getElementById('manual-outreach-email-subject');
+    const outreachBodyEl = document.getElementById('manual-outreach-email-body');
+    const outreachLinkedinEl = document.getElementById('manual-outreach-linkedin');
 
     const jobDescription = (descEl ? descEl.value : '').trim();
     if (!jobDescription) {
@@ -1460,6 +1615,9 @@ async function addManualToSharePoint() {
         matching_reason: lastEvaluatedManualLead ? lastEvaluatedManualLead.match_reason : '',
         missing_skills: lastEvaluatedManualLead ? lastEvaluatedManualLead.missing_skills : [],
         notes: notesContent,
+        outreach_email_subject: outreachSubjectEl ? outreachSubjectEl.value.trim() : '',
+        outreach_email_body: outreachBodyEl ? outreachBodyEl.value.trim() : '',
+        outreach_linkedin_message: outreachLinkedinEl ? outreachLinkedinEl.value.trim() : '',
     };
 
     const allButtons = [btn, btnTop, navSp, tblSp].filter(Boolean);
@@ -1580,6 +1738,9 @@ function readManualFormValues() {
     const contactEmailEl = document.getElementById('manual-contact-email');
     const contactPhoneEl = document.getElementById('manual-contact-phone');
     const notesEl = document.getElementById('manual-notes');
+    const outreachSubjectEl = document.getElementById('manual-outreach-email-subject');
+    const outreachBodyEl = document.getElementById('manual-outreach-email-body');
+    const outreachLinkedinEl = document.getElementById('manual-outreach-linkedin');
 
     const jobDescription = (descEl ? descEl.value : '').trim();
     const selectedTech = [];
@@ -1621,6 +1782,9 @@ function readManualFormValues() {
         matching_reason: lastEvaluatedManualLead ? lastEvaluatedManualLead.match_reason : '',
         missing_skills: lastEvaluatedManualLead ? lastEvaluatedManualLead.missing_skills : [],
         notes: notesContent,
+        outreach_email_subject: outreachSubjectEl ? outreachSubjectEl.value.trim() : '',
+        outreach_email_body: outreachBodyEl ? outreachBodyEl.value.trim() : '',
+        outreach_linkedin_message: outreachLinkedinEl ? outreachLinkedinEl.value.trim() : '',
         synced: false,
         sync_status: 'Pending'
     };
@@ -1654,6 +1818,15 @@ function populateManualForm(opp) {
     setVal('manual-salary', opp.salary_range);
     setVal('manual-experience', opp.experience_criteria);
     setVal('manual-notes', opp.notes);
+
+    const hasOutreach = !!(opp.outreach_email_subject || opp.outreach_email_body || opp.outreach_linkedin_message);
+    const outreachSection = document.getElementById('manual-outreach-section');
+    if (outreachSection) outreachSection.classList.toggle('hidden', !hasOutreach);
+    setVal('manual-outreach-email-subject', opp.outreach_email_subject);
+    setVal('manual-outreach-email-body', opp.outreach_email_body);
+    setVal('manual-outreach-linkedin', opp.outreach_linkedin_message);
+    manualLinkedinVariants = [];
+    renderLinkedinVariantTabs('manual', [], '');
 
     const techList = (opp.technology || []).map(t => String(t).toLowerCase());
     document.querySelectorAll('.manual-tech-checkbox').forEach(cb => {
@@ -1689,6 +1862,9 @@ function resetManualFormOnly() {
         'manual-followup-date',
         'manual-due-date',
         'manual-notes',
+        'manual-outreach-email-subject',
+        'manual-outreach-email-body',
+        'manual-outreach-linkedin',
     ].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.value = '';
@@ -1713,6 +1889,10 @@ function resetManualFormOnly() {
     });
 
     lastEvaluatedManualLead = null;
+    manualLinkedinVariants = [];
+    const outreachSection = document.getElementById('manual-outreach-section');
+    if (outreachSection) outreachSection.classList.add('hidden');
+    renderLinkedinVariantTabs('manual', [], '');
 
     const noteEl = document.getElementById('manual-status-note');
     if (noteEl) {
@@ -2186,6 +2366,10 @@ async function executeResetPage() {
 
     // 2. Reset Manual Job Evaluator Form
     lastEvaluatedManualLead = null;
+    manualLinkedinVariants = [];
+    const outreachSection2 = document.getElementById('manual-outreach-section');
+    if (outreachSection2) outreachSection2.classList.add('hidden');
+    renderLinkedinVariantTabs('manual', [], '');
     [
         'manual-description',
         'manual-job-title',
@@ -2200,6 +2384,9 @@ async function executeResetPage() {
         'manual-followup-date',
         'manual-due-date',
         'manual-notes',
+        'manual-outreach-email-subject',
+        'manual-outreach-email-body',
+        'manual-outreach-linkedin',
     ].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.value = '';
@@ -2418,6 +2605,10 @@ window.toggleLeadSelection = toggleLeadSelection;
 window.toggleSelectAllLeads = toggleSelectAllLeads;
 window.openDescriptionModal = openDescriptionModal;
 window.closeDescriptionModal = closeDescriptionModal;
+window.generateModalOutreach = generateModalOutreach;
+window.saveModalOutreach = saveModalOutreach;
+window.copyOutreachField = copyOutreachField;
+window.selectLinkedinVariant = selectLinkedinVariant;
 
 document.addEventListener('DOMContentLoaded', () => {
     initOwnerSynchronization();
