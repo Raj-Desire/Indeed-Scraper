@@ -32,7 +32,7 @@ class _SimulatedSlowScraper:
         self.progress.status = ScraperStatus.STOPPED
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_scraper_service_stop_and_immediate_restart(tmp_path):
     """When a run is stopped, starting a new run succeeds immediately without 409 conflict."""
     service = ScraperService()
@@ -68,7 +68,7 @@ async def test_scraper_service_stop_and_immediate_restart(tmp_path):
     assert service._is_running() is False
 
 
-@pytest.mark.anyio
+@pytest.mark.asyncio
 async def test_scraper_service_is_running_flag_when_stopped():
     """_is_running() must return False as soon as scraper is marked stopped, even before task teardown."""
     service = ScraperService()

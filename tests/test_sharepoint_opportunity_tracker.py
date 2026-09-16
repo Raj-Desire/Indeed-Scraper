@@ -100,11 +100,16 @@ def test_build_opportunity_fields_all_30_columns():
     assert fields["OutcomeReason"] == "New Client"
     assert fields["Checklist"] == ["Applied On Source Portal", "Applied On Sales Navigator"]
     assert fields["Checklist@odata.type"] == "Collection(Edm.String)"
-    assert fields["Job_x0020_Requirement"] == "Must have 5+ years SharePoint Framework (SPFx) experience."
+    # Job_x0020_Requirement, Matching_x0020_Reason, Matching_x0020_Skills and Missing_x0020_Skills
+    # are Rich Text (HTML) columns in SharePoint, rendered as structured HTML / styled pill badges.
+    assert fields["Job_x0020_Requirement"] == "<p>Must have 5+ years SharePoint Framework (SPFx) experience.</p>"
     assert fields["Matching_x0020_Score"] == 0.88
-    assert fields["Matching_x0020_Skills"] == "SharePoint, SPFx, TypeScript, Azure"
-    assert fields["Matching_x0020_Reason"] == "Strong match with existing company knowledge base."
-    assert fields["Missing_x0020_Skills"] == "Power BI"
+    assert "SharePoint</span>" in fields["Matching_x0020_Skills"]
+    assert "SPFx</span>" in fields["Matching_x0020_Skills"]
+    assert "background-color:rgb(236, 253, 245)" in fields["Matching_x0020_Skills"]
+    assert fields["Matching_x0020_Reason"] == "<p>Strong match with existing company knowledge base.</p>"
+    assert "Power BI</span>" in fields["Missing_x0020_Skills"]
+    assert "background-color:rgb(255, 241, 242)" in fields["Missing_x0020_Skills"]
     assert fields["Experience_x0020_Criteria"] == "5+ years"
     assert fields["Salary_x0020_Range"] == "$130k - $160k"
 

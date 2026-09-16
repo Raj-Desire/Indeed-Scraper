@@ -15,6 +15,37 @@ let currentEvaluatingLeadId = null;
 const SCORE_PRIORITY_HIGH_THRESHOLD = 70;
 const SCORE_PRIORITY_MEDIUM_THRESHOLD = 40;
 
+function getSelectedOwner() {
+    const manualOwnerEl = document.getElementById('manual-owner');
+    const leadsOwnerEl = document.getElementById('leads-owner');
+    if (manualOwnerEl && manualOwnerEl.value) return manualOwnerEl.value;
+    if (leadsOwnerEl && leadsOwnerEl.value) return leadsOwnerEl.value;
+    return 'Meet';
+}
+
+function setSelectedOwner(val) {
+    if (!val) return;
+    const manualOwnerEl = document.getElementById('manual-owner');
+    const leadsOwnerEl = document.getElementById('leads-owner');
+    if (manualOwnerEl) manualOwnerEl.value = val;
+    if (leadsOwnerEl) leadsOwnerEl.value = val;
+}
+
+function initOwnerSynchronization() {
+    const leadsOwnerEl = document.getElementById('leads-owner');
+    const manualOwnerEl = document.getElementById('manual-owner');
+    if (leadsOwnerEl) {
+        leadsOwnerEl.addEventListener('change', () => {
+            if (manualOwnerEl) manualOwnerEl.value = leadsOwnerEl.value;
+        });
+    }
+    if (manualOwnerEl) {
+        manualOwnerEl.addEventListener('change', () => {
+            if (leadsOwnerEl) leadsOwnerEl.value = manualOwnerEl.value;
+        });
+    }
+}
+
 function scoreToPriority(score) {
     if (score === null || score === undefined || isNaN(Number(score))) return 'Low';
     const value = Number(score);
@@ -1243,9 +1274,8 @@ async function evaluateManualJob() {
             industryEl.value = parsed.industry;
         }
 
-        const ownerEl = document.getElementById('manual-owner');
-        if (ownerEl && parsed.owner) {
-            ownerEl.value = parsed.owner;
+        if (parsed.owner) {
+            setSelectedOwner(parsed.owner);
             autoFilledCount++;
         }
 
@@ -1410,7 +1440,7 @@ async function addManualToSharePoint() {
         country: country,
         industry: industry,
         website: website,
-        owner: ownerEl ? ownerEl.value : 'Meet',
+        owner: getSelectedOwner(),
         lead_source: leadSourceEl ? leadSourceEl.value : 'Indeed',
         priority: priorityEl ? priorityEl.value : 'Medium',
         status: statusEl ? statusEl.value : 'New',
@@ -1571,7 +1601,7 @@ function readManualFormValues() {
         country: country,
         industry: industry,
         website: website,
-        owner: ownerEl ? ownerEl.value : 'Meet',
+        owner: getSelectedOwner(),
         lead_source: leadSourceEl ? leadSourceEl.value : 'Indeed',
         priority: priorityEl ? priorityEl.value : 'Medium',
         status: statusEl ? statusEl.value : 'New',
@@ -1610,7 +1640,7 @@ function populateManualForm(opp) {
     setVal('manual-country', opp.country || 'US');
     setVal('manual-industry', opp.industry || 'IT');
     setVal('manual-job-url', opp.website);
-    setVal('manual-owner', opp.owner || 'Meet');
+    setSelectedOwner(opp.owner || 'Meet');
     setVal('manual-lead-source', opp.lead_source || 'Indeed');
     setVal('manual-priority', opp.priority || 'Medium');
     setVal('manual-status', opp.status || 'New');
@@ -1666,8 +1696,7 @@ function resetManualFormOnly() {
 
     const countryEl = document.getElementById('manual-country');
     if (countryEl) countryEl.value = 'US';
-    const ownerEl = document.getElementById('manual-owner');
-    if (ownerEl) ownerEl.value = 'Meet';
+    setSelectedOwner('Meet');
     const leadSourceEl = document.getElementById('manual-lead-source');
     if (leadSourceEl) leadSourceEl.value = 'Indeed';
     const industryEl = document.getElementById('manual-industry');
@@ -2178,8 +2207,7 @@ async function executeResetPage() {
 
     const countryEl = document.getElementById('manual-country');
     if (countryEl) countryEl.value = 'US';
-    const ownerEl = document.getElementById('manual-owner');
-    if (ownerEl) ownerEl.value = 'Meet';
+    setSelectedOwner('Meet');
     const leadSourceEl = document.getElementById('manual-lead-source');
     if (leadSourceEl) leadSourceEl.value = 'Indeed';
     const industryEl = document.getElementById('manual-industry');
@@ -2392,6 +2420,7 @@ window.openDescriptionModal = openDescriptionModal;
 window.closeDescriptionModal = closeDescriptionModal;
 
 document.addEventListener('DOMContentLoaded', () => {
+    initOwnerSynchronization();
     updateIstClock();
     setInterval(updateIstClock, 1000);
     updateSelectedCountryDisplay();

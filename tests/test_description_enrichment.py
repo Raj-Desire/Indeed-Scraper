@@ -90,13 +90,81 @@ def test_enrichment_does_not_override_with_blank():
         job_title="AI Engineer",
         company="TechCorp",
         location="Remote",
-        job_description="Existing snippet text.",
+        job_description="Existing snippet text from search results with over 150 characters of description preview.",
         has_full_description=False,
     )
 
     blank_html = "<html><body><div>No job description here</div></body></html>"
     parser.enrich_with_description(job, blank_html)
 
-    # Should retain original snippet if detail container not found
-    assert job.job_description == "Existing snippet text."
+    # Should retain original snippet without falsely marking has_full_description=True
+    assert job.job_description == "Existing snippet text from search results with over 150 characters of description preview."
     assert job.has_full_description is False
+
+
+def test_json_ld_description_enrichment():
+    parser = BeautifulSoupParser()
+    job = JobPosting(
+        id=uuid4(),
+        indeed_job_id="test_jk_004",
+        job_title="AI Engineer",
+        company="TechCorp",
+        location="Remote",
+        job_description="Short snippet.",
+        has_full_description=False,
+    )
+
+    json_ld_html = """
+    <html>
+    <head>
+    <script type="application/ld+json">
+    {
+        "@context": "http://schema.org",
+        "@type": "JobPosting",
+        "title": "AI Engineer",
+        "description": "<p>We are seeking a senior AI Engineer.</p><ul><li>Build LLM pipelines</li><li>Deploy with Kubernetes</li></ul>"
+    }
+    </script>
+    </head>
+    <body></body>
+    </html>
+    """
+    parser.enrich_with_description(job, json_ld_html)
+
+    assert job.has_full_description is True
+    assert "We are seeking a senior AI Engineer." in job.job_description
+    assert "• Build LLM pipelines" in job.job_description
+    assert "• Deploy with Kubernetes" in job.job_description
+
+
+def test_embedded_script_json_description_enrichment():
+    parser = SelectolaxParser()
+    job = JobPosting(
+        id=uuid4(),
+        indeed_job_id="test_jk_005",
+        job_title="Full Stack Engineer",
+        company="TechCorp",
+        location="Remote",
+        job_description="Short snippet.",
+        has_full_description=False,
+    )
+
+    script_json_html = """
+    <html>
+    <body>
+    <script id="_initialData" type="application/json">
+    {
+        "jobInfoWrapperModel": {
+            "jobDescription": "<p>Develop state of the art web applications with React and Python.</p><h3>Requirements</h3><ul><li>3+ years TypeScript</li></ul>"
+        }
+    }
+    </script>
+    </body>
+    </html>
+    """
+    parser.enrich_with_description(job, script_json_html)
+
+    assert job.has_full_description is True
+    assert "Develop state of the art web applications" in job.job_description
+    assert "### Requirements" in job.job_description
+    assert "• 3+ years TypeScript" in job.job_description

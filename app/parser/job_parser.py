@@ -19,6 +19,9 @@ from app.parser.base_parser import BaseJobParser
 from app.scraper.selector_health import selector_health
 from app.utils.helpers import (
     clean_text,
+    clean_multiline_text,
+    format_html_description,
+    extract_json_job_description,
     extract_indeed_job_id,
     parse_indeed_relative_date,
     detect_remote_type,
@@ -450,10 +453,9 @@ class BeautifulSoupParser(BaseJobParser):
         # Layer 2: Detail Page Header (Title, Company, Location)
         self._enrich_header_metadata(job, soup)
 
-        # Layer 3: Full Job Description Container
-        self._enrich_full_description(job, soup)
-        if job.job_description and len(job.job_description) > 30:
-            job.has_full_description = True
+        # Layer 3: Full Job Description Container (JSON-LD -> Script JSON -> DOM)
+        self._enrich_full_description(job, soup, json_ld_data)
+        if job.has_full_description:
             selector_health.record_hit("detail_job_description")
         else:
             selector_health.record_miss("detail_job_description")
@@ -469,8 +471,9 @@ class BeautifulSoupParser(BaseJobParser):
         scripts = soup.find_all("script", type="application/ld+json")
         for s in scripts:
             try:
-                if s.string:
-                    data = json.loads(s.string)
+                raw_text = s.get_text(strip=True) if hasattr(s, "get_text") else (s.string or "")
+                if raw_text:
+                    data = json.loads(raw_text)
                     if isinstance(data, dict) and data.get("@type") == "JobPosting":
                         return data
                     elif isinstance(data, list):
@@ -549,17 +552,65 @@ class BeautifulSoupParser(BaseJobParser):
                         logger.debug("[BeautifulSoup] Detail enriched 'location'='{}' via selector='{}'", val, sel)
                         break
 
-    def _enrich_full_description(self, job: JobPosting, soup: BeautifulSoup) -> None:
+    def _enrich_full_description(
+        self,
+        job: JobPosting,
+        soup: BeautifulSoup,
+        json_ld_data: Optional[dict] = None,
+    ) -> None:
+        # Strategy A: JSON-LD Description
+        if json_ld_data and json_ld_data.get("description"):
+            desc_from_ld = format_html_description(str(json_ld_data["description"]))
+            if len(desc_from_ld) > 30:
+                job.job_description = desc_from_ld
+                job.has_full_description = True
+                logger.debug("[BeautifulSoup] Detail enriched 'job_description' from JSON-LD (len={})", len(desc_from_ld))
+                return
+
+        # Strategy B: Embedded Script Tag JSON (e.g., _initialData, mosaic-data, sanitizedJobDescription)
+        for s in soup.find_all("script"):
+            raw_script = s.get_text(strip=True) if hasattr(s, "get_text") else (s.string or "")
+            if any(k in raw_script for k in ["jobDescriptionText", "sanitizedJobDescription", "jobDescription", "_initialData"]):
+                try:
+                    s_type = (s.get("type") or "").lower()
+                    if "application/json" in s_type:
+                        data = json.loads(raw_script)
+                        found_desc = extract_json_job_description(data)
+                        if found_desc and len(found_desc) > 30:
+                            job.job_description = found_desc
+                            job.has_full_description = True
+                            logger.debug("[BeautifulSoup] Detail enriched 'job_description' from script JSON (len={})", len(found_desc))
+                            return
+                    else:
+                        match = re.search(r'=\s*(\{.*?\});?\s*$', raw_script.strip(), re.DOTALL)
+                        if match:
+                            data = json.loads(match.group(1))
+                            found_desc = extract_json_job_description(data)
+                            if found_desc and len(found_desc) > 30:
+                                job.job_description = found_desc
+                                job.has_full_description = True
+                                logger.debug("[BeautifulSoup] Detail enriched 'job_description' from JS script assignment (len={})", len(found_desc))
+                                return
+                except Exception:
+                    pass
+
+        # Strategy C: Dedicated DOM Containers
+        # NOTE: '#jobDetailsSection' is deliberately excluded - it's Indeed's compact
+        # "Job details" quick-facts panel (Pay/Job type/Work setting only), not the
+        # actual job description body.
         desc_selectors = [
             "#jobDescriptionText",
             "div#jobDescriptionText",
+            "[data-testid='jobDescriptionText']",
             "[data-testid='jobDescription']",
             "div[data-testid='jobDescription']",
             ".jobsearch-jobDescriptionText",
             ".jobsearch-JobComponent-description",
             ".jobDescriptionContent",
-            "#jobDetailsSection",
+            "#jobDescriptionSection",
             ".jobsearch-ViewJobLayout-jobDisplay",
+            "div[id*='jobDescription']",
+            "div[class*='jobDescription']",
         ]
         for sel in desc_selectors:
             container = soup.select_one(sel)
@@ -581,9 +632,9 @@ class BeautifulSoupParser(BaseJobParser):
                         if t and len(t) > 5 and not any(t in l for l in lines):
                             lines.append(f"{t}\n")
 
-                raw_text = clean_text(container.get_text(separator="\n\n"))
+                raw_text = clean_multiline_text(container.get_text(separator="\n\n"))
                 if lines and len(" ".join(lines)) > 50:
-                    formatted_text = "\n".join(lines).strip()
+                    formatted_text = clean_multiline_text("\n".join(lines))
                     if len(raw_text) > len(formatted_text) * 1.35:
                         chosen_text = raw_text
                     else:
@@ -591,7 +642,15 @@ class BeautifulSoupParser(BaseJobParser):
                 else:
                     chosen_text = raw_text
 
-                if chosen_text and len(chosen_text) > 30:
+                # Reject Indeed's compact "Job details" quick-facts blurb (Pay/Job
+                # type/Work setting only) even if some other selector happened to
+                # match it - it is never the actual job description body.
+                is_quick_facts_blurb = (
+                    len(chosen_text) < 400
+                    and "how the job details align with your profile" in chosen_text.lower()
+                )
+
+                if chosen_text and len(chosen_text) > 30 and not is_quick_facts_blurb:
                     job.job_description = chosen_text
                     job.has_full_description = True
                     logger.debug("[BeautifulSoup] Detail enriched 'job_description' (len={}) via selector='{}'", len(chosen_text), sel)

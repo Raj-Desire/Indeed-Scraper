@@ -647,11 +647,20 @@ class IndeedScraper:
                                 """async (jk) => {
                                     try {
                                         const ctrl = new AbortController();
-                                        const tid = setTimeout(() => ctrl.abort(), 3500);
-                                        const res = await fetch(`/viewjob?jk=${jk}&t=jobsearch`, {
+                                        const tid = setTimeout(() => ctrl.abort(), 4000);
+                                        // Try embedded sidebar view first (fastest, pre-rendered HTML)
+                                        let res = await fetch(`/viewjob?jk=${jk}&from=vjs&vjs=1`, {
                                             credentials: 'same-origin',
+                                            headers: { 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8' },
                                             signal: ctrl.signal
                                         });
+                                        if (!res.ok) {
+                                            res = await fetch(`/viewjob?jk=${jk}`, {
+                                                credentials: 'same-origin',
+                                                headers: { 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8' },
+                                                signal: ctrl.signal
+                                            });
+                                        }
                                         clearTimeout(tid);
                                         if (res.ok) return await res.text();
                                     } catch (e) {}
@@ -663,7 +672,7 @@ class IndeedScraper:
                                 self._parser.enrich_with_description(job, desc_html)
                                 if job.has_full_description or len(job.job_description or "") > 300:
                                     logger.info("Enriched full description for '{}' ({} chars)", job.job_title, len(job.job_description))
-                            await asyncio.sleep(random.uniform(0.1, 0.2))
+                            await asyncio.sleep(random.uniform(0.05, 0.15))
                         except Exception as s0_err:
                             logger.debug("Strategy 0 fetch error for {}: {}", job.job_title, s0_err)
 
@@ -673,11 +682,11 @@ class IndeedScraper:
                 remaining_needing_detail = [
                     j for j in jobs
                     if (not j.has_full_description or len(j.job_description or "") < 300) and j.indeed_job_id
-                ][:2]
+                ]
 
                 if remaining_needing_detail:
                     try:
-                        async with asyncio.timeout(12.0):
+                        async with asyncio.timeout(45.0):
                             worker_page = None
                             try:
                                 worker_page = await context.new_page()
@@ -686,7 +695,14 @@ class IndeedScraper:
                                         break
                                     try:
                                         target_url = f"https://{domain}/viewjob?jk={r_job.indeed_job_id}"
-                                        await worker_page.goto(target_url, wait_until="domcontentloaded", timeout=6000)
+                                        await worker_page.goto(target_url, wait_until="domcontentloaded", timeout=7000)
+                                        try:
+                                            await worker_page.wait_for_selector(
+                                                "#jobDescriptionText, [data-testid='jobDescription'], script[type='application/ld+json'], script[id='_initialData']",
+                                                timeout=2000,
+                                            )
+                                        except Exception:
+                                            pass
                                         w_html = await worker_page.content()
                                         self._parser.enrich_with_description(r_job, w_html)
                                         if r_job.has_full_description or len(r_job.job_description or "") > 300:
@@ -708,19 +724,26 @@ class IndeedScraper:
                 jobs_needing_detail = [
                     j for j in jobs
                     if (not j.has_full_description or len(j.job_description or "") < 300) and j.job_url
-                ][:2]
+                ]
 
                 if jobs_needing_detail:
                     try:
-                        async with asyncio.timeout(10.0):
-                            semaphore = asyncio.Semaphore(2)
+                        async with asyncio.timeout(35.0):
+                            semaphore = asyncio.Semaphore(4)
 
                             async def _fetch_detail_concurrent(job_to_enrich: JobPosting) -> None:
                                 async with semaphore:
                                     detail_page = None
                                     try:
                                         detail_page = await context.new_page()
-                                        await detail_page.goto(job_to_enrich.job_url, wait_until="domcontentloaded", timeout=6000)
+                                        await detail_page.goto(job_to_enrich.job_url, wait_until="domcontentloaded", timeout=7000)
+                                        try:
+                                            await detail_page.wait_for_selector(
+                                                "#jobDescriptionText, [data-testid='jobDescription'], script[type='application/ld+json'], script[id='_initialData']",
+                                                timeout=2000,
+                                            )
+                                        except Exception:
+                                            pass
                                         await asyncio.sleep(random.uniform(0.1, 0.2))
                                         detail_html = await detail_page.content()
                                         self._parser.enrich_with_description(job_to_enrich, detail_html)

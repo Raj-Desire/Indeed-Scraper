@@ -7,6 +7,7 @@ Serves the single-page HTML application and JSON API endpoints.
 import asyncio
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
 from fastapi import APIRouter, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
@@ -302,7 +303,7 @@ async def api_get_leads(
 
 
 @router.get("/api/export/excel")
-async def api_export_excel(selected_ids: str = Query(default=None)):
+async def api_export_excel(selected_ids: Optional[str] = Query(default=None)):
     """Download clean Excel workbook. Supports filtering by selected_ids comma-separated string."""
     from app.excel.exporter import ExcelExporter
 
@@ -312,7 +313,7 @@ async def api_export_excel(selected_ids: str = Query(default=None)):
     if not leads:
         raise HTTPException(status_code=400, detail="No job leads to export. Run a search first.")
 
-    if selected_ids:
+    if selected_ids and isinstance(selected_ids, str):
         id_set = {i.strip() for i in selected_ids.split(",") if i.strip()}
         if id_set:
             leads = [j for j in leads if str(j.id) in id_set]

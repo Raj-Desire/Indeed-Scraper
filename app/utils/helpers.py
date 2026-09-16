@@ -131,6 +131,76 @@ def clean_text(text: str) -> str:
     return text.strip()
 
 
+def clean_multiline_text(text: str) -> str:
+    """
+    Clean multiline text while strictly preserving paragraphs and line breaks.
+    Normalizes unicode quotes/dashes, strips inline repeated spaces per line,
+    and collapses 3+ consecutive newlines to 2 newlines (\n\n).
+    """
+    if not text:
+        return ""
+    # Normalize unicode hyphens/dashes and quotes
+    text = text.replace("\u2013", "-").replace("\u2014", "-").replace("\u2212", "-")
+    text = text.replace("\u2018", "'").replace("\u2019", "'").replace("\u201c", '"').replace("\u201d", '"')
+    
+    # Process line by line
+    lines = []
+    for raw_line in text.splitlines():
+        cleaned_line = re.sub(r"[ \t]+", " ", raw_line).strip()
+        lines.append(cleaned_line)
+    
+    joined = "\n".join(lines)
+    joined = re.sub(r"\n{3,}", "\n\n", joined)
+    return joined.strip()
+
+
+def format_html_description(html_str: str) -> str:
+    """
+    Convert raw HTML description (from JSON-LD or API payloads) into clean structured text
+    preserving headings, paragraphs, and bullet points.
+    """
+    if not html_str:
+        return ""
+    import html as html_lib
+    s = html_lib.unescape(html_str)
+    # Convert headings
+    s = re.sub(r"<h[1-6][^>]*>(.*?)</h[1-6]>", r"\n\n### \1\n\n", s, flags=re.IGNORECASE | re.DOTALL)
+    # Convert list items
+    s = re.sub(r"<li[^>]*>(.*?)</li>", r"\n• \1", s, flags=re.IGNORECASE | re.DOTALL)
+    s = re.sub(r"<li[^>]*>", r"\n• ", s, flags=re.IGNORECASE)
+    # Convert line breaks and paragraph closings
+    s = re.sub(r"<br\s*/?>", r"\n", s, flags=re.IGNORECASE)
+    s = re.sub(r"</p>", r"\n\n", s, flags=re.IGNORECASE)
+    s = re.sub(r"</div>", r"\n", s, flags=re.IGNORECASE)
+    # Strip remaining HTML tags
+    s = re.sub(r"<[^>]+>", " ", s)
+    return clean_multiline_text(s)
+
+
+def extract_json_job_description(data: Any) -> Optional[str]:
+    """
+    Recursively search a parsed JSON dictionary or list for job description fields.
+    """
+    if not data:
+        return None
+    if isinstance(data, dict):
+        for key in ["sanitizedJobDescription", "jobDescriptionText", "jobDescription", "description"]:
+            if key in data and isinstance(data[key], str) and len(data[key].strip()) > 50:
+                return format_html_description(data[key])
+        for v in data.values():
+            if isinstance(v, (dict, list)):
+                res = extract_json_job_description(v)
+                if res and len(res) > 50:
+                    return res
+    elif isinstance(data, list):
+        for item in data:
+            if isinstance(item, (dict, list)):
+                res = extract_json_job_description(item)
+                if res and len(res) > 50:
+                    return res
+    return None
+
+
 def truncate_text(text: str, max_length: int = 500, suffix: str = "...") -> str:
     """Truncate text to max_length characters, appending suffix if truncated."""
     if len(text) <= max_length:

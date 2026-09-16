@@ -8,6 +8,7 @@ Supports full 'Opportunity Tracker' list schema (30 columns) and legacy job post
 
 from __future__ import annotations
 
+import html as _html
 from datetime import datetime, timezone
 from typing import Any, Optional
 import httpx
@@ -55,6 +56,100 @@ def _normalize_sharepoint_industry(industry: Optional[str]) -> str:
     if not industry:
         return "IT"
     return SHAREPOINT_INDUSTRY_CHOICES.get(industry.strip().upper(), "IT")
+
+
+# 'Job_x0020_Requirement', 'Matching_x0020_Reason', 'Matching_x0020_Skills' and
+# 'Missing_x0020_Skills' are all Rich Text (HTML) columns in the Opportunity Tracker
+# list. Sending plain text with '\n' line breaks or '### heading' / '* bullet' markers
+# doesn't render - HTML collapses bare whitespace and shows the literal '###'/'*'
+# characters, which is why job descriptions were showing as one run-on line with
+# stray '###' markers. These helpers build real HTML so the content renders correctly.
+
+def _html_escape(text: Any) -> str:
+    return _html.escape(str(text), quote=False)
+
+
+def _structured_text_to_html(text: Optional[str]) -> str:
+    """
+    Convert the scraper's lightweight structured text (produced by
+    _enrich_full_description: '### heading' lines, '• bullet' lines, and plain
+    paragraphs) into real HTML - headings become <h3>, consecutive bullets become one
+    <ul>, and other lines become <p> paragraphs.
+    """
+    if not text:
+        return ""
+    html_parts: list[str] = []
+    bullet_buffer: list[str] = []
+
+    def flush_bullets() -> None:
+        if bullet_buffer:
+            items = "".join(f"<li>{_html_escape(b)}</li>" for b in bullet_buffer)
+            html_parts.append(f"<ul>{items}</ul>")
+            bullet_buffer.clear()
+
+    for raw_line in str(text).splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        if line.startswith("### "):
+            flush_bullets()
+            html_parts.append(f"<h3>{_html_escape(line[4:].strip())}</h3>")
+        elif line.startswith("•"):
+            bullet_buffer.append(line.lstrip("•").strip())
+        else:
+            flush_bullets()
+            html_parts.append(f"<p>{_html_escape(line)}</p>")
+
+    flush_bullets()
+    return "".join(html_parts)
+
+
+def _text_to_html_paragraphs(text: Optional[str]) -> str:
+    """Wrap plain (possibly multi-line) text as escaped HTML paragraphs for a Rich Text column."""
+    if not text:
+        return ""
+    paragraphs = [p.strip() for p in str(text).splitlines() if p.strip()]
+    if not paragraphs:
+        return ""
+    return "".join(f"<p>{_html_escape(p)}</p>" for p in paragraphs)
+
+
+def _skills_to_html_badges(skills: Any, badge_type: str = "matched") -> str:
+    """
+    Format a list of skills or comma-separated string into HTML pill/square badges
+    that render in SharePoint Rich Text columns.
+    """
+    if not skills:
+        return ""
+    if isinstance(skills, str):
+        if "<span" in skills or "<div" in skills:
+            return skills
+        skill_list = [s.strip() for s in skills.split(",") if s.strip()]
+    elif isinstance(skills, (list, tuple, set)):
+        skill_list = [str(s).strip() for s in skills if str(s).strip()]
+    else:
+        skill_list = [str(skills).strip()]
+
+    if not skill_list:
+        return ""
+
+    if badge_type == "missing":
+        style = (
+            "box-sizing:border-box;border-width:1px;border-style:solid;border-color:rgb(254, 205, 211);"
+            "display:inline-block;border-radius:0.375rem;background-color:rgb(255, 241, 242);"
+            "padding:0.125rem 0.5rem;font-size:11px;font-weight:500;color:rgb(159, 18, 57);"
+            "font-family:Inter, sans-serif;margin:2px 4px 2px 0;"
+        )
+    else:
+        style = (
+            "box-sizing:border-box;border-width:1px;border-style:solid;border-color:rgb(167, 243, 208);"
+            "display:inline-block;border-radius:0.375rem;background-color:rgb(236, 253, 245);"
+            "padding:0.125rem 0.5rem;font-size:11px;font-weight:500;color:rgb(6, 95, 70);"
+            "font-family:Inter, sans-serif;margin:2px 4px 2px 0;"
+        )
+
+    badges = "".join(f'<span style="{style}">{_html_escape(s)}</span>' for s in skill_list)
+    return badges
 
 
 class GraphSharePointExporter:
@@ -117,24 +212,24 @@ class GraphSharePointExporter:
         if data.get("salary_range") or data.get("Salary_x0020_Range"):
             fields["Salary_x0020_Range"] = str(data.get("salary_range") or data.get("Salary_x0020_Range")).strip()
         if data.get("job_requirement") or data.get("Job_x0020_Requirement"):
-            fields["Job_x0020_Requirement"] = str(data.get("job_requirement") or data.get("Job_x0020_Requirement")).strip()
+            # Rich Text column - render as real HTML, not raw '### heading' / '\n' text.
+            fields["Job_x0020_Requirement"] = _structured_text_to_html(
+                data.get("job_requirement") or data.get("Job_x0020_Requirement")
+            )
         if data.get("matching_reason") or data.get("Matching_x0020_Reason"):
-            fields["Matching_x0020_Reason"] = str(data.get("matching_reason") or data.get("Matching_x0020_Reason")).strip()
+            # Rich Text column - wrap as HTML paragraph(s).
+            fields["Matching_x0020_Reason"] = _text_to_html_paragraphs(
+                data.get("matching_reason") or data.get("Matching_x0020_Reason")
+            )
 
-        # Matched and Missing Skills (Accepts list of str or comma-separated string)
+        # Matched and Missing Skills (Formatted as styled HTML badges/square boxes)
         matched_skills = data.get("matching_skills") or data.get("Matching_x0020_Skills")
         if matched_skills:
-            if isinstance(matched_skills, list):
-                fields["Matching_x0020_Skills"] = ", ".join([str(s).strip() for s in matched_skills if s])
-            else:
-                fields["Matching_x0020_Skills"] = str(matched_skills).strip()
+            fields["Matching_x0020_Skills"] = _skills_to_html_badges(matched_skills, badge_type="matched")
 
         missing_skills = data.get("missing_skills") or data.get("Missing_x0020_Skills")
         if missing_skills:
-            if isinstance(missing_skills, list):
-                fields["Missing_x0020_Skills"] = ", ".join([str(s).strip() for s in missing_skills if s])
-            else:
-                fields["Missing_x0020_Skills"] = str(missing_skills).strip()
+            fields["Missing_x0020_Skills"] = _skills_to_html_badges(missing_skills, badge_type="missing")
 
         # 2. Choice Fields
         if data.get("country") or data.get("Country"):
