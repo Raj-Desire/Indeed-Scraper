@@ -88,6 +88,13 @@ async def api_stop_scraper():
     return {"status": "stopped"}
 
 
+@router.get("/api/scraper/progress")
+async def api_get_scraper_progress():
+    """Return live progress snapshot for REST polling fallback."""
+    service = get_scraper_service()
+    return service.get_progress().model_dump()
+
+
 def _serialize_job(j):
     return {
         "id": str(j.id),
@@ -291,8 +298,8 @@ async def api_get_leads(
 
 
 @router.get("/api/export/excel")
-async def api_export_excel():
-    """Download clean Excel workbook. Also ensures email is dispatched to sender/recipients if not sent yet."""
+async def api_export_excel(selected_ids: str = Query(default=None)):
+    """Download clean Excel workbook. Supports filtering by selected_ids comma-separated string."""
     from app.excel.exporter import ExcelExporter
 
     service = get_scraper_service()
@@ -300,6 +307,14 @@ async def api_export_excel():
 
     if not leads:
         raise HTTPException(status_code=400, detail="No job leads to export. Run a search first.")
+
+    if selected_ids:
+        id_set = {i.strip() for i in selected_ids.split(",") if i.strip()}
+        if id_set:
+            leads = [j for j in leads if str(j.id) in id_set]
+
+    if not leads:
+        raise HTTPException(status_code=400, detail="No selected job leads match to export.")
 
     session = service.get_session()
     cfg = session.run_config if session else None
@@ -338,8 +353,53 @@ async def api_export_excel():
 
     return FileResponse(
         path=str(output_path),
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         filename=output_path.name,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+
+
+@router.post("/api/export/excel")
+async def api_export_excel_post(request: Request):
+    """Download clean Excel workbook with JSON payload containing selected_ids."""
+    from app.excel.exporter import ExcelExporter
+
+    body = {}
+    try:
+        body = await request.json()
+    except Exception:
+        pass
+
+    service = get_scraper_service()
+    leads = service.get_results()
+
+    if not leads:
+        raise HTTPException(status_code=400, detail="No job leads to export. Run a search first.")
+
+    selected_ids = body.get("selected_ids")
+    if selected_ids and isinstance(selected_ids, list):
+        id_set = {str(i) for i in selected_ids}
+        leads = [j for j in leads if str(j.id) in id_set]
+
+    if not leads:
+        raise HTTPException(status_code=400, detail="No selected job leads match to export.")
+
+    session = service.get_session()
+    cfg = session.run_config if session else None
+
+    exporter = ExcelExporter()
+    output_path = exporter.export(
+        leads,
+        output_dir=settings.output_dir,
+        query=cfg.query if cfg else "",
+        countries=cfg.countries if cfg else [],
+        fromage=cfg.fromage if cfg else "all",
+        location_type=cfg.location_type if cfg else "all",
+    )
+
+    return FileResponse(
+        path=str(output_path),
+        filename=output_path.name,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
 
 
@@ -475,16 +535,24 @@ async def api_sharepoint_batch_add_opportunity(request: Request):
 
 
 @router.post("/api/export/sharepoint")
-async def api_export_sharepoint():
-    """Upload scraped job leads directly to SharePoint List via Graph API."""
+async def api_export_sharepoint(request: Request):
+    """Upload scraped job leads directly to SharePoint List via Graph API. Supports filtering by selected_ids."""
+    body = {}
+    try:
+        body = await request.json()
+    except Exception:
+        pass
+
     service = get_scraper_service()
     leads = service.get_results()
 
     if not leads:
         raise HTTPException(status_code=400, detail="No job leads to export. Run a search first.")
 
+    selected_ids = body.get("selected_ids") if isinstance(body, dict) else None
+
     try:
-        inserted_count = await service.export_sharepoint()
+        inserted_count = await service.export_sharepoint(selected_ids=selected_ids)
         return {
             "status": "success",
             "message": f"Successfully exported {inserted_count} jobs to SharePoint List via Microsoft Graph API!",

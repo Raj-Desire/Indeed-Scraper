@@ -3,10 +3,83 @@
 let ws = null;
 let pollTimer = null;
 let allLeads = [];
+let selectedLeadIds = new Set();
 let lastEvaluatedManualLead = null;
 let stagedOpportunities = [];
 let editingStagedId = null;
 let currentEvaluatingLeadId = null;
+
+function toggleLeadSelection(leadId, isChecked) {
+    const idStr = String(leadId);
+    if (isChecked) {
+        selectedLeadIds.add(idStr);
+    } else {
+        selectedLeadIds.delete(idStr);
+    }
+    updateSelectedLeadsUI();
+}
+
+function toggleSelectAllLeads(isChecked) {
+    if (isChecked) {
+        allLeads.forEach(l => selectedLeadIds.add(String(l.id)));
+    } else {
+        selectedLeadIds.clear();
+    }
+    // Update individual checkboxes without full re-render for speed
+    document.querySelectorAll('.lead-select-cb').forEach(cb => {
+        cb.checked = isChecked;
+    });
+    updateSelectedLeadsUI();
+}
+
+function updateSelectedLeadsUI() {
+    const total = allLeads.length;
+    const selectedCount = allLeads.filter(l => selectedLeadIds.has(String(l.id))).length;
+
+    // Update select-all checkbox state
+    const selectAllCb = document.getElementById('select-all-leads');
+    if (selectAllCb) {
+        selectAllCb.checked = total > 0 && selectedCount === total;
+        selectAllCb.indeterminate = selectedCount > 0 && selectedCount < total;
+    }
+
+    // Update count badge
+    const countEl = document.getElementById('leads-count');
+    if (countEl) {
+        if (total > 0 && selectedCount < total) {
+            countEl.textContent = `${selectedCount}/${total} Selected`;
+        } else {
+            countEl.textContent = `${total}`;
+        }
+    }
+
+    // Update Download Excel and SharePoint buttons text/href
+    const navDl = document.getElementById('nav-download-btn');
+    const tblDl = document.getElementById('table-download-btn');
+    const navSp = document.getElementById('nav-sharepoint-btn');
+    const tblSp = document.getElementById('table-sharepoint-btn');
+
+    const dlText = selectedCount < total && selectedCount > 0
+        ? `Download Excel (${selectedCount})`
+        : 'Download Excel';
+    const spText = selectedCount < total && selectedCount > 0
+        ? `Sync to SharePoint (${selectedCount})`
+        : 'Sync to SharePoint';
+
+    [navDl, tblDl].forEach(btn => {
+        if (!btn) return;
+        const svg = `<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>`;
+        btn.innerHTML = `${svg} ${dlText}`;
+    });
+
+    [navSp, tblSp].forEach(btn => {
+        if (!btn) return;
+        if (!btn.disabled) {
+            const svg = `<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>`;
+            btn.innerHTML = `${svg} ${spText}`;
+        }
+    });
+}
 
 function getSelectedCountries() {
     const radios = document.querySelectorAll('input[name="country_radio"]:checked');
@@ -273,10 +346,14 @@ async function startSearch() {
         setSearchButtonState(true, 'Scraping Active...');
         setStopButtonState(false);
 
-        // Start polling for live table updates
+        // Start polling for live table and progress updates
         if (pollTimer) clearInterval(pollTimer);
         fetchLeads();
-        pollTimer = setInterval(fetchLeads, 2000);
+        fetchScraperProgress();
+        pollTimer = setInterval(() => {
+            fetchLeads();
+            fetchScraperProgress();
+        }, 1500);
 
     } catch (e) {
         isSearchRunning = false;
@@ -394,7 +471,25 @@ async function fetchLeads() {
     try {
         const res = await fetch('/api/leads');
         const data = await res.json();
-        allLeads = data.leads || [];
+        const incomingLeads = data.leads || [];
+
+        // Auto-select newly scraped leads if not already in selectedLeadIds
+        incomingLeads.forEach(l => {
+            const idStr = String(l.id);
+            if (!selectedLeadIds.has(idStr)) {
+                selectedLeadIds.add(idStr);
+            }
+        });
+
+        // Remove old IDs that no longer exist
+        const incomingIdSet = new Set(incomingLeads.map(l => String(l.id)));
+        for (const id of Array.from(selectedLeadIds)) {
+            if (!incomingIdSet.has(id)) {
+                selectedLeadIds.delete(id);
+            }
+        }
+
+        allLeads = incomingLeads;
 
         // Check if data actually changed to prevent DOM blinking
         const currentHash = JSON.stringify(allLeads.map(l => [l.id, l.match_score, l.job_title, l.company]));
@@ -404,6 +499,8 @@ async function fetchLeads() {
                 lastLeadsHash = currentHash;
                 renderTable(allLeads);
             }
+        } else {
+            updateSelectedLeadsUI();
         }
 
         // Show download, SharePoint sync, and Clear buttons if leads exist
@@ -433,10 +530,11 @@ function renderTable(leads) {
     if (!leads || leads.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="12" class="px-5 py-12 text-center text-slate-400 font-medium">
+                <td colspan="14" class="px-5 py-12 text-center text-slate-400 font-medium">
                     No leads found yet. Click <strong class="text-slate-700">"Search Jobs"</strong> above.
                 </td>
             </tr>`;
+        updateSelectedLeadsUI();
         return;
     }
 
@@ -447,7 +545,9 @@ function renderTable(leads) {
         return scoreB - scoreA;
     });
 
-    tbody.innerHTML = sortedLeads.map(l => {
+    tbody.innerHTML = sortedLeads.map((l, idx) => {
+        const isSelected = selectedLeadIds.has(String(l.id));
+        const seqNumber = idx + 1;
         const descSnippet = l.job_description ? (l.job_description.length > 80 ? l.job_description.slice(0, 80) + '...' : l.job_description) : 'No description available';
         const expText = l.experience || 'Not specified';
         const isFresher = expText.toLowerCase().includes('fresher') || expText.toLowerCase().includes('entry');
@@ -511,7 +611,16 @@ function renderTable(leads) {
         const summarySnippet = summaryText.length > 115 ? summaryText.slice(0, 115) + '...' : summaryText;
 
         return `
-        <tr class="border-b border-slate-100 hover:bg-slate-50/80 transition-colors">
+        <tr class="border-b border-slate-100 hover:bg-slate-50/80 transition-colors ${isSelected ? 'bg-white' : 'bg-slate-50/40 opacity-70'}">
+            <td class="px-3 py-3 text-center">
+                <input type="checkbox" class="lead-select-cb w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500/20 accent-blue-600 cursor-pointer"
+                    data-id="${esc(l.id)}"
+                    ${isSelected ? 'checked' : ''}
+                    onchange="toggleLeadSelection('${esc(l.id)}', this.checked)">
+            </td>
+            <td class="px-3 py-3 text-xs font-mono font-bold text-slate-400 text-center">
+                ${seqNumber}
+            </td>
             <td class="px-5 py-3 text-xs">
                 <div class="font-semibold text-slate-900">${esc(l.job_title)}</div>
                 ${l.role ? `<div class="text-[10px] text-slate-500 font-medium mt-0.5">${esc(l.role)}</div>` : ''}
@@ -563,6 +672,8 @@ function renderTable(leads) {
             </td>
         </tr>`;
     }).join('');
+
+    updateSelectedLeadsUI();
 }
 
 function openDescriptionModal(jobId) {
@@ -665,116 +776,211 @@ function filterTable() {
     renderTable(filtered);
 }
 
-function connectWebSocket() {
-    ws = new WebSocket(`ws://${location.host}/ws/progress`);
-    ws.onopen = () => console.log('WebSocket connected');
-    ws.onclose = () => setTimeout(connectWebSocket, 3000);
+function updateProgressUI(p) {
+    if (!p) return;
 
-    ws.onmessage = (e) => {
-        const p = JSON.parse(e.data);
+    const statusDot = document.getElementById('status-dot');
+    const statusText = document.getElementById('status-text');
+    const bar = document.getElementById('progress-bar');
+    const pctEl = document.getElementById('progress-pct');
+    const jobsFoundEl = document.getElementById('jobs-found');
+    const logText = document.getElementById('log-text');
 
-        const statusDot = document.getElementById('status-dot');
-        const statusText = document.getElementById('status-text');
-        const bar = document.getElementById('progress-bar');
-        const pctEl = document.getElementById('progress-pct');
-        const jobsFoundEl = document.getElementById('jobs-found');
-        const logText = document.getElementById('log-text');
+    let latestLog = '';
+    if (p.log_messages && p.log_messages.length > 0) {
+        latestLog = p.log_messages[p.log_messages.length - 1];
+        if (logText) logText.textContent = latestLog;
+    }
 
-        let latestLog = '';
-        if (p.log_messages && p.log_messages.length > 0) {
-            latestLog = p.log_messages[p.log_messages.length - 1];
-            if (logText) logText.textContent = latestLog;
+    const isCooldown = p.status === 'running' && (
+        latestLog.includes('Cooldown') ||
+        latestLog.includes('cooldown') ||
+        latestLog.includes('Pausing') ||
+        latestLog.includes('retrying in')
+    );
+
+    if (statusDot) {
+        const colors = { running: 'bg-emerald-500 animate-pulse', idle: 'bg-slate-400', completed: 'bg-blue-600', error: 'bg-red-500' };
+        if (isCooldown) {
+            statusDot.className = 'w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse';
+        } else {
+            statusDot.className = `w-2.5 h-2.5 rounded-full ${colors[p.status] || 'bg-slate-400'}`;
         }
+    }
 
-        const isCooldown = p.status === 'running' && (
-            latestLog.includes('Cooldown') ||
-            latestLog.includes('cooldown') ||
-            latestLog.includes('Pausing') ||
-            latestLog.includes('retrying in')
-        );
-
-        if (statusDot) {
-            const colors = { running: 'bg-emerald-500 animate-pulse', idle: 'bg-slate-400', completed: 'bg-blue-600', error: 'bg-red-500' };
-            if (isCooldown) {
-                statusDot.className = 'w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse';
-            } else {
-                statusDot.className = `w-2.5 h-2.5 rounded-full ${colors[p.status] || 'bg-slate-400'}`;
-            }
+    if (statusText) {
+        if (isCooldown) {
+            statusText.textContent = 'Anti-Bot Cooldown (60s)';
+        } else if (p.status === 'running') {
+            const kwStr = p.current_keyword ? ` • "${p.current_keyword}"` : '';
+            statusText.textContent = `Running (${p.current_country || 'US'}${kwStr})`;
+        } else {
+            statusText.textContent = p.status ? p.status.charAt(0).toUpperCase() + p.status.slice(1) : 'Idle';
         }
+    }
 
-        if (statusText) {
-            if (isCooldown) {
-                statusText.textContent = 'Anti-Bot Cooldown (60s)';
-            } else if (p.status === 'running') {
-                const kwStr = p.current_keyword ? ` • "${p.current_keyword}"` : '';
-                statusText.textContent = `Running (${p.current_country || 'US'}${kwStr})`;
-            } else {
-                statusText.textContent = p.status ? p.status.charAt(0).toUpperCase() + p.status.slice(1) : 'Idle';
-            }
-        }
+    // Calculate progress percentage with fallbacks
+    let pct = 0;
+    if (p.status === 'completed') {
+        pct = 100;
+    } else if (p.progress_percent !== undefined && p.progress_percent !== null) {
+        pct = p.progress_percent;
+    } else if (p.max_pages > 0 && p.current_page > 0) {
+        pct = Math.min(99, Math.round(((p.current_page - 0.5) / p.max_pages) * 100));
+    }
 
-        // Calculate progress percentage with fallbacks
-        let pct = 0;
-        if (p.status === 'completed') {
-            pct = 100;
-        } else if (p.progress_percent !== undefined && p.progress_percent !== null) {
-            pct = p.progress_percent;
-        } else if (p.max_pages > 0 && p.current_page > 0) {
-            pct = Math.min(99, Math.round(((p.current_page - 0.5) / p.max_pages) * 100));
-        }
-
-        if (bar) {
-            bar.style.width = `${pct}%`;
-            if (p.status === 'running') {
-                bar.classList.add('animate-pulse');
-            } else {
-                bar.classList.remove('animate-pulse');
-            }
-        }
-        if (pctEl) pctEl.textContent = `${pct.toFixed(0)}%`;
-        if (jobsFoundEl) jobsFoundEl.textContent = p.jobs_found || 0;
-
+    if (bar) {
+        bar.style.width = `${pct}%`;
         if (p.status === 'running') {
-            isSearchRunning = true;
-            setSearchButtonState(true, 'Scraping Running...');
-            setStopButtonState(false);
-            const searchStatusEl = document.getElementById('search-status');
-            if (searchStatusEl) {
-                if (isCooldown) {
-                    searchStatusEl.textContent = `Status: ${latestLog}`;
-                } else if (latestLog.includes('Starting Country')) {
-                    searchStatusEl.textContent = `Status: ${latestLog.replace(/---/g, '').trim()}`;
-                }
+            bar.classList.add('animate-pulse');
+        } else {
+            bar.classList.remove('animate-pulse');
+        }
+    }
+    if (pctEl) pctEl.textContent = `${pct.toFixed(0)}%`;
+    if (jobsFoundEl) jobsFoundEl.textContent = p.jobs_found || 0;
+
+    if (p.status === 'running') {
+        isSearchRunning = true;
+        setSearchButtonState(true, 'Scraping Running...');
+        setStopButtonState(false);
+        const searchStatusEl = document.getElementById('search-status');
+        if (searchStatusEl) {
+            if (isCooldown) {
+                searchStatusEl.textContent = `Status: ${latestLog}`;
+            } else if (latestLog.includes('Starting Country')) {
+                searchStatusEl.textContent = `Status: ${latestLog.replace(/---/g, '').trim()}`;
             }
+        }
+    }
+
+    if (p.status === 'completed' || p.status === 'idle' || p.status === 'stopped' || p.status === 'error') {
+        isSearchRunning = false;
+        if (pollTimer) {
+            clearInterval(pollTimer);
+            pollTimer = null;
+        }
+        fetchLeads(); // Final update
+        setSearchButtonState(false);
+        setStopButtonState(true);
+        if (p.status === 'completed') {
+            document.getElementById('search-status').textContent = 'Status: Search Completed';
+        } else if (p.status === 'stopped') {
+            document.getElementById('search-status').textContent = 'Status: Search Stopped';
+        } else if (p.status === 'error') {
+            const count = p.jobs_found || 0;
+            document.getElementById('search-status').textContent = count > 0
+                ? `Status: Run Halted (${count} leads secured & exported)`
+                : (p.last_error ? `Status: Halted (${p.last_error})` : 'Status: Search Halted');
+        }
+    }
+}
+
+async function fetchScraperProgress() {
+    try {
+        const res = await fetch('/api/scraper/progress');
+        if (res.ok) {
+            const p = await res.json();
+            updateProgressUI(p);
+        }
+    } catch (e) {
+        console.warn('Fallback progress fetch error:', e);
+    }
+}
+
+function connectWebSocket() {
+    const wsProto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    try {
+        ws = new WebSocket(`${wsProto}//${location.host}/ws/progress`);
+        ws.onopen = () => console.log('WebSocket connected');
+        ws.onclose = () => setTimeout(connectWebSocket, 3000);
+        ws.onerror = () => console.warn('WebSocket error, falling back to REST progress');
+        ws.onmessage = (e) => {
+            try {
+                const p = JSON.parse(e.data);
+                updateProgressUI(p);
+            } catch (err) {
+                console.error('Failed to parse WebSocket progress payload:', err);
+            }
+        };
+    } catch (err) {
+        console.warn('WebSocket connection init failed:', err);
+        setTimeout(connectWebSocket, 3000);
+    }
+}
+
+
+async function exportExcel(event) {
+    if (event) event.preventDefault();
+
+    const selectedIdsArray = Array.from(selectedLeadIds);
+    if (allLeads.length > 0 && selectedIdsArray.length === 0) {
+        showAlertModal('No Leads Selected', 'Please select at least one lead from the table to export.', 'warning');
+        return;
+    }
+
+    const btns = [
+        document.getElementById('nav-download-btn'),
+        document.getElementById('table-download-btn')
+    ].filter(Boolean);
+
+    btns.forEach(b => {
+        b.classList.add('pointer-events-none', 'opacity-75');
+    });
+
+    try {
+        const payload = selectedIdsArray.length < allLeads.length
+            ? { selected_ids: selectedIdsArray }
+            : {};
+
+        const res = await fetch('/api/export/excel', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            showAlertModal('Export Error', errData.detail || 'Failed to generate Excel file.', 'error');
+            return;
         }
 
-        if (p.status === 'completed' || p.status === 'idle' || p.status === 'stopped' || p.status === 'error') {
-            isSearchRunning = false;
-            if (pollTimer) {
-                clearInterval(pollTimer);
-                pollTimer = null;
-            }
-            fetchLeads(); // Final update
-            setSearchButtonState(false);
-            setStopButtonState(true);
-            if (p.status === 'completed') {
-                document.getElementById('search-status').textContent = 'Status: Search Completed';
-            } else if (p.status === 'stopped') {
-                document.getElementById('search-status').textContent = 'Status: Search Stopped';
-            } else if (p.status === 'error') {
-                const count = p.jobs_found || 0;
-                document.getElementById('search-status').textContent = count > 0
-                    ? `Status: Run Halted (${count} leads secured & exported)`
-                    : (p.last_error ? `Status: Halted (${p.last_error})` : 'Status: Search Halted');
-            }
+        const blob = await res.blob();
+        const disposition = res.headers.get('Content-Disposition') || '';
+        let filename = 'indeed_leads.xlsx';
+        const match = disposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+        if (match && match[1]) {
+            filename = match[1].replace(/['"]/g, '');
         }
-    };
+
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        a.remove();
+    } catch (e) {
+        showAlertModal('Network Error', e.message, 'error');
+    } finally {
+        btns.forEach(b => {
+            b.classList.remove('pointer-events-none', 'opacity-75');
+        });
+    }
 }
 
 async function exportSharePoint() {
     // If currently in Manual Evaluator mode, route directly to the unified queue sync
     if (currentAppMode === 'manual') {
         return await syncAllStagedToSharePoint();
+    }
+
+    const selectedIdsArray = Array.from(selectedLeadIds);
+    if (allLeads.length > 0 && selectedIdsArray.length === 0) {
+        showAlertModal('No Leads Selected', 'Please select at least one lead from the table to sync to SharePoint.', 'warning');
+        return;
     }
 
     const btns = [
@@ -788,7 +994,15 @@ async function exportSharePoint() {
     });
 
     try {
-        const res = await fetch('/api/export/sharepoint', { method: 'POST' });
+        const payload = selectedIdsArray.length < allLeads.length
+            ? { selected_ids: selectedIdsArray }
+            : {};
+
+        const res = await fetch('/api/export/sharepoint', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
         const data = await res.json();
         if (res.ok) {
             showAlertModal('SharePoint Sync Complete', data.message || 'Successfully synced leads to SharePoint!', 'success');
@@ -800,8 +1014,8 @@ async function exportSharePoint() {
     } finally {
         btns.forEach(b => {
             b.disabled = false;
-            b.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg> Sync to SharePoint`;
         });
+        updateSelectedLeadsUI();
     }
 }
 
@@ -2141,7 +2355,10 @@ window.handleKeywordInputKey = handleKeywordInputKey;
 window.startSearch = startSearch;
 window.stopSearch = stopSearch;
 window.filterTable = filterTable;
+window.exportExcel = exportExcel;
 window.exportSharePoint = exportSharePoint;
+window.toggleLeadSelection = toggleLeadSelection;
+window.toggleSelectAllLeads = toggleSelectAllLeads;
 window.openDescriptionModal = openDescriptionModal;
 window.closeDescriptionModal = closeDescriptionModal;
 

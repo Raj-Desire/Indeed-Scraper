@@ -100,7 +100,7 @@ class ExcelExporter:
         # ---------------------------------------------------------------------
         # Row 1: Executive Title Banner
         # ---------------------------------------------------------------------
-        ws.merge_cells("A1:N1")
+        ws.merge_cells("A1:O1")
         banner = ws.cell(row=1, column=1, value="🎯 INDEED JOB SOURCING REPORT")
         banner.font = Font(name="Calibri", size=13, bold=True, color="FFFFFF")
         banner.fill = PatternFill(start_color="1E3A8A", end_color="1E3A8A", fill_type="solid")
@@ -110,7 +110,7 @@ class ExcelExporter:
         # ---------------------------------------------------------------------
         # Row 2: Search Parameters Card Header
         # ---------------------------------------------------------------------
-        ws.merge_cells("A2:N2")
+        ws.merge_cells("A2:O2")
         param_hdr = ws.cell(row=2, column=1, value="🔍 SEARCH PARAMETERS & SELECTED FILTERS")
         param_hdr.font = Font(name="Calibri", size=10, bold=True, color="1E293B")
         param_hdr.fill = PatternFill(start_color="E2E8F0", end_color="E2E8F0", fill_type="solid")
@@ -139,11 +139,11 @@ class ExcelExporter:
         d_lbl.alignment = Alignment(horizontal="left", vertical="center", indent=1)
         d_lbl.border = card_border
 
-        ws.merge_cells("G3:N3")
+        ws.merge_cells("G3:O3")
         d_val = ws.cell(row=3, column=7, value=fromage_display)
         d_val.font = Font(name="Calibri", size=10, bold=True, color="0F172A")
         d_val.alignment = Alignment(horizontal="left", vertical="center")
-        for col in range(7, 15):
+        for col in range(7, 16):
             ws.cell(row=3, column=col).border = card_border
         ws.row_dimensions[3].height = 20
 
@@ -169,11 +169,11 @@ class ExcelExporter:
         l_lbl.alignment = Alignment(horizontal="left", vertical="center", indent=1)
         l_lbl.border = card_border
 
-        ws.merge_cells("G4:N4")
+        ws.merge_cells("G4:O4")
         l_val = ws.cell(row=4, column=7, value=location_display)
         l_val.font = Font(name="Calibri", size=10, bold=True, color="0F172A")
         l_val.alignment = Alignment(horizontal="left", vertical="center")
-        for col in range(7, 15):
+        for col in range(7, 16):
             ws.cell(row=4, column=col).border = card_border
         ws.row_dimensions[4].height = 20
 
@@ -199,11 +199,11 @@ class ExcelExporter:
         lead_lbl.alignment = Alignment(horizontal="left", vertical="center", indent=1)
         lead_lbl.border = card_border
 
-        ws.merge_cells("G5:N5")
+        ws.merge_cells("G5:O5")
         lead_val = ws.cell(row=5, column=7, value=f"{len(jobs)} leads captured")
         lead_val.font = Font(name="Calibri", size=9, bold=True, color="15803D")
         lead_val.alignment = Alignment(horizontal="left", vertical="center")
-        for col in range(7, 15):
+        for col in range(7, 16):
             ws.cell(row=5, column=col).border = card_border
         ws.row_dimensions[5].height = 20
 
@@ -214,6 +214,7 @@ class ExcelExporter:
         # Row 7: Data Table Headers
         # ---------------------------------------------------------------------
         headers = [
+            "#",
             "Job Title",
             "Company",
             "Country",
@@ -255,8 +256,9 @@ class ExcelExporter:
             bottom=Side(style="thin", color="D3D3D3"),
         )
 
-        for row_idx, job in enumerate(jobs, start=header_row_idx + 1):
+        for seq_idx, (row_idx, job) in enumerate(enumerate(jobs, start=header_row_idx + 1), start=1):
             row_values = [
+                seq_idx,
                 job.job_title,
                 job.company,
                 job.country,
@@ -278,7 +280,10 @@ class ExcelExporter:
                 cell.border = table_border
                 cell.font = row_font
 
-                if col_idx == 14 and str(val).startswith("http"):  # Job URL hyperlink
+                if col_idx == 1:  # Index column centered
+                    cell.alignment = Alignment(horizontal="center", vertical="center")
+                    cell.value = val
+                elif col_idx == 15 and str(val).startswith("http"):  # Job URL hyperlink
                     cell.value = "View on Indeed"
                     cell.hyperlink = str(val)
                     cell.font = link_font

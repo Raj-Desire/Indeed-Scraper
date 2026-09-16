@@ -57,6 +57,8 @@ def test_export_includes_match_columns_and_url_hyperlink():
     # Locate table headers row (row 7)
     header_row_idx = 7
     headers = [cell.value for cell in ws[header_row_idx]]
+    assert headers[0] == "#"
+    assert "Job Title" in headers
     assert "Match Score" in headers
     assert "Matched Skills" in headers
     assert "Missing Skills" in headers
@@ -64,6 +66,8 @@ def test_export_includes_match_columns_and_url_hyperlink():
     assert "Job URL" in headers
 
     data_row_idx = header_row_idx + 1
+    assert ws.cell(row=data_row_idx, column=1).value == 1
+
     url_col = headers.index("Job URL") + 1
     url_cell = ws.cell(row=data_row_idx, column=url_col)
     assert url_cell.hyperlink.target == "https://www.indeed.com/viewjob?jk=abc123"
