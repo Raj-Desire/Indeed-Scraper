@@ -8,7 +8,7 @@ used across multiple modules.
 import re
 import hashlib
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Optional, Any
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 
 from app.utils.logger import logger

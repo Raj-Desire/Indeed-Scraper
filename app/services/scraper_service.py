@@ -135,10 +135,18 @@ class ScraperService:
         salary_range: str = "Not listed",
         experience: str = "Not specified",
         remote_type_str: str = "Remote",
+        skip_match: bool = False,
     ) -> JobPosting:
         """
         Manually evaluate a single job description with AI knowledge-base matching
         and store it in results for direct UI display and Excel export.
+
+        Args:
+            skip_match: When True, skip this method's own internal KB-match call.
+                Set this when the caller has already computed match_score/matched_skills/
+                missing_skills/match_reason via a consolidated single LLM call (e.g. the
+                manual-evaluate endpoint) and will set those fields on the returned
+                JobPosting itself - avoids a second, redundant KB search + LLM call.
         """
         from app.models.job import RemoteType
         
@@ -167,6 +175,9 @@ class ScraperService:
             posted_date=datetime.now(tz=IST),
         )
 
+        if skip_match:
+            return self._store_manual_job(job)
+
         if self._match_service is None and self._settings.enable_kb_matching:
             self._match_service = MatchService()
 
@@ -178,6 +189,10 @@ class ScraperService:
             except Exception as match_err:
                 logger.error("Error evaluating manual job '{}': {}", job.job_title, match_err)
 
+        return self._store_manual_job(job)
+
+    def _store_manual_job(self, job: JobPosting) -> JobPosting:
+        """Insert a manually-created job into results and refresh session/progress metadata."""
         # Prepend to results so newly added job appears at top
         self._results.insert(0, job)
 

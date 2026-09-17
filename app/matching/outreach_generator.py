@@ -33,7 +33,7 @@ from app.config.constants import (
     OUTREACH_TEAM_SIZE,
     OUTREACH_TONE_GUIDELINES,
 )
-from app.matching.llm_matcher import LLMMatcher
+from app.matching.llm_matcher import LLMMatcher, get_llm_matcher
 from app.utils.logger import logger
 
 
@@ -110,7 +110,7 @@ def _extract_json(text: str) -> dict[str, Any]:
             return {}
 
 
-def _build_email_body(
+def build_email_body(
     contact_name: str,
     opening_line: str,
     alignment_paragraph: str,
@@ -174,11 +174,16 @@ async def generate_outreach(
 
     Args:
         matcher: Optional pre-built LLMMatcher (reuses its client/deployment), for tests
-            or to share a single matcher instance across calls. Defaults to a fresh LLMMatcher().
+            or to share a single matcher instance across calls. Defaults to the shared
+            cached matcher (get_llm_matcher()), so this doesn't pay a fresh client
+            cold-start on every call.
     """
-    empty_result = {"email_subject": "", "email_body": "", "linkedin_variants": []}
+    empty_result = {
+        "email_subject": "", "email_body": "", "linkedin_variants": [],
+        "opening_line": "", "alignment_paragraph": "",
+    }
 
-    matcher = matcher or LLMMatcher()
+    matcher = matcher or get_llm_matcher()
     if not matcher._enabled or not matcher._client:
         logger.warning("Outreach generation skipped: LLM not configured")
         return empty_result
@@ -217,12 +222,18 @@ async def generate_outreach(
         if not subject and not opening_line and not alignment_paragraph and not variants:
             return empty_result
 
-        body = _build_email_body(contact_name, opening_line, alignment_paragraph, matched_skills)
+        body = build_email_body(contact_name, opening_line, alignment_paragraph, matched_skills)
 
         return {
             "email_subject": subject or f"Supporting your {job_title or 'open role'} requirement - {OUTREACH_SENDER_COMPANY}",
             "email_body": body,
             "linkedin_variants": variants,
+            # Raw connective sentences, exposed so a caller that computes matched_skills
+            # concurrently (e.g. running this alongside JD extraction+scoring via
+            # asyncio.gather) can rebuild email_body with the accurate final skill
+            # list instead of whatever (possibly empty) matched_skills this call had.
+            "opening_line": opening_line,
+            "alignment_paragraph": alignment_paragraph,
         }
     except Exception as exc:
         logger.error("Outreach generation failed: {}", exc)

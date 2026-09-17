@@ -56,8 +56,8 @@ async def parse_job_description_with_ai(text: str, kb_chunks: Optional[list] = N
 
     # 1. Try LLM extraction if LLMMatcher is active
     try:
-        from app.matching.llm_matcher import LLMMatcher
-        matcher = LLMMatcher()
+        from app.matching.llm_matcher import get_llm_matcher
+        matcher = get_llm_matcher()
         if matcher._enabled and matcher._client:
             extracted_ai = await _extract_with_llm(matcher, raw, kb_chunks)
             if extracted_ai and extracted_ai.get("title"):

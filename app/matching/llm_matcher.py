@@ -151,15 +151,9 @@ class LLMMatcher:
         # --- Token & Quality Optimization ---
         # 1. Clean job description (first 2,000 chars covers core role and requirements)
         cleaned_jd = job_description.strip()[:2000] if job_description else ""
-        
+
         # 2. Extract rich snippet excerpts from chunks (up to 450 chars) so full technical context is preserved
-        compact_chunks = []
-        for c in (kb_chunks or []):
-            snippet = (c.chunk or "").strip()[:450].replace("\n", " ")
-            if snippet:
-                compact_chunks.append(f"- {snippet}")
-        
-        context = "\n".join(compact_chunks) or "No company knowledge retrieved."
+        context = build_kb_context(kb_chunks)
         user_prompt = (
             f"You are matching a candidate company against a job posting.\n\n"
             f"COMPANY CAPABILITIES:\n{context}\n\n"
@@ -286,207 +280,9 @@ class LLMMatcher:
             reason = str(payload.get("match_reason", "")).strip()
             job_summary = str(payload.get("job_summary", "")).strip()
 
-            # --- Fully Dynamic Semantic & Substring Reconciliation ---
-            # Automatically verifies any skill phrase against the retrieved knowledge context.
-            # No hardcoded skills: works dynamically for ANY new service added to the knowledge base in the future.
-            context_lower = " " + re.sub(r"[^\w\s]", " ", context.lower()) + " "
-            cleaned_missing = []
-            
-            # Common stop words to ignore when checking multi-word phrases
-            stopwords = {"experience", "with", "and", "or", "in", "for", "the", "a", "an", "of", "to", "strong", "knowledge", "skills", "using", "hands-on"}
-
-            for skill in missing_list:
-                s_clean = skill.strip()
-                tokens = [t.lower() for t in re.findall(r"\b[\w\+\#\.\-]+\b", s_clean) if t.lower() not in stopwords and len(t) > 1]
-                
-                # Check if significant terms appear in retrieved context
-                is_present_in_context = False
-                if tokens:
-                    # Whole-word match is always safe. The raw substring fallback is only
-                    # applied to tokens of 4+ chars - shorter tokens (e.g. "go", "ai") false-
-                    # match inside unrelated words ("ongoing", "algorithm"), which would
-                    # falsely promote a missing skill to matched and inflate match_score.
-                    significant_matches = [
-                        t for t in tokens
-                        if f" {t} " in context_lower or (len(t) >= 4 and t in context_lower)
-                    ]
-                    if len(significant_matches) >= 1 and (len(significant_matches) / len(tokens) >= 0.5 or len(tokens) == 1):
-                        is_present_in_context = True
-
-                if is_present_in_context:
-                    if skill not in matched_list:
-                        matched_list.append(skill)
-                else:
-                    cleaned_missing.append(skill)
-
-            # --- Dynamic Knowledge-Base Direct Extraction Fallback ---
-            # If the LLM returned empty skills (e.g. rate limit exhaustion or output truncation),
-            # extract real technical requirements and frameworks from the job and evaluate against KB context.
-            if not matched_list and not cleaned_missing and context != "No company knowledge retrieved.":
-                TECH_SKILL_PATTERNS = [
-                    # AI, ML, RL, Robotics & Vision concepts
-                    (r"\breinforcement\s+learning\b", "Reinforcement Learning"),
-                    (r"\bimitation\s+learning\b", "Imitation Learning"),
-                    (r"\bdeep\s+learning\b", "Deep Learning"),
-                    (r"\bmachine\s+learning\b", "Machine Learning"),
-                    (r"\bcomputer\s+vision\b", "Computer Vision"),
-                    (r"\bnatural\s+language\s+processing\b", "Natural Language Processing"),
-                    (r"\blarge\s+language\s+models?\b", "LLMs"),
-                    # Frameworks, simulators & robotics
-                    (r"\bIsaacGym\b", "IsaacGym"),
-                    (r"\bIsaacLab\b", "IsaacLab"),
-                    (r"\bMuJoCo\b", "MuJoCo"),
-                    (r"\bPyTorch\b", "PyTorch"),
-                    (r"\bTensorFlow\b", "TensorFlow"),
-                    (r"\bKeras\b", "Keras"),
-                    (r"\bJAX\b", "JAX"),
-                    (r"\bScikit-learn\b", "Scikit-learn"),
-                    (r"\bPandas\b", "Pandas"),
-                    (r"\bNumPy\b", "NumPy"),
-                    (r"\bOpenCV\b", "OpenCV"),
-                    (r"\bROS\b", "ROS"),
-                    (r"\bGymnasium\b", "Gymnasium"),
-                    (r"\b(?:robotics|robots)\b", "Robotics"),
-                    # Languages, runtimes & system tools
-                    (r"\bPython\b", "Python"),
-                    (r"\bC\+\+\b", "C++"),
-                    (r"\bRust\b", "Rust"),
-                    (r"\bJava\b", "Java"),
-                    (r"\bGo\b", "Go"),
-                    (r"\bSQL\b", "SQL"),
-                    (r"\bCUDA\b", "CUDA"),
-                    (r"\bLinux\b", "Linux"),
-                    (r"\bDocker\b", "Docker"),
-                    (r"\bKubernetes\b", "Kubernetes"),
-                    (r"\bBash\b", "Bash"),
-                    # Cloud, Microsoft & enterprise platforms
-                    (r"\bAzure\s+OpenAI\b", "Azure OpenAI"),
-                    (r"\bAzure\s+(?:AD|DevOps|Entra\s+ID)?\b", "Azure"),
-                    (r"\bAWS\b", "AWS"),
-                    (r"\bGCP\b", "GCP"),
-                    (r"\bSharePoint\b", "SharePoint"),
-                    (r"\bDynamics\s+365\b", "Dynamics 365"),
-                    (r"\bPower\s+BI\b", "Power BI"),
-                    (r"\bPower\s+(?:Apps|Platform)\b", "Power Platform"),
-                    (r"\b(?:M365|Microsoft\s+365)\b", "Microsoft 365"),
-                    # Identity & protocols
-                    (r"\b(?:SSO|SAML|OAuth|IAM|Entra\s+ID|Active\s+Directory|Okta)\b", "Identity & Access Management"),
-                ]
-
-                # Acronym mapping to prevent duplicates (e.g. RL -> Reinforcement Learning, ML -> Machine Learning)
-                ACRONYM_MAP = {
-                    "RL": "Reinforcement Learning",
-                    "ML": "Machine Learning",
-                    "DL": "Deep Learning",
-                    "CV": "Computer Vision",
-                    "NLP": "Natural Language Processing",
-                    "LLM": "LLMs",
-                    "LLMS": "LLMs",
-                    "AI": "AI",
-                }
-
-                identified_skills = []
-                for pattern, canonical in TECH_SKILL_PATTERNS:
-                    if re.search(pattern, cleaned_jd, re.IGNORECASE):
-                        if canonical not in identified_skills:
-                            identified_skills.append(canonical)
-
-                # Also capture capitalized tech acronyms
-                common_stop = {
-                    "AN", "OR", "IN", "TO", "WE", "AS", "DO", "IF", "US", "THE", "AND", "WITH", "NOT",
-                    "OUR", "WHAT", "THIS", "RUN", "CAN", "GET", "THAT", "FULL", "REAL", "BY", "FOR", "AT", "BE", "JD", "HR"
-                }
-                for acr in re.findall(r"\b[A-Z]{2,6}\b", cleaned_jd):
-                    if acr in common_stop:
-                        continue
-                    canonical = ACRONYM_MAP.get(acr, acr)
-                    if canonical not in identified_skills:
-                        identified_skills.append(canonical)
-
-                for skill in identified_skills:
-                    s_low = skill.lower()
-                    # Check against knowledge base context tokens
-                    if f" {s_low} " in context_lower or s_low in context_lower:
-                        if skill not in matched_list:
-                            matched_list.append(skill)
-                    else:
-                        if skill not in cleaned_missing:
-                            cleaned_missing.append(skill)
-
-            # --- Post-Processing Deduplication & Normalization ---
-            # Clean both matched_list and cleaned_missing to remove redundant/generic terms and duplicates
-            GENERIC_NOISE = {"hardware", "real systems", "simulators", "robots", "system", "systems", "policies"}
-            
-            def clean_and_dedup(skill_items):
-                result = []
-                for item in skill_items:
-                    name = str(item).strip()
-                    if not name or name.lower() in GENERIC_NOISE:
-                        continue
-                    # Normalize plural or acronym overlaps
-                    if name.lower() in ("rl", "reinforcement learning"):
-                        name = "Reinforcement Learning"
-                    elif name.lower() in ("ml", "machine learning"):
-                        name = "Machine Learning"
-                    elif name.lower() in ("robots", "robotics"):
-                        name = "Robotics"
-                    elif name.lower() in ("llm", "llms", "large language models"):
-                        name = "LLMs"
-                    
-                    if not any(name.lower() == existing.lower() for existing in result):
-                        result.append(name)
-                return result
-
-            matched_list = clean_and_dedup(matched_list)
-            cleaned_missing = clean_and_dedup(cleaned_missing)
-
-            # Ensure an item isn't simultaneously in matched and missing
-            cleaned_missing = [s for s in cleaned_missing if not any(s.lower() == m.lower() for m in matched_list)]
-
-            # If company KB has AI/ML capabilities (e.g. Computer Vision, Azure OpenAI, Machine Learning, DeepStream)
-            # and job requires AI or Machine Learning, match it accurately.
-            kb_has_ai = any(kw in context_lower for kw in (" ai ", "artificial intelligence", "machine learning", "computer vision", "deepstream", "azure openai", "model"))
-            if kb_has_ai:
-                if "Machine Learning" in cleaned_missing:
-                    cleaned_missing.remove("Machine Learning")
-                    if "Machine Learning" not in matched_list:
-                        matched_list.append("Machine Learning")
-                if "AI" in cleaned_missing:
-                    cleaned_missing.remove("AI")
-                    if "AI" not in matched_list:
-                        matched_list.append("AI")
-                elif "AI" not in matched_list and any(m in matched_list for m in ("Computer Vision", "Azure OpenAI", "Machine Learning")):
-                    matched_list.append("AI")
-
-            # Coverage-ratio score from the FINAL matched/missing lists, i.e. after all
-            # reconciliation above. Reconciliation only ever moves a skill from "missing"
-            # to "matched" (never the reverse), so this ratio can only imply a score
-            # greater than or equal to what the LLM saw before reconciliation.
-            total_skills = len(matched_list) + len(cleaned_missing)
-            if total_skills > 0:
-                if len(cleaned_missing) == 0 and len(matched_list) > 0:
-                    ratio_score = 100
-                else:
-                    ratio_score = int(round((len(matched_list) / total_skills) * 100))
-            else:
-                ratio_score = 0
-
-            raw_score = payload.get("match_score")
-            if raw_score is not None:
-                # Never let reconciliation lower the LLM's own judgement - only correct
-                # the score upward when the final skills lists show better coverage than
-                # the LLM's raw score reflected.
-                score = max(int(raw_score), ratio_score)
-            else:
-                score = ratio_score
-
-            if not reason or reason == "Evaluated by LLM":
-                if len(matched_list) > 0 and len(cleaned_missing) == 0:
-                    reason = f"Excellent 100% fit with proven company capabilities in {', '.join(matched_list[:3])}."
-                elif len(matched_list) > 0:
-                    reason = f"Strong alignment in {', '.join(matched_list[:3])}; gaps identified in {', '.join(cleaned_missing[:2])}."
-                else:
-                    reason = "No direct company capabilities found matching this role requirements."
+            matched_list, cleaned_missing, score, reason = reconcile_skills_and_score(
+                matched_list, missing_list, payload.get("match_score"), context, cleaned_jd, reason
+            )
 
             return MatchResult(
                 match_score=score,
@@ -505,4 +301,250 @@ class LLMMatcher:
                 await self._client.close()
             except Exception as exc:
                 logger.error("Error closing LLM client: {}", exc)
+
+
+def build_kb_context(kb_chunks: Optional[list[RetrievedChunk]]) -> str:
+    """
+    Format retrieved KB chunks into the compact '- snippet' context string used
+    both as LLM prompt input and as the reconciliation text in
+    reconcile_skills_and_score(). Shared so every caller builds this identically.
+    """
+    compact_chunks = []
+    for c in (kb_chunks or []):
+        snippet = (getattr(c, "chunk", "") or "").strip()[:450].replace("\n", " ")
+        if snippet:
+            compact_chunks.append(f"- {snippet}")
+    return "\n".join(compact_chunks) or "No company knowledge retrieved."
+
+
+_llm_matcher: Optional["LLMMatcher"] = None
+
+
+def get_llm_matcher() -> "LLMMatcher":
+    """Shared LLMMatcher instance, so repeated calls (JD extraction, outreach
+    generation, etc.) reuse the same warm API client instead of paying a fresh
+    TLS handshake / connection-pool cold-start on every request."""
+    global _llm_matcher
+    if _llm_matcher is None:
+        _llm_matcher = LLMMatcher()
+    return _llm_matcher
+
+
+def reconcile_skills_and_score(
+    matched_list: list[str],
+    missing_list: list[str],
+    raw_score: Optional[int],
+    context: str,
+    cleaned_jd: str,
+    reason: str,
+) -> tuple[list[str], list[str], int, str]:
+    """
+    Shared skill-reconciliation + score-consistency logic, used by both
+    LLMMatcher.evaluate() (bulk/scraper scoring) and the consolidated single-call
+    manual-evaluate path, so both pipelines apply the exact same accuracy
+    safeguards and never drift apart in behavior.
+    """
+    import re
+
+    # Automatically verifies any skill phrase against the retrieved knowledge context.
+    # No hardcoded skills: works dynamically for ANY new service added to the knowledge base in the future.
+    context_lower = " " + re.sub(r"[^\w\s]", " ", context.lower()) + " "
+    cleaned_missing = []
+
+    # Common stop words to ignore when checking multi-word phrases
+    stopwords = {"experience", "with", "and", "or", "in", "for", "the", "a", "an", "of", "to", "strong", "knowledge", "skills", "using", "hands-on"}
+
+    for skill in missing_list:
+        s_clean = skill.strip()
+        tokens = [t.lower() for t in re.findall(r"\b[\w\+\#\.\-]+\b", s_clean) if t.lower() not in stopwords and len(t) > 1]
+
+        # Check if significant terms appear in retrieved context
+        is_present_in_context = False
+        if tokens:
+            # Whole-word match is always safe. The raw substring fallback is only
+            # applied to tokens of 4+ chars - shorter tokens (e.g. "go", "ai") false-
+            # match inside unrelated words ("ongoing", "algorithm"), which would
+            # falsely promote a missing skill to matched and inflate match_score.
+            significant_matches = [
+                t for t in tokens
+                if f" {t} " in context_lower or (len(t) >= 4 and t in context_lower)
+            ]
+            if len(significant_matches) >= 1 and (len(significant_matches) / len(tokens) >= 0.5 or len(tokens) == 1):
+                is_present_in_context = True
+
+        if is_present_in_context:
+            if skill not in matched_list:
+                matched_list.append(skill)
+        else:
+            cleaned_missing.append(skill)
+
+    # --- Dynamic Knowledge-Base Direct Extraction Fallback ---
+    # If the LLM returned empty skills (e.g. rate limit exhaustion or output truncation),
+    # extract real technical requirements and frameworks from the job and evaluate against KB context.
+    if not matched_list and not cleaned_missing and context != "No company knowledge retrieved.":
+        TECH_SKILL_PATTERNS = [
+            # AI, ML, RL, Robotics & Vision concepts
+            (r"\breinforcement\s+learning\b", "Reinforcement Learning"),
+            (r"\bimitation\s+learning\b", "Imitation Learning"),
+            (r"\bdeep\s+learning\b", "Deep Learning"),
+            (r"\bmachine\s+learning\b", "Machine Learning"),
+            (r"\bcomputer\s+vision\b", "Computer Vision"),
+            (r"\bnatural\s+language\s+processing\b", "Natural Language Processing"),
+            (r"\blarge\s+language\s+models?\b", "LLMs"),
+            # Frameworks, simulators & robotics
+            (r"\bIsaacGym\b", "IsaacGym"),
+            (r"\bIsaacLab\b", "IsaacLab"),
+            (r"\bMuJoCo\b", "MuJoCo"),
+            (r"\bPyTorch\b", "PyTorch"),
+            (r"\bTensorFlow\b", "TensorFlow"),
+            (r"\bKeras\b", "Keras"),
+            (r"\bJAX\b", "JAX"),
+            (r"\bScikit-learn\b", "Scikit-learn"),
+            (r"\bPandas\b", "Pandas"),
+            (r"\bNumPy\b", "NumPy"),
+            (r"\bOpenCV\b", "OpenCV"),
+            (r"\bROS\b", "ROS"),
+            (r"\bGymnasium\b", "Gymnasium"),
+            (r"\b(?:robotics|robots)\b", "Robotics"),
+            # Languages, runtimes & system tools
+            (r"\bPython\b", "Python"),
+            (r"\bC\+\+\b", "C++"),
+            (r"\bRust\b", "Rust"),
+            (r"\bJava\b", "Java"),
+            (r"\bGo\b", "Go"),
+            (r"\bSQL\b", "SQL"),
+            (r"\bCUDA\b", "CUDA"),
+            (r"\bLinux\b", "Linux"),
+            (r"\bDocker\b", "Docker"),
+            (r"\bKubernetes\b", "Kubernetes"),
+            (r"\bBash\b", "Bash"),
+            # Cloud, Microsoft & enterprise platforms
+            (r"\bAzure\s+OpenAI\b", "Azure OpenAI"),
+            (r"\bAzure\s+(?:AD|DevOps|Entra\s+ID)?\b", "Azure"),
+            (r"\bAWS\b", "AWS"),
+            (r"\bGCP\b", "GCP"),
+            (r"\bSharePoint\b", "SharePoint"),
+            (r"\bDynamics\s+365\b", "Dynamics 365"),
+            (r"\bPower\s+BI\b", "Power BI"),
+            (r"\bPower\s+(?:Apps|Platform)\b", "Power Platform"),
+            (r"\b(?:M365|Microsoft\s+365)\b", "Microsoft 365"),
+            # Identity & protocols
+            (r"\b(?:SSO|SAML|OAuth|IAM|Entra\s+ID|Active\s+Directory|Okta)\b", "Identity & Access Management"),
+        ]
+
+        # Acronym mapping to prevent duplicates (e.g. RL -> Reinforcement Learning, ML -> Machine Learning)
+        ACRONYM_MAP = {
+            "RL": "Reinforcement Learning",
+            "ML": "Machine Learning",
+            "DL": "Deep Learning",
+            "CV": "Computer Vision",
+            "NLP": "Natural Language Processing",
+            "LLM": "LLMs",
+            "LLMS": "LLMs",
+            "AI": "AI",
+        }
+
+        identified_skills = []
+        for pattern, canonical in TECH_SKILL_PATTERNS:
+            if re.search(pattern, cleaned_jd, re.IGNORECASE):
+                if canonical not in identified_skills:
+                    identified_skills.append(canonical)
+
+        # Also capture capitalized tech acronyms
+        common_stop = {
+            "AN", "OR", "IN", "TO", "WE", "AS", "DO", "IF", "US", "THE", "AND", "WITH", "NOT",
+            "OUR", "WHAT", "THIS", "RUN", "CAN", "GET", "THAT", "FULL", "REAL", "BY", "FOR", "AT", "BE", "JD", "HR"
+        }
+        for acr in re.findall(r"\b[A-Z]{2,6}\b", cleaned_jd):
+            if acr in common_stop:
+                continue
+            canonical = ACRONYM_MAP.get(acr, acr)
+            if canonical not in identified_skills:
+                identified_skills.append(canonical)
+
+        for skill in identified_skills:
+            s_low = skill.lower()
+            # Check against knowledge base context tokens
+            if f" {s_low} " in context_lower or s_low in context_lower:
+                if skill not in matched_list:
+                    matched_list.append(skill)
+            else:
+                if skill not in cleaned_missing:
+                    cleaned_missing.append(skill)
+
+    # --- Post-Processing Deduplication & Normalization ---
+    # Clean both matched_list and cleaned_missing to remove redundant/generic terms and duplicates
+    GENERIC_NOISE = {"hardware", "real systems", "simulators", "robots", "system", "systems", "policies"}
+
+    def clean_and_dedup(skill_items):
+        result = []
+        for item in skill_items:
+            name = str(item).strip()
+            if not name or name.lower() in GENERIC_NOISE:
+                continue
+            # Normalize plural or acronym overlaps
+            if name.lower() in ("rl", "reinforcement learning"):
+                name = "Reinforcement Learning"
+            elif name.lower() in ("ml", "machine learning"):
+                name = "Machine Learning"
+            elif name.lower() in ("robots", "robotics"):
+                name = "Robotics"
+            elif name.lower() in ("llm", "llms", "large language models"):
+                name = "LLMs"
+
+            if not any(name.lower() == existing.lower() for existing in result):
+                result.append(name)
+        return result
+
+    matched_list = clean_and_dedup(matched_list)
+    cleaned_missing = clean_and_dedup(cleaned_missing)
+
+    # Ensure an item isn't simultaneously in matched and missing
+    cleaned_missing = [s for s in cleaned_missing if not any(s.lower() == m.lower() for m in matched_list)]
+
+    # If company KB has AI/ML capabilities (e.g. Computer Vision, Azure OpenAI, Machine Learning, DeepStream)
+    # and job requires AI or Machine Learning, match it accurately.
+    kb_has_ai = any(kw in context_lower for kw in (" ai ", "artificial intelligence", "machine learning", "computer vision", "deepstream", "azure openai", "model"))
+    if kb_has_ai:
+        if "Machine Learning" in cleaned_missing:
+            cleaned_missing.remove("Machine Learning")
+            if "Machine Learning" not in matched_list:
+                matched_list.append("Machine Learning")
+        if "AI" in cleaned_missing:
+            cleaned_missing.remove("AI")
+            if "AI" not in matched_list:
+                matched_list.append("AI")
+        elif "AI" not in matched_list and any(m in matched_list for m in ("Computer Vision", "Azure OpenAI", "Machine Learning")):
+            matched_list.append("AI")
+
+    # Coverage-ratio score from the FINAL matched/missing lists, i.e. after all
+    # reconciliation above. Reconciliation only ever moves a skill from "missing"
+    # to "matched" (never the reverse), so this ratio can only imply a score
+    # greater than or equal to what the LLM saw before reconciliation.
+    total_skills = len(matched_list) + len(cleaned_missing)
+    if total_skills > 0:
+        if len(cleaned_missing) == 0 and len(matched_list) > 0:
+            ratio_score = 100
+        else:
+            ratio_score = int(round((len(matched_list) / total_skills) * 100))
+    else:
+        ratio_score = 0
+
+    if raw_score is not None:
+        # Never let reconciliation lower the LLM's own judgement - only correct
+        # the score upward when the final skills lists show better coverage than
+        # the LLM's raw score reflected.
+        score = max(int(raw_score), ratio_score)
+    else:
+        score = ratio_score
+
+    if not reason or reason == "Evaluated by LLM":
+        if len(matched_list) > 0 and len(cleaned_missing) == 0:
+            reason = f"Excellent 100% fit with proven company capabilities in {', '.join(matched_list[:3])}."
+        elif len(matched_list) > 0:
+            reason = f"Strong alignment in {', '.join(matched_list[:3])}; gaps identified in {', '.join(cleaned_missing[:2])}."
+        else:
+            reason = "No direct company capabilities found matching this role requirements."
+
+    return matched_list, cleaned_missing, score, reason
 

@@ -106,3 +106,16 @@ class AzureSearchKnowledgeBase:
                 await self._client.close()
             except Exception as exc:
                 logger.error("Error closing Azure Search client: {}", exc)
+
+
+_knowledge_base: Optional["AzureSearchKnowledgeBase"] = None
+
+
+def get_knowledge_base() -> "AzureSearchKnowledgeBase":
+    """Shared AzureSearchKnowledgeBase instance, so repeated retrievals reuse the
+    same warm SearchClient instead of paying a fresh connection cold-start on
+    every request."""
+    global _knowledge_base
+    if _knowledge_base is None:
+        _knowledge_base = AzureSearchKnowledgeBase()
+    return _knowledge_base

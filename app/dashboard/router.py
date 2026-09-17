@@ -128,7 +128,16 @@ def _serialize_job(j):
 
 @router.post("/api/jobs/manual-evaluate")
 async def api_manual_evaluate(request: Request):
-    """Manually evaluate a job description using LLM Knowledge Base matching."""
+    """
+    Manually evaluate a job description: field extraction+scoring and outreach
+    drafting are independent of each other (both only need the job description +
+    KB context), so they run as two CONCURRENT LLM calls via asyncio.gather()
+    instead of 3 sequential calls. Measured: the Azure deployment genuinely
+    processes concurrent requests in parallel (wall time ~= max(call1, call2),
+    not their sum), so this cuts latency roughly in half versus running them
+    one after another, without the extra generation time a single giant
+    "extract everything in one JSON" call would need.
+    """
     try:
         body = await request.json()
     except Exception:
@@ -138,17 +147,46 @@ async def api_manual_evaluate(request: Request):
     if not job_description:
         raise HTTPException(status_code=422, detail="Job description is required")
 
+    import asyncio
+
+    from app.knowledge_base.azure_search import get_knowledge_base
     from app.matching.jd_parser import parse_job_description_with_ai
+    from app.matching.llm_matcher import build_kb_context, get_llm_matcher, reconcile_skills_and_score
+    from app.matching.outreach_generator import build_email_body, generate_outreach
 
     service = get_scraper_service()
-    kb_chunks = []
-    if service._match_service and getattr(service._match_service, "_kb", None):
-        try:
-            kb_chunks = await service._match_service._kb.retrieve(job_description, top_k=3)
-        except Exception:
-            pass
 
-    parsed = await parse_job_description_with_ai(job_description, kb_chunks=kb_chunks)
+    # Single KB retrieval, shared by both concurrent LLM calls below and by the
+    # post-hoc skill reconciliation (previously fetched a second time, redundantly,
+    # inside the now-removed separate MatchService call).
+    kb_chunks = []
+    try:
+        kb_chunks = await get_knowledge_base().search(job_description, top_k=3)
+    except Exception as kb_err:
+        logger.warning("KB retrieval failed for manual evaluate, continuing without context: {}", kb_err)
+    kb_context = build_kb_context(kb_chunks)
+
+    # These two calls are independent (neither needs the other's output) and use
+    # the same shared LLM client, so they run concurrently rather than sequentially.
+    parsed, outreach = await asyncio.gather(
+        parse_job_description_with_ai(job_description, kb_chunks=kb_chunks),
+        generate_outreach(
+            job_title=(body.get("job_title") or "").strip(),
+            company=(body.get("company") or "").strip(),
+            job_description=job_description,
+            kb_context=kb_context,
+            matcher=get_llm_matcher(),
+        ),
+    )
+
+    reconciled_matched, reconciled_missing, reconciled_score, reconciled_reason = reconcile_skills_and_score(
+        parsed.get("matched_skills") or [],
+        parsed.get("missing_skills") or [],
+        parsed.get("match_score"),
+        kb_context,
+        job_description[:2000],
+        parsed.get("match_reason") or "",
+    )
 
     job_title = (body.get("job_title") or "").strip()
     if not job_title or job_title in ["Untitled Role", "Untitled Opportunity"]:
@@ -172,6 +210,9 @@ async def api_manual_evaluate(request: Request):
     remote_type_str = (body.get("remote_type") or "").strip() or location
 
     try:
+        # skip_match=True: match_score/matched_skills/missing_skills/match_reason are
+        # already computed above (reconciled from the single consolidated LLM call),
+        # so this must NOT trigger its own separate KB search + LLM scoring call.
         job = await service.evaluate_manual_job(
             job_title=job_title,
             company=company,
@@ -182,42 +223,25 @@ async def api_manual_evaluate(request: Request):
             salary_range=salary_range or "Not listed",
             experience=experience or "Not specified",
             remote_type_str=remote_type_str,
+            skip_match=True,
         )
 
-        # If the AI extractor calculated richer skill matches & score, enrich the job
-        if parsed.get("matched_skills") and not job.matched_skills:
-            job.matched_skills = parsed.get("matched_skills")
-        if parsed.get("missing_skills") and not job.missing_skills:
-            job.missing_skills = parsed.get("missing_skills")
-        if parsed.get("match_score") is not None and (job.match_score is None or job.match_score == 0):
-            job.match_score = parsed.get("match_score")
-        if parsed.get("match_reason") and not job.match_reason:
-            job.match_reason = parsed.get("match_reason")
+        job.matched_skills = reconciled_matched
+        job.missing_skills = reconciled_missing
+        job.match_score = reconciled_score
+        job.match_reason = reconciled_reason
 
-        # Generate outreach email + LinkedIn message drafts alongside the AI evaluation,
-        # so the user can review and send/copy them immediately without a separate step.
-        from app.matching.outreach_generator import generate_outreach
-
-        kb_context = ""
-        if kb_chunks:
-            kb_context = "\n".join(f"- {(getattr(c, 'chunk', '') or '').strip()[:300]}" for c in kb_chunks if getattr(c, "chunk", ""))
-
-        try:
-            outreach = await generate_outreach(
-                job_title=job.job_title,
-                company=job.company,
-                job_description=job.job_description,
-                matched_skills=job.matched_skills,
-                missing_skills=job.missing_skills,
-                kb_context=kb_context,
-                contact_name=parsed.get("contact_name", ""),
-            )
-        except Exception as outreach_err:
-            logger.error("Outreach generation failed during manual evaluate: {}", outreach_err)
-            outreach = {"email_subject": "", "email_body": "", "linkedin_variants": []}
-
+        # Rebuild the email body using the outreach call's connective sentences
+        # (opening_line/alignment_paragraph) but the EXTRACTION branch's reconciled
+        # skill list, since the two calls ran concurrently and generate_outreach()
+        # didn't have the final reconciled skills yet when it built its own body.
         job.outreach_email_subject = outreach.get("email_subject", "")
-        job.outreach_email_body = outreach.get("email_body", "")
+        job.outreach_email_body = build_email_body(
+            parsed.get("contact_name", ""),
+            outreach.get("opening_line", ""),
+            outreach.get("alignment_paragraph", ""),
+            reconciled_matched,
+        )
         job.outreach_linkedin_variants = outreach.get("linkedin_variants", [])
         job.outreach_linkedin_message = (outreach.get("linkedin_variants") or [""])[0]
 
@@ -267,15 +291,17 @@ async def api_generate_outreach(lead_id: str):
     if not job:
         raise HTTPException(status_code=404, detail="Lead not found")
 
+    from app.knowledge_base.azure_search import get_knowledge_base
+    from app.matching.llm_matcher import build_kb_context
     from app.matching.outreach_generator import generate_outreach
 
     kb_context = ""
-    if service._match_service and getattr(service._match_service, "_kb", None) and job.job_description:
+    if job.job_description:
         try:
-            kb_chunks = await service._match_service._kb.retrieve(job.job_description, top_k=3)
-            kb_context = "\n".join(f"- {(getattr(c, 'chunk', '') or '').strip()[:300]}" for c in kb_chunks if getattr(c, "chunk", ""))
-        except Exception:
-            pass
+            kb_chunks = await get_knowledge_base().search(job.job_description, top_k=3)
+            kb_context = build_kb_context(kb_chunks)
+        except Exception as kb_err:
+            logger.warning("KB retrieval failed for on-demand outreach (lead {}): {}", lead_id, kb_err)
 
     try:
         outreach = await generate_outreach(

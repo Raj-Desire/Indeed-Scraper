@@ -110,7 +110,7 @@ def test_generate_outreach_returns_empty_when_llm_disabled():
         matcher=matcher,
     ))
 
-    assert result == {"email_subject": "", "email_body": "", "linkedin_variants": []}
+    assert result == {"email_subject": "", "email_body": "", "linkedin_variants": [], "opening_line": "", "alignment_paragraph": ""}
 
 
 def test_generate_outreach_swallows_client_errors():
@@ -132,7 +132,7 @@ def test_generate_outreach_swallows_client_errors():
         matcher=matcher,
     ))
 
-    assert result == {"email_subject": "", "email_body": "", "linkedin_variants": []}
+    assert result == {"email_subject": "", "email_body": "", "linkedin_variants": [], "opening_line": "", "alignment_paragraph": ""}
 
 
 def test_generate_outreach_caps_linkedin_variants_to_configured_count():

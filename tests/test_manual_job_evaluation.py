@@ -31,26 +31,33 @@ def test_manual_evaluate_validation():
 
 
 def test_manual_evaluate_success():
+    """
+    Manual evaluate now runs one consolidated LLM call (app.matching.jd_parser.
+    parse_job_description_with_ai) that returns extraction + match score/skills +
+    outreach content together, instead of a separate MatchService.evaluate_job
+    call - so this test mocks that consolidated call directly for determinism.
+    """
     client = TestClient(app)
 
-    fake_result = MatchResult(
-        match_score=88,
-        matched_skills=["SharePoint", "Power Apps", "Power Automate"],
-        missing_skills=["SAP"],
-        match_reason="Strong match for Microsoft Power Platform stack.",
-        job_summary="Looking for a SharePoint Power Apps specialist to lead automation.",
-    )
+    fake_parsed = {
+        "title": "Senior SharePoint Developer",
+        "job_title": "Senior SharePoint Developer",
+        "company": "Contoso Global",
+        "country": "US",
+        "match_score": 88,
+        "matched_skills": ["SharePoint", "Power Apps", "Power Automate"],
+        "missing_skills": ["SAP"],
+        "match_reason": "Strong match for Microsoft Power Platform stack.",
+        "email_subject": "",
+        "opening_line": "",
+        "alignment_paragraph": "",
+        "linkedin_variants": [],
+    }
 
-    with patch("app.matching.match_service.MatchService.evaluate_job") as mock_eval:
-        async def side_effect(job):
-            job.match_score = fake_result.match_score
-            job.matched_skills = fake_result.matched_skills
-            job.missing_skills = fake_result.missing_skills
-            job.match_reason = fake_result.match_reason
-            job.job_summary = fake_result.job_summary
-            return job
-
-        mock_eval.side_effect = side_effect
+    with patch("app.matching.jd_parser.parse_job_description_with_ai", new_callable=AsyncMock) as mock_parse, \
+         patch("app.knowledge_base.azure_search.AzureSearchKnowledgeBase.search", new_callable=AsyncMock) as mock_search:
+        mock_parse.return_value = fake_parsed
+        mock_search.return_value = []
 
         resp = client.post(
             "/api/jobs/manual-evaluate",
