@@ -29,14 +29,13 @@ In the **Environment** tab of your Render service, add the following variables f
 | `DASHBOARD_HOST` | Host binding | `0.0.0.0` |
 | `SCRAPER_HEADLESS` | Run headless | `true` |
 | `ENABLE_KB_MATCHING` | Enable AI Match | `true` |
-| `LLM_PROVIDER` | LLM service provider | `openrouter` or `azure` |
-| `OPENROUTER_API_KEY` | OpenRouter API Key | `sk-or-v1-...` |
-| `OPENROUTER_MODEL` | Target OpenRouter model | `google/gemma-4-31b-it` |
-| `AZURE_OPENAI_API_KEY` | Azure OpenAI Key (if using Azure) | `...` |
-| `AZURE_OPENAI_ENDPOINT` | Azure OpenAI Endpoint | `https://<name>.openai.azure.com/` |
+| `LLM_PROVIDER` | LLM service provider | `azure` |
+| `AZURE_OPENAI_API_KEY` | Azure OpenAI API Key | `...` |
+| `AZURE_OPENAI_ENDPOINT` | Azure OpenAI Endpoint | `https://<name>.services.ai.azure.com/` |
+| `AZURE_OPENAI_CHAT_DEPLOYMENT` | Azure Chat Deployment | `Phi-4-mini-instruct` |
 | `AZURE_SEARCH_ENDPOINT` | Azure AI Search Endpoint | `https://<name>.search.windows.net` |
 | `AZURE_SEARCH_API_KEY` | Azure AI Search Key | `...` |
-| `AZURE_SEARCH_INDEX_NAME` | Search Index Name | `...` |
+| `AZURE_SEARCH_INDEX` | Search Index Name | `...` |
 
 *(Note: Render automatically injects `PORT`, and your Dockerfile binds dynamically to `${PORT:-8000}`)*.
 

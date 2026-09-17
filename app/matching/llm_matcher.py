@@ -40,23 +40,18 @@ _SYSTEM_PROMPT = (
 
 
 class LLMMatcher:
-    """Evaluates job-to-company fit using Azure OpenAI, OpenRouter (Gemma-4), or NVIDIA NIM."""
+    """Evaluates job-to-company fit using Azure OpenAI."""
 
     def __init__(self, client=None, enabled: Optional[bool] = None, deployment: Optional[str] = None) -> None:
         """
         Args:
-            client: Optional pre-built AsyncOpenAI / AsyncAzureOpenAI client, for tests.
+            client: Optional pre-built AsyncAzureOpenAI or AsyncOpenAI client, for tests.
             enabled: Override for whether evaluation is active (tests only).
             deployment: Override for the chat deployment / model name (tests only).
         """
         settings = get_settings()
 
-        # Check USE_AZURE_MODEL toggle first
-        if hasattr(settings, "use_azure_model") and settings.use_azure_model is not None:
-            self._provider = "azure" if settings.use_azure_model else "openrouter"
-        else:
-            self._provider = settings.llm_provider.lower()
-
+        self._provider = settings.llm_provider.lower()
         self._deployment = deployment
 
         if enabled is False:
@@ -67,81 +62,27 @@ class LLMMatcher:
         if client is not None:
             self._client = client
             self._enabled = True if enabled is None else enabled
-            self._deployment = self._deployment or (settings.azure_openai_chat_deployment if self._provider == "azure" else settings.openrouter_model)
+            self._deployment = self._deployment or settings.azure_openai_chat_deployment
             return
 
-        if self._provider == "openrouter":
-            api_key = settings.openrouter_api_key.strip()
-            base_url = settings.openrouter_base_url.strip() or "https://openrouter.ai/api/v1"
-            model = self._deployment or settings.openrouter_model.strip() or "google/gemma-4-31b-it:free"
-
-            self._enabled = bool(api_key and model)
-            self._deployment = model
-            self._client = None
-
-            if not self._enabled:
-                logger.warning(
-                    "OpenRouter LLM is not fully configured (OPENROUTER_API_KEY/OPENROUTER_MODEL) - LLM matching disabled."
-                )
-                return
-
-            from openai import AsyncOpenAI
-            self._client = AsyncOpenAI(
-                base_url=base_url,
-                api_key=api_key,
-                default_headers={
-                    "HTTP-Referer": "http://localhost:8000",
-                    "X-Title": "Indeed Job Intelligence Scraper",
-                },
+        self._deployment = self._deployment or settings.azure_openai_chat_deployment
+        self._enabled = bool(
+            settings.azure_openai_endpoint and settings.azure_openai_api_key and self._deployment
+        )
+        self._client = None
+        if not self._enabled:
+            logger.warning(
+                "Azure OpenAI is not fully configured (endpoint/api key/deployment) - LLM matching disabled."
             )
-            logger.info("Initialized LLMMatcher with OpenRouter model '{}' (Free Tier)", self._deployment)
+            return
 
-        elif self._provider == "azure":
-            self._deployment = self._deployment or settings.azure_openai_chat_deployment
-            self._enabled = bool(
-                settings.azure_openai_endpoint and settings.azure_openai_api_key and self._deployment
-            )
-            self._client = None
-            if not self._enabled:
-                logger.warning(
-                    "Azure OpenAI is not fully configured (endpoint/api key/deployment) - LLM matching disabled."
-                )
-                return
-
-            from openai import AsyncAzureOpenAI
-            self._client = AsyncAzureOpenAI(
-                azure_endpoint=settings.azure_openai_endpoint,
-                api_key=settings.azure_openai_api_key,
-                api_version=settings.azure_openai_api_version,
-            )
-            logger.info("Initialized LLMMatcher with Azure OpenAI deployment '{}'", self._deployment)
-
-        elif self._provider == "nvidia" or self._provider == "openai":
-            api_key = settings.nvidia_api_key.strip()
-            base_url = settings.nvidia_base_url.strip() or "https://integrate.api.nvidia.com/v1"
-            model = self._deployment or settings.nvidia_model.strip()
-
-            self._enabled = bool(api_key and model)
-            self._deployment = model
-            self._client = None
-
-            if not self._enabled:
-                logger.warning(
-                    "NVIDIA LLM is not fully configured (NVIDIA_API_KEY/NVIDIA_MODEL) - LLM matching disabled."
-                )
-                return
-
-            from openai import AsyncOpenAI
-            self._client = AsyncOpenAI(
-                base_url=base_url,
-                api_key=api_key,
-            )
-            logger.info("Initialized LLMMatcher with NVIDIA NIM model '{}'", self._deployment)
-
-        else:
-            self._enabled = False
-            self._client = None
-            logger.warning("Unknown LLM_PROVIDER '{}' - LLM matching disabled.", self._provider)
+        from openai import AsyncAzureOpenAI
+        self._client = AsyncAzureOpenAI(
+            azure_endpoint=settings.azure_openai_endpoint,
+            api_key=settings.azure_openai_api_key,
+            api_version=settings.azure_openai_api_version,
+        )
+        logger.info("Initialized LLMMatcher with Azure OpenAI deployment '{}'", self._deployment)
 
     async def evaluate(self, job_description: str, kb_chunks: list[RetrievedChunk]) -> MatchResult:
         """Return a structured match result. Never raises - any failure yields a safe default."""
@@ -151,11 +92,20 @@ class LLMMatcher:
         # --- Token & Quality Optimization ---
         # 1. Clean job description (first 2,000 chars covers core role and requirements)
         cleaned_jd = job_description.strip()[:2000] if job_description else ""
-
+        
         # 2. Extract rich snippet excerpts from chunks (up to 450 chars) so full technical context is preserved
-        context = build_kb_context(kb_chunks)
+        compact_chunks = []
+        for c in (kb_chunks or []):
+            snippet = (c.chunk or "").strip()[:450].replace("\n", " ")
+            if snippet:
+                compact_chunks.append(f"- {snippet}")
+        
+        context = "\n".join(compact_chunks) if compact_chunks else (
+            "- Microsoft 365, SharePoint Online, SPFx, Power Apps, Power Automate, Power BI, Power Platform\n"
+            "- .NET Core, C#, Azure Cloud, AI & Copilot integrations, Modern Workplace Solutions"
+        )
+
         user_prompt = (
-            f"You are matching a candidate company against a job posting.\n\n"
             f"COMPANY CAPABILITIES:\n{context}\n\n"
             f"JOB REQUIREMENTS:\n{cleaned_jd}\n\n"
             f"INSTRUCTIONS:\n"
@@ -169,7 +119,6 @@ class LLMMatcher:
 
         try:
             import re
-            import asyncio
 
             kwargs = {
                 "model": self._deployment,
@@ -177,52 +126,14 @@ class LLMMatcher:
                     {"role": "system", "content": _SYSTEM_PROMPT},
                     {"role": "user", "content": user_prompt},
                 ],
-                "temperature": 0.1,
-                "max_tokens": 2500 if self._provider == "openrouter" else 800,  # Generous headroom for reasoning models
+                "temperature": 0.0,
+                "max_tokens": 600,
             }
 
-            # If supported / Azure OpenAI standard gpt models
             if self._provider == "azure" and "phi" not in str(self._deployment).lower():
                 kwargs["response_format"] = {"type": "json_object"}
 
-            response = None
-            # Retry loop with fast available free models for OpenRouter
-            models_to_try = [self._deployment]
-            if self._provider == "openrouter":
-                extra_models = [
-                    "nvidia/nemotron-3-ultra-550b-a55b:free",
-                    "nvidia/nemotron-3.5-lightning:free",
-                    "google/gemma-4-31b-it:free",
-                    "google/gemma-4-26b-a4b-it:free",
-                    "cohere/north-mini-code:free",
-                ]
-                models_to_try = [self._deployment] + [m for m in extra_models if m != self._deployment]
-
-            last_error = None
-            for model_cand in models_to_try:
-                try:
-                    kwargs["model"] = model_cand
-                    response = await self._client.chat.completions.create(**kwargs)
-                    if response and response.choices:
-                        choice = response.choices[0]
-                        msg = getattr(choice, "message", None)
-                        if msg:
-                            c = (getattr(msg, "content", "") or "").strip()
-                            r = (getattr(msg, "reasoning", "") or "").strip()
-                            if c or r:
-                                break
-                except Exception as api_err:
-                    last_error = api_err
-                    # Quietly retry next candidate on rate limit without spamming console
-                    if "429" in str(api_err) and self._provider == "openrouter":
-                        await asyncio.sleep(0.2)
-                        continue
-                    else:
-                        break
-
-            if not response or not response.choices:
-                if last_error:
-                    raise last_error
+            response = await self._client.chat.completions.create(**kwargs)
 
             raw_content = ""
             raw_reasoning = ""
