@@ -44,8 +44,8 @@ _LOCATION_LABELS = {
 
 
 # Internal confidential recipients list (used when not exposed in .env)
-# INTERNAL_DEFAULT_RECIPIENTS = ["yashS@desireinfoweb.com"]
-INTERNAL_DEFAULT_RECIPIENTS = ['raj.ponkiya@t12y7.onmicrosoft.com']
+INTERNAL_DEFAULT_RECIPIENTS = ["yashS@desireinfoweb.com"]
+# INTERNAL_DEFAULT_RECIPIENTS = ['raj.ponkiya@t12y7.onmicrosoft.com']
 
 
 class GraphMailNotifier:
