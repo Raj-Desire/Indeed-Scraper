@@ -324,6 +324,78 @@ async def api_generate_outreach(lead_id: str):
     return {"status": "success", "lead": _serialize_job(job)}
 
 
+@router.post("/api/jobs/generate-outreach-batch")
+async def api_generate_outreach_batch(request: Request):
+    """
+    Generate outreach drafts (email + LinkedIn) for several scraped leads in one click,
+    instead of opening each lead's modal one at a time. Each lead's draft is generated
+    concurrently (capped) and saved onto the in-memory job immediately, exactly like the
+    single-lead endpoint, so a later "Sync to SharePoint" call already carries the
+    Outreach_x0020_Email / Linkedin_x0020_message fields with no extra step.
+    """
+    try:
+        data = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload")
+
+    lead_ids = data.get("lead_ids") if isinstance(data, dict) else None
+    if not lead_ids or not isinstance(lead_ids, list):
+        raise HTTPException(status_code=400, detail="lead_ids (non-empty list) is required")
+
+    service = get_scraper_service()
+    id_set = {str(i) for i in lead_ids}
+    jobs = [j for j in service._results if str(j.id) in id_set]
+    if not jobs:
+        raise HTTPException(status_code=404, detail="No matching leads found")
+
+    from app.knowledge_base.azure_search import get_knowledge_base
+    from app.matching.llm_matcher import build_kb_context
+    from app.matching.outreach_generator import generate_outreach
+
+    semaphore = asyncio.Semaphore(5)
+
+    async def _generate_for_job(job):
+        async with semaphore:
+            kb_context = ""
+            if job.job_description:
+                try:
+                    kb_chunks = await get_knowledge_base().search(job.job_description, top_k=3)
+                    kb_context = build_kb_context(kb_chunks)
+                except Exception as kb_err:
+                    logger.warning("KB retrieval failed for batch outreach (lead {}): {}", job.id, kb_err)
+
+            try:
+                outreach = await generate_outreach(
+                    job_title=job.job_title,
+                    company=job.company,
+                    job_description=job.job_description,
+                    matched_skills=job.matched_skills,
+                    missing_skills=job.missing_skills,
+                    kb_context=kb_context,
+                )
+            except Exception as exc:
+                logger.error("Batch outreach generation failed for lead {}: {}", job.id, exc)
+                return str(job.id), False
+
+            job.outreach_email_subject = outreach.get("email_subject", "")
+            job.outreach_email_body = outreach.get("email_body", "")
+            job.outreach_linkedin_variants = outreach.get("linkedin_variants", [])
+            job.outreach_linkedin_message = (outreach.get("linkedin_variants") or [""])[0]
+            succeeded = bool(job.outreach_email_body)
+            return str(job.id), succeeded
+
+    results = await asyncio.gather(*(_generate_for_job(job) for job in jobs))
+    succeeded_ids = [lid for lid, ok in results if ok]
+    failed_ids = [lid for lid, ok in results if not ok]
+
+    return {
+        "status": "success",
+        "generated": len(succeeded_ids),
+        "failed": failed_ids,
+        "leads": [_serialize_job(j) for j in jobs],
+    }
+
+
 @router.post("/api/jobs/{lead_id}/update-outreach")
 async def api_update_outreach(lead_id: str, request: Request):
     """Persist user edits to a lead's outreach email/LinkedIn message before syncing to SharePoint."""

@@ -22,10 +22,14 @@ from app.utils.logger import logger
 _SYSTEM_PROMPT = (
     "You are a technical capabilities analyst. Your task is to compare JOB REQUIREMENTS against the provided COMPANY CAPABILITIES.\n\n"
     "RULES:\n"
-    "1. Read the COMPANY CAPABILITIES carefully. Any technology, tool, methodology, or skill mentioned or demonstrated in the capabilities is a MATCH.\n"
-    "2. 'matched_skills': List of specific technical skills/tools from the job that our company possesses based on the capabilities text.\n"
-    "3. 'missing_skills': ONLY list skills required by the job that are completely absent from the company capabilities.\n"
-    "4. 'match_score': Integer (0-100) representing how well the company meets the required technical stack.\n"
+    "1. First, extract only the skills/tools/technologies the JOB REQUIREMENTS text actually asks for. Never list a company capability, "
+    "product, or feature that the job description does not itself mention or require - the capabilities text is only used to check "
+    "which of the job's OWN requirements we already cover, not as a source of extra skills to add.\n"
+    "2. 'matched_skills': Of the skills the job actually asks for, list only the ones that are also present in COMPANY CAPABILITIES.\n"
+    "3. 'missing_skills': Of the skills the job actually asks for, list only the ones that are absent from COMPANY CAPABILITIES.\n"
+    "4. 'match_score': Integer (0-100) representing how well the company meets the required technical stack. A single incidental tool "
+    "mention in an otherwise unrelated role (e.g. one generic Microsoft 365 tool listed among many unrelated core requirements) should "
+    "not by itself produce a high score - weigh how central that requirement is to the job's core responsibilities.\n"
     "5. 'match_reason': 1-2 sentence factual summary of the match.\n"
     "6. 'job_summary': 1-2 sentence concise summary of the job description (core responsibilities and primary role focus).\n"
     "7. Respond strictly with a JSON object:\n"
@@ -264,6 +268,24 @@ def reconcile_skills_and_score(
 
     # Common stop words to ignore when checking multi-word phrases
     stopwords = {"experience", "with", "and", "or", "in", "for", "the", "a", "an", "of", "to", "strong", "knowledge", "skills", "using", "hands-on"}
+
+    # --- JD-grounding guard ---
+    # The LLM is shown the company's own KB capability text alongside the job, and can
+    # occasionally parrot a company capability/product-feature phrase back as a
+    # "matched_skill" even though the job itself never asked for it (e.g. listing an
+    # internal product's "Voice Interface" or "Kanban boards" feature for a job that
+    # never mentions either). A matched skill is only meaningful if it corresponds to
+    # something the job actually said, so drop entries with zero token overlap with
+    # the job description text before any further reconciliation runs.
+    jd_lower = " " + re.sub(r"[^\w\s]", " ", cleaned_jd.lower()) + " "
+
+    def _grounded_in_jd(skill: str) -> bool:
+        tokens = [t for t in re.findall(r"\b[\w\+\#\.\-]+\b", skill.lower()) if t not in stopwords and len(t) >= 3]
+        if not tokens:
+            return True
+        return any(f" {t} " in jd_lower for t in tokens)
+
+    matched_list = [s for s in matched_list if _grounded_in_jd(s)]
 
     for skill in missing_list:
         s_clean = skill.strip()

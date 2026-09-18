@@ -108,6 +108,38 @@ def test_evaluate_bumps_score_when_reconciliation_moves_skills_to_matched():
     assert result.match_score >= 40
 
 
+def test_evaluate_strips_matched_skills_not_grounded_in_job_text():
+    """
+    Regression test for a real production case: a "Supervisor III" job whose only
+    Microsoft-365-related line was "Proficient in ... SharePoint, and Box" got
+    matched_skills full of unrelated company-capability phrases the LLM pulled from
+    the KB context (e.g. "Voice Interface", "Kanban boards") that the job never
+    asked for - inflating an irrelevant role to a 100 match score. Skills with zero
+    overlap with the job text itself must be dropped before scoring.
+    """
+    payload = json.dumps({
+        "match_score": 55,
+        "matched_skills": ["SharePoint", "Voice Interface", "Kanban boards", "Real-time voice interview"],
+        "missing_skills": [],
+        "match_reason": "Some overlap.",
+    })
+    fake_client = _FakeAzureOpenAIClient(payload)
+    matcher = LLMMatcher(client=fake_client, enabled=True, deployment="test-deployment")
+
+    chunks = [RetrievedChunk(
+        chunk_id="c1", parent_id="p1", title="Product Features",
+        chunk="Our platform offers Kanban boards, Gantt charts, a Voice Interface with real-time voice interview support, and SharePoint integration.",
+        score=0.8,
+    )]
+    jd = "Supervisor III (Remote). Proficient in Microsoft Office 365 (Word, Excel, PowerPoint, Outlook, Teams, OneNote, One Drive), SharePoint, and Box."
+    result = asyncio.run(matcher.evaluate(jd, chunks))
+
+    assert "SharePoint" in result.matched_skills
+    assert "Voice Interface" not in result.matched_skills
+    assert "Kanban boards" not in result.matched_skills
+    assert "Real-time voice interview" not in result.matched_skills
+
+
 def test_evaluate_returns_disabled_default_when_not_configured():
     matcher = LLMMatcher(client=None, enabled=False, deployment="")
     result = asyncio.run(matcher.evaluate("some job description", []))

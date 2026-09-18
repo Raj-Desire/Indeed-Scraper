@@ -118,6 +118,7 @@ class IndeedScraper:
         total_pages_overall = max_pages_per_keyword * len(queries) * len(countries)
         # Resolve once for the entire run — both are constant per run_config
         fromage_param = run_config.fromage or "all"
+        sort_by_param = run_config.sort_by or "date"
         location_param = "remote" if run_config.location_type.lower() == "remote" else ""
 
         self._progress = ScraperProgress(
@@ -184,6 +185,7 @@ class IndeedScraper:
                                     location=location_param,
                                     page=page_num,
                                     fromage=fromage_param,
+                                    sort_by=sort_by_param,
                                 )
 
                                 processed_pages_count += 1

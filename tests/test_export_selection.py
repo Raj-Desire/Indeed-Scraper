@@ -53,12 +53,13 @@ def test_excel_exporter_sequence_numbers():
 
 
 @pytest.mark.asyncio
-async def test_excel_export_api_filtering():
+async def test_excel_export_api_filtering(monkeypatch):
     service = get_scraper_service()
     j1 = JobPosting(job_title="Job A", company="Comp A", job_url="https://example.com/a")
     j2 = JobPosting(job_title="Job B", company="Comp B", job_url="https://example.com/b")
     j3 = JobPosting(job_title="Job C", company="Comp C", job_url="https://example.com/c")
     service._results = [j1, j2, j3]
+    service._email_sent = True  # Prevent live email dispatch during unit test
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:

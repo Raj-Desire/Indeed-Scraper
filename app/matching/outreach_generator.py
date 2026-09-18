@@ -2,9 +2,10 @@
 Outreach Draft Generator
 ========================
 Generates a structured application email (matching the BDE team's reference
-format: greeting, opening line, bulleted skills, alignment paragraph, bulleted
-engagement models, rate/attachment line, closing CTA) and LinkedIn outreach
-message variants for a given job.
+format: greeting, personalized opening line, bulleted skills, alignment
+paragraph, a "What we can offer" section with bulleted engagement models and
+rate per model, attachment line, low-friction call-to-action, and a warm
+closing) and LinkedIn outreach message variants for a given job.
 
 The email's STRUCTURE (bullets, section order, company facts like team size and
 engagement models) is built deterministically from app.config.constants - never
@@ -27,7 +28,6 @@ from app.config.constants import (
     OUTREACH_ENGAGEMENT_MODELS,
     OUTREACH_LINKEDIN_MAX_CHARS,
     OUTREACH_LINKEDIN_VARIANT_COUNT,
-    OUTREACH_RATE_PLACEHOLDER,
     OUTREACH_SENDER_BLURB,
     OUTREACH_SENDER_COMPANY,
     OUTREACH_TEAM_SIZE,
@@ -69,9 +69,12 @@ def _build_prompt(
         f"no markdown, no signature:\n"
         f"1. 'email_subject': A short, specific subject line for an application/outreach email "
         f"(e.g. 'Supporting your {job_title or 'open'} requirement - {OUTREACH_SENDER_COMPANY}').\n"
-        f"2. 'opening_line': One sentence saying we came across their requirement for this exact "
-        f"role/company and want to explore how {OUTREACH_SENDER_COMPANY} could support their team. "
-        f"Do NOT mention team size, engagement models, or rate here - those are added separately.\n"
+        f"2. 'opening_line': ONE natural sentence in this style: 'I saw your job post for a "
+        f"{job_title or '[role]'} to help with <a short, specific paraphrase of what this role is "
+        f"actually trying to accomplish, based on the job description>, and thought our team could "
+        f"be a great fit.' Do not just restate the job title - name the underlying goal/project so it "
+        f"reads like you actually read the posting. Do NOT mention team size, engagement models, or "
+        f"rate here - those are added separately.\n"
         f"3. 'alignment_paragraph': 1-2 sentences explicitly connecting our matching capabilities "
         f"above to this specific job's stated requirements (e.g. 'This experience aligns well with "
         f"your requirements around X, Y, Z.'). Reference the job's actual technologies/requirements, "
@@ -132,11 +135,11 @@ def build_email_body(
     parts = [
         greeting,
         "",
-        "I hope you're doing well.",
+        opening_line or "I saw your job post and thought our team could be a great fit.",
         "",
-        opening_line or "I came across your requirement and wanted to reach out to explore how we could support your engineering team.",
-        "",
-        f"We have a team of {OUTREACH_TEAM_SIZE} skilled developers, including experienced professionals with expertise in:",
+        f"{OUTREACH_SENDER_COMPANY} is a team of {OUTREACH_TEAM_SIZE} highly skilled, certified "
+        f"developers and engineers specializing in Microsoft and AI technologies. As per your job "
+        f"post, our team has expertise in:",
         "",
         skill_bullets,
         "",
@@ -145,13 +148,20 @@ def build_email_body(
         parts.extend([alignment_paragraph, ""])
 
     parts.extend([
-        "We can propose an in-house resource based on your specific project requirements and offer flexible engagement models, including:",
+        "What we can offer:",
+        "We can provide one skilled engineer or a small team, depending on what you need. "
+        "You can choose how you'd like to work with us:",
         "",
         engagement_bullets,
         "",
-        f"Our hourly rate ranges between {OUTREACH_RATE_PLACEHOLDER} based on project duration and complexity and level of expertise required. For your review I have attached the resource profile.",
+        "The exact rate depends on the engineer's experience level and how complex the work is - "
+        "happy to explain more on a call.",
+        "I've attached a profile with our relevant experience for you to review.",
         "",
-        "Please let me know if you would be available for a brief discussion to understand your requirements and explore how we can support your team.",
+        "Would you have 15 minutes this week for a quick call? We'd love to understand your needs "
+        "better and see how we can help.",
+        "",
+        "Thanks, looking forward to hearing from you.",
     ])
     return "\n".join(parts)
 

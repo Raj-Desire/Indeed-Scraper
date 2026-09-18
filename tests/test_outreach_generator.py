@@ -73,10 +73,13 @@ def test_generate_outreach_builds_structured_email_from_template():
     assert "• SPFx" in body
     assert "I came across your requirement" in body
     assert "This experience aligns well with your requirements" in body
-    assert f"team of {OUTREACH_TEAM_SIZE} skilled developers" in body
+    assert f"team of {OUTREACH_TEAM_SIZE} highly skilled, certified developers" in body
+    assert "What we can offer:" in body
     for model in OUTREACH_ENGAGEMENT_MODELS:
         assert f"• {model}" in body
     assert "[Rate]" in body
+    assert "Would you have 15 minutes this week" in body
+    assert "Thanks, looking forward to hearing from you." in body
     assert len(result["linkedin_variants"]) == 4
 
 

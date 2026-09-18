@@ -25,17 +25,20 @@ OUTREACH_SENDER_COMPANY = "Desire Infoweb Pvt. Ltd."
 OUTREACH_SENDER_BLURB = "a Microsoft Solution Partner"
 OUTREACH_TEAM_SIZE = "40+"
 OUTREACH_RATE_PLACEHOLDER = "[Rate]"
+OUTREACH_MONTHLY_RATE_PLACEHOLDER = "$[XXXX]"
 OUTREACH_ENGAGEMENT_MODELS = [
-    "Hourly Engagement",
-    "Fixed-Cost Project - based on the defined scope and requirements",
-    "Monthly Dedicated Resource",
+    f"Hourly Engagement - pay only for the time used - {OUTREACH_RATE_PLACEHOLDER}/hr",
+    "Fixed-Cost Project - one price for a clearly defined task - price shared after understanding your needs",
+    f"Monthly Dedicated Engineer - one engineer works full-time with your team - {OUTREACH_MONTHLY_RATE_PLACEHOLDER}/month",
 ]
 OUTREACH_LINKEDIN_VARIANT_COUNT = 4
 OUTREACH_LINKEDIN_MAX_CHARS = 300
 OUTREACH_TONE_GUIDELINES = (
-    "Professional, warm, and confident - never generic or salesy. Reference the specific "
-    "role, company, and 1-3 concrete matched technical capabilities so the message clearly "
-    "reads as tailored to this exact job, not a template. Keep it concise and easy to skim."
+    "Professional, warm, and confident - written like a real person, not a template. Reference the "
+    "specific role, company, and what the job is actually trying to accomplish (not just a tech "
+    "checklist) so the opening line reads as a genuine, personal reaction to THIS posting. Avoid "
+    "generic openers like 'I hope you're doing well' or 'I came across your job posting'. Keep it "
+    "concise, natural, and easy to skim - the way an experienced BDE would actually write it."
 )
 
 

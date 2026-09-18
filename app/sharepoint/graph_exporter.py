@@ -328,7 +328,7 @@ class GraphSharePointExporter:
             elif "T" in str(date_added):
                 fields["DateAdded"] = str(date_added)
             else:
-                # If date-only string (e.g. YYYY-MM-DD), append current UTC time so exact time of day is preserved
+                # If date-only string (e.g. YYYY-MM-DD), append current UTC time
                 fields["DateAdded"] = f"{str(date_added).strip()}T{now_dt.strftime('%H:%M:%SZ')}"
         else:
             fields["DateAdded"] = now_date_str
@@ -551,7 +551,7 @@ class GraphSharePointExporter:
                     "LeadSource": "Indeed",
                     "Status": "New",
                     "Priority": score_to_priority(job.match_score),
-                    "DateAdded": job.posted_date.strftime("%Y-%m-%d") if job.posted_date else datetime.now(tz=timezone.utc).strftime("%Y-%m-%d"),
+                    "DateAdded": datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
                     "Salary_x0020_Range": job.salary_range if job.salary_range != "Not listed" else "",
                     "Experience_x0020_Criteria": job.experience if job.experience != "Not specified" else "",
                     "Job_x0020_Requirement": job.job_description or "",
@@ -578,14 +578,12 @@ class GraphSharePointExporter:
                 else:
                     err_msg = resp.text
                     logger.warning("Failed to insert '{}' to SharePoint ({}): {}", job.job_title, resp.status_code, err_msg)
-                    # Retry with basic valid SharePoint fields only
-                    notes_summary = f"Location: {job.location_remote_type or 'N/A'}"
-                    if not sp_country and job.country:
-                        notes_summary = f"Country: {job.country} | {notes_summary}"
+                    # Retry with core sanitized SharePoint fields
                     fallback_fields = {
                         "Title": job.company or "Unknown Company",
                         "Job_x0020_Title": job.job_title or "Untitled Job",
-                        "Notes": notes_summary,
+                        "DateAdded": fields_dict.get("DateAdded") or datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                        "Notes": notes or f"Location: {job.location_remote_type or 'N/A'}",
                     }
                     if sp_country:
                         fallback_fields["Country"] = sp_country
@@ -593,18 +591,21 @@ class GraphSharePointExporter:
                         fallback_fields["Job_x0020_Link"] = job.job_url
                     if owner_val:
                         fallback_fields["Owner"] = owner_val
-                    if job.match_score is not None:
-                        try:
-                            num_score = float(job.match_score)
-                            if num_score > 1.0:
-                                num_score = round(num_score / 100.0, 4)
-                            fallback_fields["Matching_x0020_Score"] = num_score
-                        except (ValueError, TypeError):
-                            pass
+                    if fields_dict.get("Matching_x0020_Score") is not None:
+                        fallback_fields["Matching_x0020_Score"] = fields_dict["Matching_x0020_Score"]
+                    if fields_dict.get("Priority"):
+                        fallback_fields["Priority"] = fields_dict["Priority"]
+                    if fields_dict.get("Status"):
+                        fallback_fields["Status"] = fields_dict["Status"]
+                    if fields_dict.get("LeadSource"):
+                        fallback_fields["LeadSource"] = fields_dict["LeadSource"]
+                    if fields_dict.get("Industry"):
+                        fallback_fields["Industry"] = fields_dict["Industry"]
+
                     retry_resp = await client.post(items_url, headers=headers, json={"fields": fallback_fields})
                     if retry_resp.status_code in [200, 201]:
                         success_count += 1
-                        logger.info("Successfully exported '{}' using minimal fallback payload.", job.job_title)
+                        logger.info("Successfully exported '{}' using fallback payload.", job.job_title)
                     else:
                         raise RuntimeError(f"SharePoint List Insert Error ({resp.status_code}): {err_msg}")
 

@@ -472,38 +472,77 @@
 
             <!-- AI Outreach Drafts (generated alongside "Evaluate with AI") -->
             <div id="manual-outreach-section" class="hidden border-t border-slate-200 pt-4 space-y-3">
-                <div class="flex items-center gap-2">
-                    <span class="text-indigo-600">✉️</span>
-                    <h4 class="text-slate-900 font-extrabold text-xs uppercase tracking-wider">AI Outreach Drafts</h4>
-                </div>
-
-                <div class="text-xs">
-                    <label class="block font-bold text-slate-700 mb-1">Email Subject</label>
-                    <div class="flex gap-2">
-                        <input id="manual-outreach-email-subject" type="text" placeholder="Generated after evaluation..."
-                            class="flex-1 w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 shadow-2xs font-medium">
-                        <button type="button" onclick="copyOutreachField('manual-outreach-email-subject')"
-                            class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold rounded-xl text-xs transition-colors cursor-pointer shrink-0">Copy</button>
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <span class="text-indigo-600 font-bold text-sm">✉️</span>
+                        <h4 class="text-slate-900 font-extrabold text-xs uppercase tracking-wider">AI Outreach Drafts</h4>
                     </div>
+                    <span class="text-[11px] text-slate-400 font-medium">Auto-generated tailored pitch & connection messages</span>
                 </div>
 
-                <div class="text-xs">
-                    <label class="block font-bold text-slate-700 mb-1">Email Body</label>
-                    <textarea id="manual-outreach-email-body" rows="6" placeholder="Generated after evaluation..."
-                        class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 shadow-2xs font-medium"></textarea>
-                    <button type="button" onclick="copyOutreachField('manual-outreach-email-body')"
-                        class="mt-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold rounded-xl text-xs transition-colors cursor-pointer">Copy Body</button>
-                </div>
+                <!-- 2-Column Split Partition: Left (Email Subject + LinkedIn) & Right (Email Body) -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
+                    <!-- LEFT PARTITION: Email Subject + LinkedIn Message -->
+                    <div class="flex flex-col gap-3">
+                        <!-- Email Subject Card -->
+                        <div class="bg-slate-50/70 border border-slate-200 rounded-2xl p-3 text-xs space-y-1.5 shadow-2xs">
+                            <div class="flex items-center justify-between">
+                                <label class="font-bold text-slate-700 flex items-center gap-1.5">
+                                    <svg class="w-3.5 h-3.5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                                    Email Subject
+                                </label>
+                                <button type="button" onclick="copyOutreachField('manual-outreach-email-subject')"
+                                    class="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-600 font-semibold rounded-lg border border-slate-200 text-[11px] transition-colors cursor-pointer shrink-0 shadow-2xs hover:text-blue-600">
+                                    Copy Subject
+                                </button>
+                            </div>
+                            <input id="manual-outreach-email-subject" type="text" placeholder="Generated after evaluation..."
+                                class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 shadow-2xs font-medium">
+                        </div>
 
-                <div class="text-xs">
-                    <div class="flex items-center justify-between mb-1">
-                        <label class="block font-bold text-slate-700">LinkedIn Message</label>
-                        <div id="manual-linkedin-variant-tabs" class="flex gap-1"></div>
+                        <!-- LinkedIn Message Card -->
+                        <div class="bg-slate-50/70 border border-slate-200 rounded-2xl p-3 text-xs space-y-2 shadow-2xs flex-1 flex flex-col justify-between">
+                            <div>
+                                <div class="flex items-center justify-between mb-1.5">
+                                    <label class="font-bold text-slate-700 flex items-center gap-1.5">
+                                        <svg class="w-3.5 h-3.5 text-indigo-600" fill="currentColor" viewBox="0 0 24 24"><path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/></svg>
+                                        LinkedIn Message
+                                    </label>
+                                    <div id="manual-linkedin-variant-tabs" class="flex gap-1"></div>
+                                </div>
+                                <textarea id="manual-outreach-linkedin" rows="5" placeholder="Generated after evaluation..."
+                                    class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 shadow-2xs font-medium leading-relaxed"></textarea>
+                            </div>
+                            <div class="flex justify-between items-center pt-1">
+                                <span class="text-[10px] text-slate-400 font-medium">Tailored short connection pitch</span>
+                                <button type="button" onclick="copyOutreachField('manual-outreach-linkedin')"
+                                    class="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-600 font-semibold rounded-lg border border-slate-200 text-[11px] transition-colors cursor-pointer shadow-2xs hover:text-indigo-600">
+                                    Copy Message
+                                </button>
+                            </div>
+                        </div>
                     </div>
-                    <textarea id="manual-outreach-linkedin" rows="4" placeholder="Generated after evaluation..."
-                        class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 shadow-2xs font-medium"></textarea>
-                    <button type="button" onclick="copyOutreachField('manual-outreach-linkedin')"
-                        class="mt-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold rounded-xl text-xs transition-colors cursor-pointer">Copy Message</button>
+
+                    <!-- RIGHT PARTITION: Tailored Email Pitch Body -->
+                    <div class="bg-slate-50/70 border border-slate-200 rounded-2xl p-3 text-xs space-y-2 shadow-2xs flex flex-col justify-between">
+                        <div class="flex flex-col flex-1">
+                            <div class="flex items-center justify-between mb-1.5">
+                                <label class="font-bold text-slate-700 flex items-center gap-1.5">
+                                    <svg class="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                                    Email Body
+                                </label>
+                                <button type="button" onclick="copyOutreachField('manual-outreach-email-body')"
+                                    class="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-600 font-semibold rounded-lg border border-slate-200 text-[11px] transition-colors cursor-pointer shadow-2xs hover:text-emerald-600">
+                                    Copy Body
+                                </button>
+                            </div>
+                            <textarea id="manual-outreach-email-body" rows="9" placeholder="Generated after evaluation..."
+                                class="w-full flex-1 bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 shadow-2xs font-medium leading-relaxed"></textarea>
+                        </div>
+                        <div class="flex justify-between items-center pt-1 text-[10px] text-slate-400 font-medium">
+                            <span>Tailored greeting, capabilities, rates & engagement models</span>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -578,6 +617,11 @@
                 <option value="Sizan">Owner: Sizan</option>
                 <option value="Chetan">Owner: Chetan</option>
             </select>
+            <button id="table-generate-outreach-btn" type="button" onclick="generateOutreachForSelectedLeads()" title="Generate outreach email + LinkedIn message for the selected leads"
+                class="hidden px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl text-xs transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                <span id="table-generate-outreach-label">Generate Outreach</span>
+            </button>
             <button id="table-download-btn" type="button" onclick="exportExcel(event)" class="hidden px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-xs transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3"/></svg>
                 Download Excel
@@ -773,36 +817,75 @@
                 </div>
 
                 <div id="modal-outreach-content" class="hidden space-y-3">
-                    <div class="text-xs">
-                        <label class="block font-bold text-slate-700 mb-1">Email Subject</label>
-                        <div class="flex gap-2">
-                            <input id="modal-outreach-email-subject" type="text"
-                                class="flex-1 w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-blue-500 shadow-2xs font-medium">
-                            <button type="button" onclick="copyOutreachField('modal-outreach-email-subject')"
-                                class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold rounded-xl text-xs transition-colors cursor-pointer shrink-0">Copy</button>
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
+                        <!-- LEFT PARTITION: Email Subject + LinkedIn Message -->
+                        <div class="flex flex-col gap-3">
+                            <!-- Email Subject Card -->
+                            <div class="bg-slate-50/70 border border-slate-200 rounded-2xl p-3 text-xs space-y-1.5 shadow-2xs">
+                                <div class="flex items-center justify-between">
+                                    <label class="font-bold text-slate-700 flex items-center gap-1.5">
+                                        <svg class="w-3.5 h-3.5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                                        Email Subject
+                                    </label>
+                                    <button type="button" onclick="copyOutreachField('modal-outreach-email-subject')"
+                                        class="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-600 font-semibold rounded-lg border border-slate-200 text-[11px] transition-colors cursor-pointer shrink-0 shadow-2xs hover:text-blue-600">
+                                        Copy Subject
+                                    </button>
+                                </div>
+                                <input id="modal-outreach-email-subject" type="text"
+                                    class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 shadow-2xs font-medium">
+                            </div>
+
+                            <!-- LinkedIn Message Card -->
+                            <div class="bg-slate-50/70 border border-slate-200 rounded-2xl p-3 text-xs space-y-2 shadow-2xs flex-1 flex flex-col justify-between">
+                                <div>
+                                    <div class="flex items-center justify-between mb-1.5">
+                                        <label class="font-bold text-slate-700 flex items-center gap-1.5">
+                                            <svg class="w-3.5 h-3.5 text-indigo-600" fill="currentColor" viewBox="0 0 24 24"><path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/></svg>
+                                            LinkedIn Message
+                                        </label>
+                                        <div id="modal-linkedin-variant-tabs" class="flex gap-1"></div>
+                                    </div>
+                                    <textarea id="modal-outreach-linkedin" rows="5"
+                                        class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 shadow-2xs font-medium leading-relaxed"></textarea>
+                                </div>
+                                <div class="flex justify-between items-center pt-1">
+                                    <span class="text-[10px] text-slate-400 font-medium">Tailored short connection pitch</span>
+                                    <button type="button" onclick="copyOutreachField('modal-outreach-linkedin')"
+                                        class="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-600 font-semibold rounded-lg border border-slate-200 text-[11px] transition-colors cursor-pointer shadow-2xs hover:text-indigo-600">
+                                        Copy Message
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- RIGHT PARTITION: Tailored Email Pitch Body -->
+                        <div class="bg-slate-50/70 border border-slate-200 rounded-2xl p-3 text-xs space-y-2 shadow-2xs flex flex-col justify-between">
+                            <div class="flex flex-col flex-1">
+                                <div class="flex items-center justify-between mb-1.5">
+                                    <label class="font-bold text-slate-700 flex items-center gap-1.5">
+                                        <svg class="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                                        Email Body
+                                    </label>
+                                    <button type="button" onclick="copyOutreachField('modal-outreach-email-body')"
+                                        class="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-600 font-semibold rounded-lg border border-slate-200 text-[11px] transition-colors cursor-pointer shadow-2xs hover:text-emerald-600">
+                                        Copy Body
+                                    </button>
+                                </div>
+                                <textarea id="modal-outreach-email-body" rows="9"
+                                    class="w-full flex-1 bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 shadow-2xs font-medium leading-relaxed"></textarea>
+                            </div>
+                            <div class="flex justify-between items-center pt-1 text-[10px] text-slate-400 font-medium">
+                                <span>Tailored greeting, capabilities, rates & engagement models</span>
+                            </div>
                         </div>
                     </div>
-                    <div class="text-xs">
-                        <label class="block font-bold text-slate-700 mb-1">Email Body</label>
-                        <textarea id="modal-outreach-email-body" rows="6"
-                            class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-blue-500 shadow-2xs font-medium"></textarea>
-                        <button type="button" onclick="copyOutreachField('modal-outreach-email-body')"
-                            class="mt-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold rounded-xl text-xs transition-colors cursor-pointer">Copy Body</button>
-                    </div>
-                    <div class="text-xs">
-                        <div class="flex items-center justify-between mb-1">
-                            <label class="block font-bold text-slate-700">LinkedIn Message</label>
-                            <div id="modal-linkedin-variant-tabs" class="flex gap-1"></div>
-                        </div>
-                        <textarea id="modal-outreach-linkedin" rows="4"
-                            class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-blue-500 shadow-2xs font-medium"></textarea>
-                        <button type="button" onclick="copyOutreachField('modal-outreach-linkedin')"
-                            class="mt-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold rounded-xl text-xs transition-colors cursor-pointer">Copy Message</button>
-                    </div>
-                    <div class="flex items-center justify-between pt-1">
+
+                    <div class="flex items-center justify-between pt-2 border-t border-slate-100">
                         <button type="button" onclick="saveModalOutreach()"
-                            class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition-colors shadow-xs cursor-pointer">
-                            Save Outreach
+                            class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition-colors shadow-xs cursor-pointer flex items-center gap-1.5">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                            <span>Save Outreach</span>
                         </button>
                         <span id="modal-outreach-save-status" class="text-xs text-slate-400"></span>
                     </div>

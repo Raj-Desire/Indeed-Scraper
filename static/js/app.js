@@ -562,12 +562,14 @@ async function fetchLeads() {
         const tblDl = document.getElementById('table-download-btn');
         const navSp = document.getElementById('nav-sharepoint-btn');
         const tblSp = document.getElementById('table-sharepoint-btn');
+        const tblOutreach = document.getElementById('table-generate-outreach-btn');
         const tblClr = document.getElementById('table-clear-btn');
         const hasLeads = allLeads.length > 0;
 
         [navDl, tblDl].forEach(b => b && b.classList.toggle('hidden', !hasLeads));
         const showSp = hasLeads && (currentAppMode === 'scraper');
         [navSp, tblSp].forEach(b => b && b.classList.toggle('hidden', !showSp));
+        if (tblOutreach) tblOutreach.classList.toggle('hidden', !showSp);
         if (tblClr) tblClr.classList.toggle('hidden', !hasLeads);
     } catch (e) {
         console.error('Error fetching leads:', e);
@@ -1215,6 +1217,65 @@ async function exportSharePoint() {
     }
 }
 
+async function generateOutreachForSelectedLeads() {
+    const selectedIdsArray = Array.from(selectedLeadIds);
+    if (allLeads.length > 0 && selectedIdsArray.length === 0) {
+        showAlertModal('No Leads Selected', 'Please select at least one lead from the table to generate outreach for.', 'warning');
+        return;
+    }
+
+    const leadIds = selectedIdsArray.length < allLeads.length
+        ? selectedIdsArray
+        : allLeads.map(l => String(l.id));
+
+    const btn = document.getElementById('table-generate-outreach-btn');
+    const label = document.getElementById('table-generate-outreach-label');
+    const originalLabel = label ? label.textContent : 'Generate Outreach';
+    if (btn) btn.disabled = true;
+    if (label) label.textContent = `Generating (0/${leadIds.length})...`;
+
+    try {
+        const res = await fetch('/api/jobs/generate-outreach-batch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ lead_ids: leadIds })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+            showAlertModal('Outreach Generation Error', data.detail || data.message || 'Failed to generate outreach drafts.', 'error');
+            return;
+        }
+
+        // Merge the freshly generated outreach fields back into allLeads without a full re-fetch.
+        const byId = new Map((data.leads || []).map(l => [String(l.id), l]));
+        allLeads = allLeads.map(l => {
+            const updated = byId.get(String(l.id));
+            if (!updated) return l;
+            return {
+                ...l,
+                outreach_email_subject: updated.outreach_email_subject,
+                outreach_email_body: updated.outreach_email_body,
+                outreach_linkedin_message: updated.outreach_linkedin_message,
+                outreach_linkedin_variants: updated.outreach_linkedin_variants,
+            };
+        });
+        lastLeadsHash = '';
+        renderTable(allLeads);
+        updateSelectedLeadsUI();
+
+        const failedCount = (data.failed || []).length;
+        const msg = failedCount > 0
+            ? `Generated outreach for ${data.generated} lead(s); ${failedCount} failed and can be retried individually from the lead's detail view.`
+            : `Generated outreach for ${data.generated} lead(s). It's saved automatically and will be included the next time you Sync to SharePoint.`;
+        showAlertModal('Outreach Generated', msg, failedCount > 0 ? 'warning' : 'success');
+    } catch (e) {
+        showAlertModal('Network Error', e.message, 'error');
+    } finally {
+        if (btn) btn.disabled = false;
+        if (label) label.textContent = originalLabel;
+    }
+}
+
 function esc(str) {
     if (!str) return '';
     return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -1252,6 +1313,7 @@ function switchMode(mode) {
     const thCompany = document.getElementById('th-company');
     const navSp = document.getElementById('nav-sharepoint-btn');
     const tblSp = document.getElementById('table-sharepoint-btn');
+    const tblOutreach = document.getElementById('table-generate-outreach-btn');
     const progressCard = document.getElementById('progress-card');
     const stagedCard = document.getElementById('staged-queue-card');
 
@@ -1268,6 +1330,7 @@ function switchMode(mode) {
         document.querySelectorAll('.col-company').forEach(el => el.classList.remove('hidden'));
         if (navSp && allLeads.length > 0) navSp.classList.remove('hidden');
         if (tblSp && allLeads.length > 0) tblSp.classList.remove('hidden');
+        if (tblOutreach && allLeads.length > 0) tblOutreach.classList.remove('hidden');
     } else {
         btnManual.className = 'px-4 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 bg-blue-600 text-white shadow-xs cursor-pointer';
         btnScraper.className = 'px-4 py-2 text-xs font-semibold rounded-xl transition-all flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer';
@@ -1280,6 +1343,7 @@ function switchMode(mode) {
         // In manual mode, hide redundant navbar and table header sync buttons to avoid conflict
         if (navSp) navSp.classList.add('hidden');
         if (tblSp) tblSp.classList.add('hidden');
+        if (tblOutreach) tblOutreach.classList.add('hidden');
     }
 }
 
@@ -1511,10 +1575,11 @@ async function evaluateManualJob() {
         const tblDl = document.getElementById('table-download-btn');
         const navSp = document.getElementById('nav-sharepoint-btn');
         const tblSp = document.getElementById('table-sharepoint-btn');
+        const tblOutreach = document.getElementById('table-generate-outreach-btn');
         const tblClr = document.getElementById('table-clear-btn');
         [navDl, tblDl, tblClr].forEach(b => b && b.classList.remove('hidden'));
         if (currentAppMode === 'scraper') {
-            [navSp, tblSp].forEach(b => b && b.classList.remove('hidden'));
+            [navSp, tblSp, tblOutreach].forEach(b => b && b.classList.remove('hidden'));
         }
 
     } catch (err) {
@@ -2460,8 +2525,9 @@ async function executeResetPage() {
     const tblDl = document.getElementById('table-download-btn');
     const navSp = document.getElementById('nav-sharepoint-btn');
     const tblSp = document.getElementById('table-sharepoint-btn');
+    const tblOutreach = document.getElementById('table-generate-outreach-btn');
     const tblClr = document.getElementById('table-clear-btn');
-    [navDl, tblDl, navSp, tblSp, tblClr].forEach(b => b && b.classList.add('hidden'));
+    [navDl, tblDl, navSp, tblSp, tblOutreach, tblClr].forEach(b => b && b.classList.add('hidden'));
 
     // 8. Reset Staged Queue
     stagedOpportunities = [];
@@ -2601,6 +2667,7 @@ window.stopSearch = stopSearch;
 window.filterTable = filterTable;
 window.exportExcel = exportExcel;
 window.exportSharePoint = exportSharePoint;
+window.generateOutreachForSelectedLeads = generateOutreachForSelectedLeads;
 window.toggleLeadSelection = toggleLeadSelection;
 window.toggleSelectAllLeads = toggleSelectAllLeads;
 window.openDescriptionModal = openDescriptionModal;

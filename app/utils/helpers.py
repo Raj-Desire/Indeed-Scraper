@@ -315,17 +315,22 @@ def get_indeed_search_url(
     location: str = "",
     page: int = 0,
     fromage: str = "all",
+    sort_by: str = "date",
 ) -> str:
     """
     Build an Indeed search URL for any country, query, page, and date posted filter.
+
+    sort_by="date" asks Indeed for newest-first results; anything else (e.g. "relevance")
+    omits the `sort` param so Indeed applies its own default relevance ranking.
     """
     domain = resolve_country_domain(country_input)
     start = page * 10
     params = {
         "q": query.strip(),
         "start": start,
-        "sort": "date",
     }
+    if str(sort_by).strip().lower() == "date":
+        params["sort"] = "date"
     if location:
         params["l"] = location.strip()
     if fromage and str(fromage).strip().lower() != "all":
@@ -410,6 +415,16 @@ ROLE_SYNONYMS = {
 }
 
 
+def _token_patterns(token: str) -> list[str]:
+    """Build the regex alternatives (including role synonyms) for a single query token."""
+    if token in ROLE_SYNONYMS:
+        return ROLE_SYNONYMS[token]
+    escaped = re.escape(token)
+    if len(token) <= 2:
+        return [rf"\b{escaped}\b"]
+    return [rf"\b{escaped}\b" if token.isalnum() else escaped]
+
+
 def is_job_matching_query(job_title: str, company: str, location: str, description: str, query: str) -> bool:
     """
     Check if a job posting matches the search query.
@@ -429,18 +444,8 @@ def is_job_matching_query(job_title: str, company: str, location: str, descripti
     combined_text = f"{job_title} {company} {location} {description}".lower()
 
     for token in meaningful_tokens:
-        patterns = []
-        if token in ROLE_SYNONYMS:
-            patterns.extend(ROLE_SYNONYMS[token])
-        else:
-            escaped = re.escape(token)
-            if len(token) <= 2:
-                patterns.append(rf"\b{escaped}\b")
-            else:
-                patterns.append(rf"\b{escaped}\b" if token.isalnum() else escaped)
-
-        token_matched = any(re.search(pat, combined_text, re.IGNORECASE) for pat in patterns)
-        if not token_matched:
+        patterns = _token_patterns(token)
+        if not any(re.search(pat, combined_text, re.IGNORECASE) for pat in patterns):
             return False
 
     return True
