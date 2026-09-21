@@ -8,13 +8,13 @@ from fastapi.testclient import TestClient
 from app.models.job import JobPosting
 
 
-def _make_client(fake_service):
+def _make_client(fake_service, monkeypatch):
     import app.dashboard.router as router_mod
     from fastapi import FastAPI
 
     app = FastAPI()
     app.include_router(router_mod.router)
-    router_mod.get_dice_service = lambda: fake_service
+    monkeypatch.setattr(router_mod, "get_dice_service", lambda: fake_service)
     return TestClient(app)
 
 
@@ -43,9 +43,9 @@ class _FakeDiceService:
         return len(self.results)
 
 
-def test_post_dice_search_returns_serialized_jobs():
+def test_post_dice_search_returns_serialized_jobs(monkeypatch):
     fake_service = _FakeDiceService()
-    client = _make_client(fake_service)
+    client = _make_client(fake_service, monkeypatch)
 
     resp = client.post("/api/dice/search", json={"keyword": "python", "location": "Remote"})
 
@@ -57,19 +57,19 @@ def test_post_dice_search_returns_serialized_jobs():
     assert fake_service.search_args == ("python", {"location": "Remote"})
 
 
-def test_post_dice_search_requires_keyword():
+def test_post_dice_search_requires_keyword(monkeypatch):
     fake_service = _FakeDiceService()
-    client = _make_client(fake_service)
+    client = _make_client(fake_service, monkeypatch)
 
     resp = client.post("/api/dice/search", json={"location": "Remote"})
 
     assert resp.status_code == 422
 
 
-def test_get_dice_results():
+def test_get_dice_results(monkeypatch):
     fake_service = _FakeDiceService()
     fake_service.results = [JobPosting(job_title="X", company="Y", lead_source="Dice")]
-    client = _make_client(fake_service)
+    client = _make_client(fake_service, monkeypatch)
 
     resp = client.get("/api/dice/results")
 
@@ -77,10 +77,10 @@ def test_get_dice_results():
     assert resp.json()["total"] == 1
 
 
-def test_post_dice_clear():
+def test_post_dice_clear(monkeypatch):
     fake_service = _FakeDiceService()
     fake_service.results = [JobPosting(job_title="X", company="Y", lead_source="Dice")]
-    client = _make_client(fake_service)
+    client = _make_client(fake_service, monkeypatch)
 
     resp = client.post("/api/dice/clear")
 
@@ -88,10 +88,10 @@ def test_post_dice_clear():
     assert fake_service.cleared is True
 
 
-def test_post_dice_export_sharepoint():
+def test_post_dice_export_sharepoint(monkeypatch):
     fake_service = _FakeDiceService()
     fake_service.results = [JobPosting(job_title="X", company="Y", lead_source="Dice")]
-    client = _make_client(fake_service)
+    client = _make_client(fake_service, monkeypatch)
 
     resp = client.post("/api/dice/export/sharepoint", json={"owner": "Meet"})
 
@@ -100,9 +100,9 @@ def test_post_dice_export_sharepoint():
     assert fake_service.exported_with == (None, "Meet")
 
 
-def test_post_dice_export_sharepoint_no_results_returns_400():
+def test_post_dice_export_sharepoint_no_results_returns_400(monkeypatch):
     fake_service = _FakeDiceService()
-    client = _make_client(fake_service)
+    client = _make_client(fake_service, monkeypatch)
 
     resp = client.post("/api/dice/export/sharepoint", json={})
 
