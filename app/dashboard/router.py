@@ -16,6 +16,7 @@ from app.config.constants import COMMON_COUNTRIES
 from app.config.settings import get_settings
 from app.dashboard.websocket import ws_manager
 from app.models.scraper import RunConfig
+from app.services.dice_service import get_dice_service
 from app.services.scraper_service import get_scraper_service
 from app.utils.logger import logger
 
@@ -105,6 +106,7 @@ def _serialize_job(j):
         "location": j.location,
         "country": j.country,
         "role": j.search_query,
+        "lead_source": getattr(j, "lead_source", "Indeed"),
         "salary": j.salary_range,
         "industry": j.industry,
         "company_size": j.company_size,
@@ -775,6 +777,91 @@ async def api_export_sharepoint(request: Request):
         return {
             "status": "success",
             "message": f"Successfully exported {inserted_count} jobs to SharePoint List via Microsoft Graph API!",
+            "count": inserted_count,
+        }
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"SharePoint Export Error: {str(exc)}")
+
+
+@router.post("/api/dice/search")
+async def api_dice_search(request: Request):
+    """Search Dice.com via its official MCP server, score results via the KB/LLM
+    matching pipeline, and return them for display."""
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload")
+
+    keyword = (body.get("keyword") or "").strip()
+    if not keyword:
+        raise HTTPException(status_code=422, detail="keyword is required")
+
+    filters = {
+        k: v for k, v in {
+            "location": body.get("location"),
+            "radius": body.get("radius"),
+            "radius_unit": body.get("radius_unit"),
+            "workplace_types": body.get("workplace_types"),
+            "employment_types": body.get("employment_types"),
+            "posted_date": body.get("posted_date"),
+            "easy_apply": body.get("easy_apply"),
+            "willing_to_sponsor": body.get("willing_to_sponsor"),
+            "jobs_per_page": body.get("jobs_per_page"),
+        }.items() if v is not None
+    }
+
+    service = get_dice_service()
+    try:
+        await service.search(keyword, **filters)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Dice search failed: {exc}")
+
+    leads = service.get_results()
+    leads.sort(key=lambda j: (j.match_score is not None, j.match_score or 0), reverse=True)
+    return {"total": len(leads), "leads": [_serialize_job(j) for j in leads]}
+
+
+@router.get("/api/dice/results")
+async def api_dice_results():
+    """Return current Dice search results."""
+    service = get_dice_service()
+    leads = service.get_results()
+    leads.sort(key=lambda j: (j.match_score is not None, j.match_score or 0), reverse=True)
+    return {"total": len(leads), "leads": [_serialize_job(j) for j in leads]}
+
+
+@router.post("/api/dice/clear")
+async def api_dice_clear():
+    """Clear all Dice search results from the dashboard."""
+    service = get_dice_service()
+    service.clear_results()
+    return {"status": "cleared", "total": 0}
+
+
+@router.post("/api/dice/export/sharepoint")
+async def api_dice_export_sharepoint(request: Request):
+    """Upload Dice job leads to SharePoint List via Graph API. Supports filtering
+    by selected_ids."""
+    body = {}
+    try:
+        body = await request.json()
+    except Exception:
+        pass
+
+    service = get_dice_service()
+    leads = service.get_results()
+
+    if not leads:
+        raise HTTPException(status_code=400, detail="No Dice job leads to export. Run a search first.")
+
+    selected_ids = body.get("selected_ids") if isinstance(body, dict) else None
+    owner = body.get("owner") if isinstance(body, dict) else None
+
+    try:
+        inserted_count = await service.export_sharepoint(selected_ids=selected_ids, owner=owner)
+        return {
+            "status": "success",
+            "message": f"Successfully exported {inserted_count} Dice jobs to SharePoint List via Microsoft Graph API!",
             "count": inserted_count,
         }
     except Exception as exc:
