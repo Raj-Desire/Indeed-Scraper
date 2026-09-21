@@ -80,5 +80,35 @@ def test_handles_missing_optional_raw_fields():
     assert job.salary_range == "Not listed"
 
 
+def test_maps_country_from_us_location():
+    raw = dict(RAW_JOB, jobLocation={"displayName": "Nashville, Tennessee, USA"})
+    job = map_to_job_posting(raw, DETAILS, search_query="python developer")
+    assert job.country == "US"
+
+
+def test_maps_country_from_uk_location():
+    raw = dict(RAW_JOB, jobLocation={"displayName": "London, England, United Kingdom"})
+    job = map_to_job_posting(raw, DETAILS, search_query="python developer")
+    assert job.country == "GB"
+
+
+def test_maps_country_from_canada_location():
+    raw = dict(RAW_JOB, jobLocation={"displayName": "Toronto, Ontario, Canada"})
+    job = map_to_job_posting(raw, DETAILS, search_query="python developer")
+    assert job.country == "CA"
+
+
+def test_country_defaults_to_us_when_location_missing():
+    raw = dict(RAW_JOB, jobLocation=None)
+    job = map_to_job_posting(raw, DETAILS, search_query="python developer")
+    assert job.country == "US"
+
+
+def test_country_defaults_to_us_for_unrecognized_trailing_segment():
+    raw = dict(RAW_JOB, jobLocation={"displayName": "Remote"})
+    job = map_to_job_posting(raw, DETAILS, search_query="python developer")
+    assert job.country == "US"
+
+
 if __name__ == "__main__":
     print("Run with: python -m pytest tests/test_dice_mapping.py -v")

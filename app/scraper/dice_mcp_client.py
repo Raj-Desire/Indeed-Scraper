@@ -135,8 +135,24 @@ class DiceMCPClient:
         return None
 
 
+from app.config.constants import COMMON_COUNTRIES
 from app.models.job import JobPosting, RemoteType
 from datetime import datetime
+
+_COUNTRY_NAME_TO_CODE: dict[str, str] = {c.name.upper(): c.code for c in COMMON_COUNTRIES}
+_COUNTRY_NAME_TO_CODE.update({"USA": "US", "U.S.A.": "US", "U.S.": "US", "UK": "GB"})
+
+
+def _parse_country(raw: dict) -> str:
+    """Best-effort country code from Dice's `jobLocation.displayName` (typically
+    "City, State/Region, Country"). Falls back to the model default "US" when
+    the trailing segment isn't a recognized country name (e.g. "Remote", or no
+    location at all) rather than guessing."""
+    display_name = ((raw.get("jobLocation") or {}).get("displayName")) or ""
+    if not display_name:
+        return "US"
+    last_segment = display_name.split(",")[-1].strip().upper()
+    return _COUNTRY_NAME_TO_CODE.get(last_segment, "US")
 
 
 def _parse_workplace_type(raw: dict) -> RemoteType:
@@ -171,6 +187,7 @@ def map_to_job_posting(raw: dict, details: Optional[dict], search_query: str) ->
         job_title=raw.get("title") or "Untitled Role",
         company=raw.get("companyName") or "",
         location=location,
+        country=_parse_country(raw),
         search_query=search_query,
         remote_type=_parse_workplace_type(raw),
         salary_range=raw.get("salary") or "Not listed",
