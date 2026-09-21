@@ -7,9 +7,10 @@ Serves the single-page HTML application and JSON API endpoints.
 import asyncio
 from datetime import datetime
 from pathlib import Path
+import json
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 
 from app.config.constants import COMMON_COUNTRIES
@@ -856,6 +857,82 @@ async def api_dice_search(request: Request):
         "combos": combo_count,
         "leads": [_serialize_job(j) for j in leads],
     }
+
+
+@router.post("/api/dice/search-stream")
+async def api_dice_search_stream(request: Request):
+    """Run a multi-query Dice search and stream real-time progress events over SSE."""
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload")
+
+    keywords = body.get("keywords")
+    if not isinstance(keywords, list) or not keywords:
+        single_keyword = (body.get("keyword") or "").strip()
+        keywords = [single_keyword] if single_keyword else []
+    keywords = [k.strip() for k in keywords if isinstance(k, str) and k.strip()]
+    if not keywords:
+        raise HTTPException(status_code=422, detail="At least one keyword is required")
+
+    countries = body.get("countries")
+    if not isinstance(countries, list):
+        countries = []
+    countries = [c.strip() for c in countries if isinstance(c, str) and c.strip()]
+
+    combo_count = len(keywords) * max(len(countries), 1)
+    if combo_count > DICE_MAX_SEARCH_COMBINATIONS:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"Too many keyword × country combinations ({combo_count}). "
+                f"Narrow your selection to {DICE_MAX_SEARCH_COMBINATIONS} or fewer combinations."
+            ),
+        )
+
+    jobs_per_page = body.get("jobs_per_page")
+    if jobs_per_page is not None:
+        try:
+            jobs_per_page = min(max(int(jobs_per_page), 1), 50)
+        except (TypeError, ValueError):
+            jobs_per_page = None
+
+    filters = {
+        k: v for k, v in {
+            "location": body.get("location"),
+            "radius": body.get("radius"),
+            "radius_unit": body.get("radius_unit"),
+            "workplace_types": body.get("workplace_types"),
+            "employment_types": body.get("employment_types"),
+            "posted_date": body.get("posted_date"),
+            "easy_apply": body.get("easy_apply"),
+            "willing_to_sponsor": body.get("willing_to_sponsor"),
+            "jobs_per_page": jobs_per_page,
+        }.items() if v is not None
+    }
+
+    async def event_generator():
+        service = get_dice_service()
+        try:
+            async for event in service.search_multi_stream(keywords, countries, **filters):
+                if event.get("type") == "complete" and "leads" in event:
+                    event["leads"] = [_serialize_job(j) for j in event["leads"]]
+                payload = json.dumps(event)
+                yield f"data: {payload}\n\n"
+        except Exception as exc:
+            logger.error("Dice search stream error: {}", exc)
+            err_payload = json.dumps({"type": "error", "message": str(exc)})
+            yield f"data: {err_payload}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.get("/api/dice/results")

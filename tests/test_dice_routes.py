@@ -31,6 +31,14 @@ class _FakeDiceService:
         self.results = [job]
         return self.results
 
+    async def search_multi_stream(self, keywords, countries, **filters):
+        self.search_multi_args = (keywords, countries, filters)
+        job = JobPosting(job_title="Python Dev", company="Acme", lead_source="Dice", match_score=90)
+        self.results = [job]
+        yield {"type": "start", "total_combos": len(keywords) * max(len(countries), 1), "percent": 0, "message": "Starting..."}
+        yield {"type": "progress", "combo_index": 1, "total_combos": 1, "remaining": 0, "keyword": keywords[0], "location": "Remote", "jobs_found": 1, "new_jobs": 1, "percent": 50, "message": "Searching..."}
+        yield {"type": "complete", "total": 1, "new_count": 1, "combos": 1, "percent": 100, "leads": self.results, "message": "Done"}
+
     def get_results(self):
         return self.results
 
@@ -192,3 +200,18 @@ def test_post_dice_export_sharepoint_no_results_returns_400(monkeypatch):
     resp = client.post("/api/dice/export/sharepoint", json={})
 
     assert resp.status_code == 400
+
+
+def test_post_dice_search_stream_returns_sse_events(monkeypatch):
+    fake_service = _FakeDiceService()
+    client = _make_client(fake_service, monkeypatch)
+
+    resp = client.post("/api/dice/search-stream", json={"keywords": ["python"], "location": "Remote"})
+
+    assert resp.status_code == 200
+    assert "text/event-stream" in resp.headers["content-type"]
+    text = resp.text
+    assert "data:" in text
+    assert '"type": "start"' in text
+    assert '"type": "complete"' in text
+

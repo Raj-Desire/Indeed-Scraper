@@ -43,6 +43,7 @@ class DiceService:
             logger.error("Dice search failed for keyword '{}': {}", keyword, exc)
             raise
 
+        target_country = filters.get("location")
         mapped: list[JobPosting] = []
         for raw in raw_results:
             guid = raw.get("guid")
@@ -55,7 +56,7 @@ class DiceService:
                         "Dice get_job_details failed for '{}' (continuing with summary only): {}",
                         guid, exc,
                     )
-            mapped.append(map_to_job_posting(raw, details, search_query=keyword))
+            mapped.append(map_to_job_posting(raw, details, search_query=keyword, target_country=target_country))
 
         deduped = self._dedup_filter.filter(mapped)
 
@@ -96,6 +97,81 @@ class DiceService:
                 new_jobs.extend(await self.search(keyword, **combo_filters))
 
         return new_jobs
+
+    async def search_multi_stream(
+        self, keywords: list[str], countries: Optional[list[str]] = None, **filters
+    ):
+        """Run search_multi step-by-step and yield progress events as an async generator."""
+        location_values = countries if countries else [filters.pop("location", None)]
+        combos = [(kw, loc) for kw in keywords for loc in location_values]
+        total_combos = len(combos)
+
+        yield {
+            "type": "start",
+            "total_combos": total_combos,
+            "jobs_found": len(self._results),
+            "percent": 0,
+            "message": f"Starting Dice search across {total_combos} combinations...",
+        }
+
+        new_jobs: list[JobPosting] = []
+        for idx, (keyword, location) in enumerate(combos, start=1):
+            loc_label = location or "Any Location"
+            pct = int(((idx - 1) / total_combos) * 85)
+            yield {
+                "type": "progress",
+                "combo_index": idx,
+                "total_combos": total_combos,
+                "remaining": total_combos - idx + 1,
+                "keyword": keyword,
+                "location": loc_label,
+                "jobs_found": len(self._results),
+                "new_jobs": len(new_jobs),
+                "percent": pct,
+                "message": f"Searching '{keyword}' in {loc_label} (Step {idx} of {total_combos})...",
+            }
+
+            combo_filters = dict(filters)
+            if location is not None:
+                combo_filters["location"] = location
+
+            added_jobs = await self.search(keyword, **combo_filters)
+            new_jobs.extend(added_jobs)
+
+            step_pct = int((idx / total_combos) * 85)
+            yield {
+                "type": "progress",
+                "combo_index": idx,
+                "total_combos": total_combos,
+                "remaining": total_combos - idx,
+                "keyword": keyword,
+                "location": loc_label,
+                "jobs_found": len(self._results),
+                "new_jobs": len(new_jobs),
+                "percent": step_pct,
+                "message": f"Retrieved '{keyword}' in {loc_label} ({idx}/{total_combos} done, {len(added_jobs)} new).",
+            }
+
+        yield {
+            "type": "enriching",
+            "total_combos": total_combos,
+            "jobs_found": len(self._results),
+            "new_jobs": len(new_jobs),
+            "percent": 95,
+            "message": f"Finalizing AI evaluations for {len(self._results)} total job lead(s)...",
+        }
+
+        leads = self.get_results()
+        leads.sort(key=lambda j: (j.match_score is not None, j.match_score or 0), reverse=True)
+        yield {
+            "type": "complete",
+            "total": len(leads),
+            "new_count": len(new_jobs),
+            "combos": total_combos,
+            "percent": 100,
+            "leads": leads,
+            "message": f"Dice search complete! Found {len(new_jobs)} new job(s) across {total_combos} searches.",
+        }
 
     def get_results(self) -> list[JobPosting]:
         return list(self._results)

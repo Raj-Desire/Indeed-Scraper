@@ -224,5 +224,43 @@ def test_search_multi_single_keyword_no_countries_uses_explicit_location_if_give
     assert filters == {"location": "New York, NY"}
 
 
+def test_search_multi_stream_yields_expected_events():
+    dice_client = _FakeDiceClient([{"guid": "a1", "title": "Dev", "companyName": "Acme"}])
+    service = DiceService(dice_client=dice_client, match_service=_FakeMatchService())
+
+    async def collect():
+        events = []
+        async for ev in service.search_multi_stream(keywords=["python", "java"], countries=["United States"]):
+            events.append(ev)
+        return events
+
+    events = asyncio.run(collect())
+    event_types = [e["type"] for e in events]
+    assert "start" in event_types
+    assert "progress" in event_types
+    assert "enriching" in event_types
+    assert "complete" in event_types
+    complete_event = [e for e in events if e["type"] == "complete"][0]
+    assert complete_event["combos"] == 2
+    assert complete_event["percent"] == 100
+    assert len(complete_event["leads"]) == 1
+
+
+def test_search_resolves_canadian_and_us_countries():
+    canadian_job = {"guid": "ca1", "title": "Dev", "companyName": "Acme", "jobLocation": {"displayName": "Toronto, Ontario, Canada"}}
+    remote_job = {"guid": "ca2", "title": "Lead", "companyName": "Beta", "jobLocation": None}
+    us_job = {"guid": "us1", "title": "Architect", "companyName": "Gamma", "jobLocation": {"displayName": "Austin, Texas, USA"}}
+
+    dice_client = _FakeDiceClient([canadian_job, remote_job, us_job])
+    service = DiceService(dice_client=dice_client, match_service=_FakeMatchService())
+
+    results = asyncio.run(service.search("python", location="Canada"))
+    assert results[0].country == "CA"
+    assert results[1].country == "CA"  # Remote job with Canada location filter maps to CA
+    assert results[2].country == "US"  # Explicit USA displayName maps to US
+
+
 if __name__ == "__main__":
     print("Run with: python -m pytest tests/test_dice_service.py -v")
+
+

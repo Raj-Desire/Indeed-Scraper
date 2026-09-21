@@ -19,6 +19,7 @@ from typing import Any, Optional
 
 import httpx
 
+from app.utils.helpers import format_html_description
 from app.utils.logger import logger
 
 DICE_MCP_URL = "https://mcp.dice.com/mcp"
@@ -140,19 +141,46 @@ from app.models.job import JobPosting, RemoteType
 from datetime import datetime
 
 _COUNTRY_NAME_TO_CODE: dict[str, str] = {c.name.upper(): c.code for c in COMMON_COUNTRIES}
-_COUNTRY_NAME_TO_CODE.update({"USA": "US", "U.S.A.": "US", "U.S.": "US", "UK": "GB"})
+_COUNTRY_NAME_TO_CODE.update({"USA": "US", "U.S.A.": "US", "U.S.": "US", "UK": "GB", "CANADA": "CA"})
+
+_CANADIAN_INDICATORS = {
+    "CANADA", "CA", "ONTARIO", "ON", "QUEBEC", "QC", "BRITISH COLUMBIA", "BC",
+    "ALBERTA", "AB", "MANITOBA", "MB", "SASKATCHEWAN", "SK", "NOVA SCOTIA", "NS",
+    "NEW BRUNSWICK", "NB", "NEWFOUNDLAND", "NL", "PRINCE EDWARD ISLAND", "PE",
+    "NORTHWEST TERRITORIES", "NT", "YUKON", "YT", "NUNAVUT", "NU",
+    "TORONTO", "VANCOUVER", "MONTREAL", "OTTAWA", "CALGARY", "EDMONTON"
+}
 
 
-def _parse_country(raw: dict) -> str:
+def _parse_country(raw: dict, target_country: Optional[str] = None) -> str:
     """Best-effort country code from Dice's `jobLocation.displayName` (typically
-    "City, State/Region, Country"). Falls back to the model default "US" when
-    the trailing segment isn't a recognized country name (e.g. "Remote", or no
-    location at all) rather than guessing."""
+    "City, State/Region, Country"). Recognizes US and Canadian indicators, and
+    falls back to target_country (or 'US') when no location is given."""
     display_name = ((raw.get("jobLocation") or {}).get("displayName")) or ""
     if not display_name:
+        if target_country:
+            tc_upper = target_country.strip().upper()
+            if tc_upper in ("CANADA", "CA"):
+                return "CA"
+            return _COUNTRY_NAME_TO_CODE.get(tc_upper, "US")
         return "US"
-    last_segment = display_name.split(",")[-1].strip().upper()
-    return _COUNTRY_NAME_TO_CODE.get(last_segment, "US")
+
+    upper_name = display_name.upper()
+    segments = [s.strip() for s in upper_name.split(",") if s.strip()]
+    last_segment = segments[-1] if segments else ""
+
+    if last_segment in _COUNTRY_NAME_TO_CODE:
+        return _COUNTRY_NAME_TO_CODE[last_segment]
+
+    if any(s in _CANADIAN_INDICATORS for s in segments) or "CANADA" in upper_name:
+        return "CA"
+
+    if target_country:
+        tc_upper = target_country.strip().upper()
+        if tc_upper in ("CANADA", "CA") and ("USA" not in upper_name and "UNITED STATES" not in upper_name):
+            return "CA"
+
+    return "US"
 
 
 def _parse_workplace_type(raw: dict) -> RemoteType:
@@ -176,18 +204,25 @@ def _parse_posted_date(raw_value: Optional[str]) -> Optional[datetime]:
         return None
 
 
-def map_to_job_posting(raw: dict, details: Optional[dict], search_query: str) -> JobPosting:
+def map_to_job_posting(
+    raw: dict,
+    details: Optional[dict] = None,
+    search_query: str = "",
+    target_country: Optional[str] = None,
+) -> JobPosting:
     """Map a raw Dice `search_jobs` result (+ optional `get_job_details` result)
     into a JobPosting tagged lead_source="Dice"."""
     location = ((raw.get("jobLocation") or {}).get("displayName")) or ""
     details = details or {}
     posted_raw = raw.get("postedDate") or ""
+    raw_desc = (details.get("description") or "").strip()
+    clean_desc = format_html_description(raw_desc) if raw_desc else ""
 
     return JobPosting(
         job_title=raw.get("title") or "Untitled Role",
         company=raw.get("companyName") or "",
         location=location,
-        country=_parse_country(raw),
+        country=_parse_country(raw, target_country=target_country),
         search_query=search_query,
         remote_type=_parse_workplace_type(raw),
         salary_range=raw.get("salary") or "Not listed",
@@ -195,7 +230,7 @@ def map_to_job_posting(raw: dict, details: Optional[dict], search_query: str) ->
         posted_date=_parse_posted_date(posted_raw),
         job_url=raw.get("detailsPageUrl") or "",
         apply_url=raw.get("detailsPageUrl") or "",
-        job_description=details.get("description") or "",
-        has_full_description=bool(details.get("description")),
+        job_description=clean_desc,
+        has_full_description=bool(clean_desc),
         lead_source="Dice",
     )

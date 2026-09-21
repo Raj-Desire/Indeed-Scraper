@@ -71,13 +71,25 @@ def _html_escape(text: Any) -> str:
 
 def _structured_text_to_html(text: Optional[str]) -> str:
     """
-    Convert the scraper's lightweight structured text (produced by
-    _enrich_full_description: '### heading' lines, '• bullet' lines, and plain
-    paragraphs) into real HTML - headings become <h3>, consecutive bullets become one
+    Convert structured text or raw HTML into real, well-formed HTML for SharePoint
+    Rich Text columns - headings become <h3>, consecutive bullets become one
     <ul>, and other lines become <p> paragraphs.
     """
     if not text:
         return ""
+    
+    raw_str = str(text).strip()
+    if not raw_str:
+        return ""
+
+    # If the input contains raw/escaped HTML tags (e.g., <br />, <li>, <b>, <div>),
+    # first convert them into clean structured text so literal tag strings are never displayed.
+    from app.utils.helpers import format_html_description
+    if any(tag in raw_str for tag in ["<br", "<li", "<b>", "<strong>", "<p", "<div", "<ul", "<ol", "<h"]):
+        cleaned_text = format_html_description(raw_str)
+    else:
+        cleaned_text = raw_str
+
     html_parts: list[str] = []
     bullet_buffer: list[str] = []
 
@@ -87,7 +99,7 @@ def _structured_text_to_html(text: Optional[str]) -> str:
             html_parts.append(f"<ul>{items}</ul>")
             bullet_buffer.clear()
 
-    for raw_line in str(text).splitlines():
+    for raw_line in cleaned_text.splitlines():
         line = raw_line.strip()
         if not line:
             continue

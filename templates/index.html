@@ -5,12 +5,16 @@
 <div class="bg-white border border-slate-200/90 rounded-2xl p-6 shadow-sm space-y-6">
     <div class="flex items-center justify-between pb-3 border-b border-slate-100">
         <h2 class="text-slate-900 font-bold text-base flex items-center gap-2.5">
-            <span class="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            <span id="panel-section-icon" class="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-bold transition-all">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
             </span>
-            Search & Extract Job Leads
+            <span id="panel-section-title">Automated Indeed Scraper</span>
         </h2>
-        <span id="search-status" class="text-xs font-semibold px-3 py-1 bg-slate-100 text-slate-600 rounded-full border border-slate-200">
+        <span id="search-status"
+            class="text-xs font-semibold px-3 py-1 bg-slate-100 text-slate-600 rounded-full border border-slate-200">
             Status: Ready
         </span>
     </div>
@@ -18,25 +22,40 @@
     <!-- Operation Mode Tabs & Global Clear -->
     <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-2">
         <div class="flex items-center gap-2">
+            <!-- Tab 1: Automated Indeed Scraper (Professional Light Sky/Blue) -->
             <button id="tab-btn-scraper" type="button" onclick="switchMode('scraper')"
-                class="px-4 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 bg-blue-600 text-white shadow-xs cursor-pointer">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-                Automated Indeed Scraper
+                class="px-4 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 bg-sky-50 text-sky-800 border-2 border-sky-400 shadow-xs cursor-pointer">
+                <svg class="w-3.5 h-3.5 text-sky-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <span>Automated Indeed Scraper</span>
             </button>
+            <!-- Tab 2: Manual Job Evaluator (Professional Light Violet/Purple) -->
             <button id="tab-btn-manual" type="button" onclick="switchMode('manual')"
-                class="px-4 py-2 text-xs font-semibold rounded-xl transition-all flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-                Manual Job Evaluator (Paste Description)
+                class="px-4 py-2 text-xs font-semibold rounded-xl transition-all flex items-center gap-2 bg-slate-100 hover:bg-violet-50 text-slate-700 hover:text-violet-700 border border-transparent hover:border-violet-200 cursor-pointer">
+                <svg class="w-3.5 h-3.5 text-slate-500 group-hover:text-violet-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+                <span>Manual Job Evaluator (Paste Description)</span>
             </button>
+            <!-- Tab 3: Dice Search (Professional Light Emerald/Teal) -->
             <button id="tab-btn-dice" type="button" onclick="switchMode('dice')"
-                class="px-4 py-2 text-xs font-semibold rounded-xl transition-all flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-                Dice Search
+                class="px-4 py-2 text-xs font-semibold rounded-xl transition-all flex items-center gap-2 bg-slate-100 hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 border border-transparent hover:border-emerald-200 cursor-pointer">
+                <svg class="w-3.5 h-3.5 text-slate-500 group-hover:text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <span>Dice Search</span>
             </button>
         </div>
         <button id="btn-global-reset" type="button" onclick="confirmResetPage()"
             class="px-4 py-2 text-xs font-bold rounded-xl text-rose-600 hover:text-white bg-rose-50 hover:bg-rose-600 border border-rose-200 hover:border-rose-600 transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
             Clear / Reset Page
         </button>
     </div>
@@ -48,18 +67,24 @@
             <div class="flex items-center justify-between">
                 <label class="block text-slate-700 text-xs font-bold uppercase tracking-wider flex items-center gap-2">
                     <span>Target Country</span>
-                    <span id="country-count-badge" class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">1 Selected (Stealth Mode)</span>
+                    <span id="country-count-badge"
+                        class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">1
+                        Selected (Stealth Mode)</span>
                 </label>
                 <!-- <span class="text-slate-400 text-[11px] italic"> Single country domain keeps session warm and avoids bot detection</span> -->
             </div>
 
             <!-- Structured Country Selection Grid (Bigger boxes, 3 lines visible) -->
-            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 max-h-[175px] h-[175px] overflow-y-auto p-1.5 pr-2 scrollbar-thin">
+            <div
+                class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 max-h-[175px] h-[175px] overflow-y-auto p-1.5 pr-2 scrollbar-thin">
                 {% for c in countries %}
-                <label class="country-item-label flex items-center gap-3 bg-white hover:bg-blue-50/70 border border-slate-200 hover:border-blue-400 rounded-xl px-4 py-3 cursor-pointer transition-all group shadow-2xs min-h-[46px] select-none {% if c.code == 'US' %}border-blue-500 bg-blue-50/70 ring-1 ring-blue-400/40{% endif %}">
-                    <input type="radio" name="country_radio" value="{{ c.code }}" data-name="{{ c.name }}" {% if c.code == 'US' %}checked{% endif %} onchange="updateSelectedCountryDisplay()"
+                <label
+                    class="country-item-label flex items-center gap-3 bg-white hover:bg-blue-50/70 border border-slate-200 hover:border-blue-400 rounded-xl px-4 py-3 cursor-pointer transition-all group shadow-2xs min-h-[46px] select-none {% if c.code == 'US' %}border-blue-500 bg-blue-50/70 ring-1 ring-blue-400/40{% endif %}">
+                    <input type="radio" name="country_radio" value="{{ c.code }}" data-name="{{ c.name }}" {% if
+                        c.code=='US' %}checked{% endif %} onchange="updateSelectedCountryDisplay()"
                         class="w-4 h-4 rounded-full bg-white border-slate-300 text-blue-600 focus:ring-blue-500/20 accent-blue-600 cursor-pointer shrink-0">
-                    <span class="text-xs text-slate-800 group-hover:text-blue-800 font-semibold truncate flex items-center gap-1.5">
+                    <span
+                        class="text-xs text-slate-800 group-hover:text-blue-800 font-semibold truncate flex items-center gap-1.5">
                         <span>{{ c.name }}</span>
                         <span class="text-slate-400 font-medium text-[11px]">({{ c.code }})</span>
                     </span>
@@ -81,79 +106,109 @@
             <div class="flex items-center justify-between">
                 <label class="block text-slate-700 text-xs font-bold uppercase tracking-wider flex items-center gap-2">
                     <span>Target Services & Roles</span>
-                    <span id="keyword-count-badge" class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">11 Active (Default All Selected)</span>
+                    <span id="keyword-count-badge"
+                        class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">11
+                        Active (Default All Selected)</span>
                 </label>
                 <div class="flex items-center gap-2 text-xs font-semibold">
-                    <button type="button" onclick="selectAllKeywords(true)" class="px-3 py-1 bg-white hover:bg-blue-50 text-blue-600 border border-slate-300 hover:border-blue-400 rounded-lg transition-all text-xs font-medium shadow-xs cursor-pointer">Select All</button>
-                    <button type="button" onclick="selectAllKeywords(false)" class="px-3 py-1 bg-white hover:bg-slate-100 text-slate-600 border border-slate-300 rounded-lg transition-all text-xs font-medium shadow-xs cursor-pointer">Uncheck All</button>
+                    <button type="button" onclick="selectAllKeywords(true)"
+                        class="px-3 py-1 bg-white hover:bg-blue-50 text-blue-600 border border-slate-300 hover:border-blue-400 rounded-lg transition-all text-xs font-medium shadow-xs cursor-pointer">Select
+                        All</button>
+                    <button type="button" onclick="selectAllKeywords(false)"
+                        class="px-3 py-1 bg-white hover:bg-slate-100 text-slate-600 border border-slate-300 rounded-lg transition-all text-xs font-medium shadow-xs cursor-pointer">Uncheck
+                        All</button>
                 </div>
             </div>
 
             <!-- Checkbox Grid for Core Keywords -->
-            <div id="keywords-checkbox-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+            <div id="keywords-checkbox-grid"
+                class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
                 <!-- SharePoint -->
-                <label class="keyword-item flex items-center gap-2 bg-white hover:bg-blue-50/60 border border-slate-200 hover:border-blue-300 rounded-xl px-3 py-2 cursor-pointer transition-all shadow-2xs group">
-                    <input type="checkbox" name="keyword_checkbox" value="SharePoint" checked onchange="updateSelectedKeywordsDisplay()"
+                <label
+                    class="keyword-item flex items-center gap-2 bg-white hover:bg-blue-50/60 border border-slate-200 hover:border-blue-300 rounded-xl px-3 py-2 cursor-pointer transition-all shadow-2xs group">
+                    <input type="checkbox" name="keyword_checkbox" value="SharePoint" checked
+                        onchange="updateSelectedKeywordsDisplay()"
                         class="w-4 h-4 rounded bg-white border-slate-300 text-blue-600 focus:ring-blue-500/20 accent-blue-600 cursor-pointer">
                     <span class="text-xs text-slate-800 font-bold group-hover:text-blue-700 truncate">SharePoint</span>
                 </label>
                 <!-- Power Apps -->
-                <label class="keyword-item flex items-center gap-2 bg-white hover:bg-blue-50/60 border border-slate-200 hover:border-blue-300 rounded-xl px-3 py-2 cursor-pointer transition-all shadow-2xs group">
-                    <input type="checkbox" name="keyword_checkbox" value="Power Apps" checked onchange="updateSelectedKeywordsDisplay()"
+                <label
+                    class="keyword-item flex items-center gap-2 bg-white hover:bg-blue-50/60 border border-slate-200 hover:border-blue-300 rounded-xl px-3 py-2 cursor-pointer transition-all shadow-2xs group">
+                    <input type="checkbox" name="keyword_checkbox" value="Power Apps" checked
+                        onchange="updateSelectedKeywordsDisplay()"
                         class="w-4 h-4 rounded bg-white border-slate-300 text-blue-600 focus:ring-blue-500/20 accent-blue-600 cursor-pointer">
                     <span class="text-xs text-slate-800 font-bold group-hover:text-blue-700 truncate">Power Apps</span>
                 </label>
                 <!-- Power Automate -->
-                <label class="keyword-item flex items-center gap-2 bg-white hover:bg-blue-50/60 border border-slate-200 hover:border-blue-300 rounded-xl px-3 py-2 cursor-pointer transition-all shadow-2xs group">
-                    <input type="checkbox" name="keyword_checkbox" value="Power Automate" checked onchange="updateSelectedKeywordsDisplay()"
+                <label
+                    class="keyword-item flex items-center gap-2 bg-white hover:bg-blue-50/60 border border-slate-200 hover:border-blue-300 rounded-xl px-3 py-2 cursor-pointer transition-all shadow-2xs group">
+                    <input type="checkbox" name="keyword_checkbox" value="Power Automate" checked
+                        onchange="updateSelectedKeywordsDisplay()"
                         class="w-4 h-4 rounded bg-white border-slate-300 text-blue-600 focus:ring-blue-500/20 accent-blue-600 cursor-pointer">
-                    <span class="text-xs text-slate-800 font-bold group-hover:text-blue-700 truncate">Power Automate</span>
+                    <span class="text-xs text-slate-800 font-bold group-hover:text-blue-700 truncate">Power
+                        Automate</span>
                 </label>
                 <!-- Power BI -->
-                <label class="keyword-item flex items-center gap-2 bg-white hover:bg-blue-50/60 border border-slate-200 hover:border-blue-300 rounded-xl px-3 py-2 cursor-pointer transition-all shadow-2xs group">
-                    <input type="checkbox" name="keyword_checkbox" value="Power BI" checked onchange="updateSelectedKeywordsDisplay()"
+                <label
+                    class="keyword-item flex items-center gap-2 bg-white hover:bg-blue-50/60 border border-slate-200 hover:border-blue-300 rounded-xl px-3 py-2 cursor-pointer transition-all shadow-2xs group">
+                    <input type="checkbox" name="keyword_checkbox" value="Power BI" checked
+                        onchange="updateSelectedKeywordsDisplay()"
                         class="w-4 h-4 rounded bg-white border-slate-300 text-blue-600 focus:ring-blue-500/20 accent-blue-600 cursor-pointer">
                     <span class="text-xs text-slate-800 font-bold group-hover:text-blue-700 truncate">Power BI</span>
                 </label>
                 <!-- Purview -->
-                <label class="keyword-item flex items-center gap-2 bg-white hover:bg-blue-50/60 border border-slate-200 hover:border-blue-300 rounded-xl px-3 py-2 cursor-pointer transition-all shadow-2xs group">
-                    <input type="checkbox" name="keyword_checkbox" value="Purview" checked onchange="updateSelectedKeywordsDisplay()"
+                <label
+                    class="keyword-item flex items-center gap-2 bg-white hover:bg-blue-50/60 border border-slate-200 hover:border-blue-300 rounded-xl px-3 py-2 cursor-pointer transition-all shadow-2xs group">
+                    <input type="checkbox" name="keyword_checkbox" value="Purview" checked
+                        onchange="updateSelectedKeywordsDisplay()"
                         class="w-4 h-4 rounded bg-white border-slate-300 text-blue-600 focus:ring-blue-500/20 accent-blue-600 cursor-pointer">
                     <span class="text-xs text-slate-800 font-bold group-hover:text-blue-700 truncate">Purview</span>
                 </label>
                 <!-- AI -->
-                <label class="keyword-item flex items-center gap-2 bg-white hover:bg-blue-50/60 border border-slate-200 hover:border-blue-300 rounded-xl px-3 py-2 cursor-pointer transition-all shadow-2xs group">
-                    <input type="checkbox" name="keyword_checkbox" value="AI" checked onchange="updateSelectedKeywordsDisplay()"
+                <label
+                    class="keyword-item flex items-center gap-2 bg-white hover:bg-blue-50/60 border border-slate-200 hover:border-blue-300 rounded-xl px-3 py-2 cursor-pointer transition-all shadow-2xs group">
+                    <input type="checkbox" name="keyword_checkbox" value="AI" checked
+                        onchange="updateSelectedKeywordsDisplay()"
                         class="w-4 h-4 rounded bg-white border-slate-300 text-blue-600 focus:ring-blue-500/20 accent-blue-600 cursor-pointer">
                     <span class="text-xs text-slate-800 font-bold group-hover:text-blue-700 truncate">AI</span>
                 </label>
                 <!-- .NET -->
-                <label class="keyword-item flex items-center gap-2 bg-white hover:bg-blue-50/60 border border-slate-200 hover:border-blue-300 rounded-xl px-3 py-2 cursor-pointer transition-all shadow-2xs group">
-                    <input type="checkbox" name="keyword_checkbox" value=".NET" checked onchange="updateSelectedKeywordsDisplay()"
+                <label
+                    class="keyword-item flex items-center gap-2 bg-white hover:bg-blue-50/60 border border-slate-200 hover:border-blue-300 rounded-xl px-3 py-2 cursor-pointer transition-all shadow-2xs group">
+                    <input type="checkbox" name="keyword_checkbox" value=".NET" checked
+                        onchange="updateSelectedKeywordsDisplay()"
                         class="w-4 h-4 rounded bg-white border-slate-300 text-blue-600 focus:ring-blue-500/20 accent-blue-600 cursor-pointer">
                     <span class="text-xs text-slate-800 font-bold group-hover:text-blue-700 truncate">.NET</span>
                 </label>
                 <!-- React -->
-                <label class="keyword-item flex items-center gap-2 bg-white hover:bg-blue-50/60 border border-slate-200 hover:border-blue-300 rounded-xl px-3 py-2 cursor-pointer transition-all shadow-2xs group">
-                    <input type="checkbox" name="keyword_checkbox" value="React" checked onchange="updateSelectedKeywordsDisplay()"
+                <label
+                    class="keyword-item flex items-center gap-2 bg-white hover:bg-blue-50/60 border border-slate-200 hover:border-blue-300 rounded-xl px-3 py-2 cursor-pointer transition-all shadow-2xs group">
+                    <input type="checkbox" name="keyword_checkbox" value="React" checked
+                        onchange="updateSelectedKeywordsDisplay()"
                         class="w-4 h-4 rounded bg-white border-slate-300 text-blue-600 focus:ring-blue-500/20 accent-blue-600 cursor-pointer">
                     <span class="text-xs text-slate-800 font-bold group-hover:text-blue-700 truncate">React</span>
                 </label>
                 <!-- SPFx -->
-                <label class="keyword-item flex items-center gap-2 bg-white hover:bg-blue-50/60 border border-slate-200 hover:border-blue-300 rounded-xl px-3 py-2 cursor-pointer transition-all shadow-2xs group">
-                    <input type="checkbox" name="keyword_checkbox" value="SPFx" checked onchange="updateSelectedKeywordsDisplay()"
+                <label
+                    class="keyword-item flex items-center gap-2 bg-white hover:bg-blue-50/60 border border-slate-200 hover:border-blue-300 rounded-xl px-3 py-2 cursor-pointer transition-all shadow-2xs group">
+                    <input type="checkbox" name="keyword_checkbox" value="SPFx" checked
+                        onchange="updateSelectedKeywordsDisplay()"
                         class="w-4 h-4 rounded bg-white border-slate-300 text-blue-600 focus:ring-blue-500/20 accent-blue-600 cursor-pointer">
                     <span class="text-xs text-slate-800 font-bold group-hover:text-blue-700 truncate">SPFx</span>
                 </label>
                 <!-- n8n -->
-                <label class="keyword-item flex items-center gap-2 bg-white hover:bg-blue-50/60 border border-slate-200 hover:border-blue-300 rounded-xl px-3 py-2 cursor-pointer transition-all shadow-2xs group">
-                    <input type="checkbox" name="keyword_checkbox" value="n8n" checked onchange="updateSelectedKeywordsDisplay()"
+                <label
+                    class="keyword-item flex items-center gap-2 bg-white hover:bg-blue-50/60 border border-slate-200 hover:border-blue-300 rounded-xl px-3 py-2 cursor-pointer transition-all shadow-2xs group">
+                    <input type="checkbox" name="keyword_checkbox" value="n8n" checked
+                        onchange="updateSelectedKeywordsDisplay()"
                         class="w-4 h-4 rounded bg-white border-slate-300 text-blue-600 focus:ring-blue-500/20 accent-blue-600 cursor-pointer">
                     <span class="text-xs text-slate-800 font-bold group-hover:text-blue-700 truncate">n8n</span>
                 </label>
                 <!-- Intune -->
-                <label class="keyword-item flex items-center gap-2 bg-white hover:bg-blue-50/60 border border-slate-200 hover:border-blue-300 rounded-xl px-3 py-2 cursor-pointer transition-all shadow-2xs group">
-                    <input type="checkbox" name="keyword_checkbox" value="Intune" checked onchange="updateSelectedKeywordsDisplay()"
+                <label
+                    class="keyword-item flex items-center gap-2 bg-white hover:bg-blue-50/60 border border-slate-200 hover:border-blue-300 rounded-xl px-3 py-2 cursor-pointer transition-all shadow-2xs group">
+                    <input type="checkbox" name="keyword_checkbox" value="Intune" checked
+                        onchange="updateSelectedKeywordsDisplay()"
                         class="w-4 h-4 rounded bg-white border-slate-300 text-blue-600 focus:ring-blue-500/20 accent-blue-600 cursor-pointer">
                     <span class="text-xs text-slate-800 font-bold group-hover:text-blue-700 truncate">Intune</span>
                 </label>
@@ -163,9 +218,12 @@
             <div class="flex items-center gap-2 pt-1 border-t border-slate-200">
                 <span class="text-slate-500 text-xs font-medium shrink-0">Add Custom:</span>
                 <div class="relative flex-1">
-                    <input id="input-new-keyword" type="text" placeholder="Type custom keyword and press Enter (e.g. Node.js, Power BI)..." onkeydown="handleKeywordInputKey(event)"
+                    <input id="input-new-keyword" type="text"
+                        placeholder="Type custom keyword and press Enter (e.g. Node.js, Power BI)..."
+                        onkeydown="handleKeywordInputKey(event)"
                         class="w-full bg-white border border-slate-300 rounded-xl pl-3.5 pr-16 py-1.5 text-slate-800 text-xs placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 shadow-2xs font-medium">
-                    <button type="button" onclick="addCustomKeywordCheckbox()" class="absolute right-1 top-1 px-2.5 py-0.5 bg-blue-50 hover:bg-blue-100 text-blue-600 text-xs font-bold rounded-lg transition-all cursor-pointer">
+                    <button type="button" onclick="addCustomKeywordCheckbox()"
+                        class="absolute right-1 top-1 px-2.5 py-0.5 bg-blue-50 hover:bg-blue-100 text-blue-600 text-xs font-bold rounded-lg transition-all cursor-pointer">
                         + Add
                     </button>
                 </div>
@@ -188,8 +246,10 @@
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
             <!-- Location Type Selector -->
             <div>
-                <label class="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Location Type</label>
-                <select id="input-location" class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-slate-900 text-sm font-medium focus:border-blue-600 focus:ring-2 focus:ring-blue-500/10 focus:outline-none transition-all shadow-xs cursor-pointer">
+                <label class="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Location
+                    Type</label>
+                <select id="input-location"
+                    class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-slate-900 text-sm font-medium focus:border-blue-600 focus:ring-2 focus:ring-blue-500/10 focus:outline-none transition-all shadow-xs cursor-pointer">
                     <option value="all">All (Remote & On-Site)</option>
                     <option value="remote" selected>Fully Remote</option>
                     <option value="onsite">On-Site Only</option>
@@ -198,8 +258,10 @@
 
             <!-- Date Posted Selector -->
             <div>
-                <label class="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Date Posted</label>
-                <select id="input-fromage" class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-slate-900 text-sm font-medium focus:border-blue-600 focus:ring-2 focus:ring-blue-500/10 focus:outline-none transition-all shadow-xs cursor-pointer">
+                <label class="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Date
+                    Posted</label>
+                <select id="input-fromage"
+                    class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-slate-900 text-sm font-medium focus:border-blue-600 focus:ring-2 focus:ring-blue-500/10 focus:outline-none transition-all shadow-xs cursor-pointer">
                     <option value="all">All Dates</option>
                     <option value="1" selected>Last 24 hours</option>
                     <option value="3">Last 3 days</option>
@@ -214,12 +276,20 @@
             <div class="flex items-center gap-3">
                 <button id="btn-search" onclick="startSearch()"
                     class="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold rounded-xl text-sm transition-all shadow-md shadow-blue-500/20 hover:shadow-lg flex items-center gap-2 cursor-pointer">
-                    <svg id="btn-search-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                    <svg id="btn-search-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
                     <span id="btn-search-label">Search Jobs</span>
                 </button>
                 <button id="btn-stop" onclick="stopSearch()" disabled
                     class="px-5 py-2.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 disabled:opacity-40 disabled:cursor-not-allowed font-semibold rounded-xl text-xs transition-all flex items-center gap-1.5 cursor-pointer">
-                    <svg id="btn-stop-icon" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"/></svg>
+                    <svg id="btn-stop-icon" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
+                    </svg>
                     <span id="btn-stop-label">Stop</span>
                 </button>
             </div>
@@ -238,18 +308,25 @@
         </div> -->
 
         <!-- Active Edit Banner (Shown when user is modifying a job from the queue) -->
-        <div id="editing-staged-banner" class="hidden bg-amber-50 border border-amber-300 rounded-xl p-3.5 flex flex-wrap items-center justify-between gap-3 text-xs text-amber-900 shadow-2xs">
+        <div id="editing-staged-banner"
+            class="hidden bg-amber-50 border border-amber-300 rounded-xl p-3.5 flex flex-wrap items-center justify-between gap-3 text-xs text-amber-900 shadow-2xs">
             <div class="flex items-center gap-2.5 font-bold">
                 <span class="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse"></span>
-                <span>Editing Staged Job: <span id="editing-staged-title" class="underline font-extrabold text-amber-950">--</span></span>
-                <span id="editing-staged-badge" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-200 text-amber-800">Queue Item</span>
+                <span>Editing Staged Job: <span id="editing-staged-title"
+                        class="underline font-extrabold text-amber-950">--</span></span>
+                <span id="editing-staged-badge"
+                    class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-200 text-amber-800">Queue Item</span>
             </div>
             <div class="flex items-center gap-2">
-                <button id="btn-update-staged-banner" type="button" onclick="updateStagedJob()" class="px-4 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl transition-all shadow-xs cursor-pointer flex items-center gap-1.5">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                <button id="btn-update-staged-banner" type="button" onclick="updateStagedJob()"
+                    class="px-4 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl transition-all shadow-xs cursor-pointer flex items-center gap-1.5">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                    </svg>
                     Save Changes to Queue
                 </button>
-                <button type="button" onclick="cancelEditStagedJob()" class="px-3.5 py-1.5 bg-white hover:bg-slate-100 text-slate-700 font-semibold border border-slate-300 rounded-xl transition-all shadow-2xs cursor-pointer">
+                <button type="button" onclick="cancelEditStagedJob()"
+                    class="px-3.5 py-1.5 bg-white hover:bg-slate-100 text-slate-700 font-semibold border border-slate-300 rounded-xl transition-all shadow-2xs cursor-pointer">
                     Cancel
                 </button>
             </div>
@@ -262,16 +339,22 @@
                     <span>📋</span>
                     Job Description / Profile Text <span class="text-rose-500">*</span>
                 </label>
-                <span class="text-slate-500 text-[11px] font-medium">Paste entire job posting, email, or role description</span>
+                <span class="text-slate-500 text-[11px] font-medium">Paste entire job posting, email, or role
+                    description</span>
             </div>
-            <textarea id="manual-description" rows="7" placeholder="Paste full job description here (Job Title, Location, Experience, Requirements, Tech Stack, Email, Phone, etc.)..."
+            <textarea id="manual-description" rows="7"
+                placeholder="Paste full job description here (Job Title, Location, Experience, Requirements, Tech Stack, Email, Phone, etc.)..."
                 class="w-full bg-white border border-slate-300 rounded-xl p-3.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 font-mono leading-relaxed shadow-2xs"></textarea>
-            
+
             <div class="flex flex-wrap items-center justify-between gap-3 pt-1">
                 <div class="flex flex-wrap items-center gap-2.5">
                     <button id="btn-manual-eval" type="button" onclick="evaluateManualJob()"
-                        class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs transition-all shadow-md shadow-blue-500/20 hover:shadow-lg flex items-center gap-2 cursor-pointer">
-                        <svg id="btn-manual-eval-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                        class="px-5 py-2.5 bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-xl text-xs transition-all shadow-md shadow-violet-500/20 hover:shadow-lg flex items-center gap-2 cursor-pointer">
+                        <svg id="btn-manual-eval-icon" class="w-4 h-4" fill="none" stroke="currentColor"
+                            viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
                         <span id="btn-manual-eval-label">Evaluate & Auto-Fill with AI</span>
                     </button>
 
@@ -292,18 +375,22 @@
             <!-- Core Role Details -->
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                    <label class="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Job Title</label>
+                    <label class="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Job
+                        Title</label>
                     <input id="manual-job-title" type="text" placeholder="Job Title"
                         class="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 shadow-2xs font-medium">
                 </div>
                 <div>
-                    <label class="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Prospect / Company Name</label>
+                    <label class="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Prospect /
+                        Company Name</label>
                     <input id="manual-company" type="text" placeholder="Company Name"
                         class="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 shadow-2xs font-medium">
                 </div>
                 <div>
-                    <label class="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Country</label>
-                    <select id="manual-country" class="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-800 focus:outline-none focus:border-blue-500 shadow-2xs font-medium cursor-pointer">
+                    <label
+                        class="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Country</label>
+                    <select id="manual-country"
+                        class="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-800 focus:outline-none focus:border-blue-500 shadow-2xs font-medium cursor-pointer">
                         <option value="US" selected>US</option>
                         <option value="South Africa">South Africa</option>
                         <option value="UK">UK</option>
@@ -313,17 +400,20 @@
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                    <label class="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Website</label>
+                    <label
+                        class="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Website</label>
                     <input id="manual-job-url" type="url" placeholder="https://..."
                         class="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 shadow-2xs font-medium">
                 </div>
                 <div>
-                    <label class="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Salary Range</label>
+                    <label class="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Salary
+                        Range</label>
                     <input id="manual-salary" type="text" placeholder="e.g. $120,000 - $150,000 / yr"
                         class="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 shadow-2xs font-medium">
                 </div>
                 <div>
-                    <label class="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Experience Criteria</label>
+                    <label class="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Experience
+                        Criteria</label>
                     <input id="manual-experience" type="text" placeholder="e.g. 10+ years"
                         class="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 shadow-2xs font-medium">
                 </div>
@@ -333,7 +423,8 @@
             <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 text-xs pt-1">
                 <div>
                     <label class="block font-bold text-slate-700 mb-1">Owner</label>
-                    <select id="manual-owner" class="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-bold text-blue-700 focus:outline-none focus:border-blue-500 shadow-2xs">
+                    <select id="manual-owner"
+                        class="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-bold text-blue-700 focus:outline-none focus:border-blue-500 shadow-2xs">
                         <option value="Meet" selected>Meet</option>
                         <option value="Sizan">Sizan</option>
                         <option value="Chetan">Chetan</option>
@@ -341,7 +432,8 @@
                 </div>
                 <div>
                     <label class="block font-bold text-slate-700 mb-1">Lead Source</label>
-                    <select id="manual-lead-source" class="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-500 shadow-2xs">
+                    <select id="manual-lead-source"
+                        class="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-500 shadow-2xs">
                         <option value="Indeed" selected>Indeed</option>
                         <option value="LinkedIn">LinkedIn</option>
                         <option value="Upwork">Upwork</option>
@@ -355,7 +447,8 @@
                 </div>
                 <div>
                     <label class="block font-bold text-slate-700 mb-1">Industry</label>
-                    <select id="manual-industry" class="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-500 shadow-2xs">
+                    <select id="manual-industry"
+                        class="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-500 shadow-2xs">
                         <option value="IT" selected>IT</option>
                         <option value="Construction">Construction</option>
                         <option value="Legal">Legal</option>
@@ -365,7 +458,8 @@
                 </div>
                 <div>
                     <label class="block font-bold text-slate-700 mb-1">Priority</label>
-                    <select id="manual-priority" class="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-500 shadow-2xs">
+                    <select id="manual-priority"
+                        class="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-500 shadow-2xs">
                         <option value="High">High</option>
                         <option value="Medium" selected>Medium</option>
                         <option value="Low">Low</option>
@@ -373,7 +467,8 @@
                 </div>
                 <div>
                     <label class="block font-bold text-slate-700 mb-1">Status</label>
-                    <select id="manual-status" class="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-500 shadow-2xs">
+                    <select id="manual-status"
+                        class="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-500 shadow-2xs">
                         <option value="New" selected>New</option>
                         <option value="Contacted">Contacted</option>
                         <option value="Qualified">Qualified</option>
@@ -389,32 +484,41 @@
             <div class="text-xs pt-1">
                 <label class="block font-bold text-slate-700 mb-1.5">Technology</label>
                 <div id="manual-tech-container" class="flex flex-wrap gap-2">
-                    <label class="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl border border-slate-300 bg-white text-slate-700 font-semibold cursor-pointer hover:bg-slate-100 transition-all select-none">
-                        <input type="checkbox" value="AI" class="manual-tech-checkbox accent-blue-600 rounded">
+                    <label
+                        class="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl border border-slate-300 bg-white text-slate-700 font-semibold cursor-pointer hover:bg-violet-50 hover:border-violet-300 transition-all select-none">
+                        <input type="checkbox" value="AI" class="manual-tech-checkbox accent-violet-600 rounded">
                         <span>AI</span>
                     </label>
-                    <label class="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl border border-slate-300 bg-white text-slate-700 font-semibold cursor-pointer hover:bg-slate-100 transition-all select-none">
-                        <input type="checkbox" value="SharePoint" class="manual-tech-checkbox accent-blue-600 rounded" checked>
+                    <label
+                        class="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl border border-slate-300 bg-white text-slate-700 font-semibold cursor-pointer hover:bg-violet-50 hover:border-violet-300 transition-all select-none">
+                        <input type="checkbox" value="SharePoint" class="manual-tech-checkbox accent-violet-600 rounded"
+                            checked>
                         <span>SharePoint</span>
                     </label>
-                    <label class="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl border border-slate-300 bg-white text-slate-700 font-semibold cursor-pointer hover:bg-slate-100 transition-all select-none">
-                        <input type="checkbox" value="Power Platform" class="manual-tech-checkbox accent-blue-600 rounded">
+                    <label
+                        class="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl border border-slate-300 bg-white text-slate-700 font-semibold cursor-pointer hover:bg-violet-50 hover:border-violet-300 transition-all select-none">
+                        <input type="checkbox" value="Power Platform"
+                            class="manual-tech-checkbox accent-violet-600 rounded">
                         <span>Power Platform</span>
                     </label>
-                    <label class="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl border border-slate-300 bg-white text-slate-700 font-semibold cursor-pointer hover:bg-slate-100 transition-all select-none">
-                        <input type="checkbox" value=".NET" class="manual-tech-checkbox accent-blue-600 rounded">
+                    <label
+                        class="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl border border-slate-300 bg-white text-slate-700 font-semibold cursor-pointer hover:bg-violet-50 hover:border-violet-300 transition-all select-none">
+                        <input type="checkbox" value=".NET" class="manual-tech-checkbox accent-violet-600 rounded">
                         <span>.NET</span>
                     </label>
-                    <label class="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl border border-slate-300 bg-white text-slate-700 font-semibold cursor-pointer hover:bg-slate-100 transition-all select-none">
-                        <input type="checkbox" value="Dynamics" class="manual-tech-checkbox accent-blue-600 rounded">
+                    <label
+                        class="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl border border-slate-300 bg-white text-slate-700 font-semibold cursor-pointer hover:bg-violet-50 hover:border-violet-300 transition-all select-none">
+                        <input type="checkbox" value="Dynamics" class="manual-tech-checkbox accent-violet-600 rounded">
                         <span>Dynamics</span>
                     </label>
-                    <label class="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl border border-slate-300 bg-white text-slate-700 font-semibold cursor-pointer hover:bg-slate-100 transition-all select-none">
-                        <input type="checkbox" value="Power BI" class="manual-tech-checkbox accent-blue-600 rounded">
+                    <label
+                        class="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl border border-slate-300 bg-white text-slate-700 font-semibold cursor-pointer hover:bg-violet-50 hover:border-violet-300 transition-all select-none">
+                        <input type="checkbox" value="Power BI" class="manual-tech-checkbox accent-violet-600 rounded">
                         <span>Power BI</span>
                     </label>
-                    <label class="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl border border-slate-300 bg-white text-slate-700 font-semibold cursor-pointer hover:bg-slate-100 transition-all select-none">
-                        <input type="checkbox" value="Admin" class="manual-tech-checkbox accent-blue-600 rounded">
+                    <label
+                        class="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl border border-slate-300 bg-white text-slate-700 font-semibold cursor-pointer hover:bg-violet-50 hover:border-violet-300 transition-all select-none">
+                        <input type="checkbox" value="Admin" class="manual-tech-checkbox accent-violet-600 rounded">
                         <span>Admin</span>
                     </label>
                 </div>
@@ -424,7 +528,8 @@
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs pt-1">
                 <div>
                     <label class="block font-bold text-slate-700 mb-1">Currency Code</label>
-                    <select id="manual-currency" class="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:border-blue-500 shadow-2xs">
+                    <select id="manual-currency"
+                        class="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-semibold text-slate-800 focus:outline-none focus:border-violet-500 shadow-2xs">
                         <option value="USD" selected>USD</option>
                         <option value="INR">INR</option>
                         <option value="GBP">GBP</option>
@@ -435,17 +540,17 @@
                 <div>
                     <label class="block font-bold text-slate-700 mb-1">Estimated Value</label>
                     <input id="manual-estimated-value" type="number" placeholder="e.g. 5000"
-                        class="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 shadow-2xs font-medium">
+                        class="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-violet-500 shadow-2xs font-medium">
                 </div>
                 <div>
                     <label class="block font-bold text-slate-700 mb-1">Next Follow-up Date</label>
                     <input id="manual-followup-date" type="date"
-                        class="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-blue-500 shadow-2xs font-medium">
+                        class="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-violet-500 shadow-2xs font-medium">
                 </div>
                 <div>
                     <label class="block font-bold text-slate-700 mb-1">Due Date</label>
                     <input id="manual-due-date" type="date"
-                        class="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-blue-500 shadow-2xs font-medium">
+                        class="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-violet-500 shadow-2xs font-medium">
                 </div>
             </div>
 
@@ -454,17 +559,17 @@
                 <div>
                     <label class="block font-bold text-slate-700 mb-1">Contact Name</label>
                     <input id="manual-contact-name" type="text" placeholder="e.g. Hiring Manager"
-                        class="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 shadow-2xs font-medium">
+                        class="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-violet-500 shadow-2xs font-medium">
                 </div>
                 <div>
                     <label class="block font-bold text-slate-700 mb-1">Email</label>
                     <input id="manual-contact-email" type="email" placeholder="recruit@company.com"
-                        class="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 shadow-2xs font-medium">
+                        class="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-violet-500 shadow-2xs font-medium">
                 </div>
                 <div>
                     <label class="block font-bold text-slate-700 mb-1">Phone</label>
                     <input id="manual-contact-phone" type="text" placeholder="+1 (555) 000-0000"
-                        class="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 shadow-2xs font-medium">
+                        class="w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-violet-500 shadow-2xs font-medium">
                 </div>
             </div>
 
@@ -472,7 +577,7 @@
             <div class="text-xs pt-1">
                 <label class="block font-bold text-slate-700 mb-1">Notes</label>
                 <textarea id="manual-notes" rows="2" placeholder="Notes..."
-                    class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 shadow-2xs font-medium"></textarea>
+                    class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-violet-500 shadow-2xs font-medium"></textarea>
             </div>
 
             <!-- AI Outreach Drafts (generated alongside "Evaluate with AI") -->
@@ -480,9 +585,11 @@
                 <div class="flex items-center justify-between">
                     <div class="flex items-center gap-2">
                         <span class="text-indigo-600 font-bold text-sm">✉️</span>
-                        <h4 class="text-slate-900 font-extrabold text-xs uppercase tracking-wider">AI Outreach Drafts</h4>
+                        <h4 class="text-slate-900 font-extrabold text-xs uppercase tracking-wider">AI Outreach Drafts
+                        </h4>
                     </div>
-                    <span class="text-[11px] text-slate-400 font-medium">Auto-generated tailored pitch & connection messages</span>
+                    <span class="text-[11px] text-slate-400 font-medium">Auto-generated tailored pitch & connection
+                        messages</span>
                 </div>
 
                 <!-- 2-Column Split Partition: Left (Email Subject + LinkedIn) & Right (Email Body) -->
@@ -490,10 +597,15 @@
                     <!-- LEFT PARTITION: Email Subject + LinkedIn Message -->
                     <div class="flex flex-col gap-3">
                         <!-- Email Subject Card -->
-                        <div class="bg-slate-50/70 border border-slate-200 rounded-2xl p-3 text-xs space-y-1.5 shadow-2xs">
+                        <div
+                            class="bg-slate-50/70 border border-slate-200 rounded-2xl p-3 text-xs space-y-1.5 shadow-2xs">
                             <div class="flex items-center justify-between">
                                 <label class="font-bold text-slate-700 flex items-center gap-1.5">
-                                    <svg class="w-3.5 h-3.5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                                    <svg class="w-3.5 h-3.5 text-blue-600" fill="none" stroke="currentColor"
+                                        viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                    </svg>
                                     Email Subject
                                 </label>
                                 <button type="button" onclick="copyOutreachField('manual-outreach-email-subject')"
@@ -501,25 +613,33 @@
                                     Copy Subject
                                 </button>
                             </div>
-                            <input id="manual-outreach-email-subject" type="text" placeholder="Generated after evaluation..."
+                            <input id="manual-outreach-email-subject" type="text"
+                                placeholder="Generated after evaluation..."
                                 class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 shadow-2xs font-medium">
                         </div>
 
                         <!-- LinkedIn Message Card -->
-                        <div class="bg-slate-50/70 border border-slate-200 rounded-2xl p-3 text-xs space-y-2 shadow-2xs flex-1 flex flex-col justify-between">
+                        <div
+                            class="bg-slate-50/70 border border-slate-200 rounded-2xl p-3 text-xs space-y-2 shadow-2xs flex-1 flex flex-col justify-between">
                             <div>
                                 <div class="flex items-center justify-between mb-1.5">
                                     <label class="font-bold text-slate-700 flex items-center gap-1.5">
-                                        <svg class="w-3.5 h-3.5 text-indigo-600" fill="currentColor" viewBox="0 0 24 24"><path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/></svg>
+                                        <svg class="w-3.5 h-3.5 text-indigo-600" fill="currentColor"
+                                            viewBox="0 0 24 24">
+                                            <path
+                                                d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z" />
+                                        </svg>
                                         LinkedIn Message
                                     </label>
                                     <div id="manual-linkedin-variant-tabs" class="flex gap-1"></div>
                                 </div>
-                                <textarea id="manual-outreach-linkedin" rows="5" placeholder="Generated after evaluation..."
+                                <textarea id="manual-outreach-linkedin" rows="5"
+                                    placeholder="Generated after evaluation..."
                                     class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 shadow-2xs font-medium leading-relaxed"></textarea>
                             </div>
                             <div class="flex justify-between items-center pt-1">
-                                <span class="text-[10px] text-slate-400 font-medium">Tailored short connection pitch</span>
+                                <span class="text-[10px] text-slate-400 font-medium">Tailored short connection
+                                    pitch</span>
                                 <button type="button" onclick="copyOutreachField('manual-outreach-linkedin')"
                                     class="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-600 font-semibold rounded-lg border border-slate-200 text-[11px] transition-colors cursor-pointer shadow-2xs hover:text-indigo-600">
                                     Copy Message
@@ -529,11 +649,16 @@
                     </div>
 
                     <!-- RIGHT PARTITION: Tailored Email Pitch Body -->
-                    <div class="bg-slate-50/70 border border-slate-200 rounded-2xl p-3 text-xs space-y-2 shadow-2xs flex flex-col justify-between">
+                    <div
+                        class="bg-slate-50/70 border border-slate-200 rounded-2xl p-3 text-xs space-y-2 shadow-2xs flex flex-col justify-between">
                         <div class="flex flex-col flex-1">
                             <div class="flex items-center justify-between mb-1.5">
                                 <label class="font-bold text-slate-700 flex items-center gap-1.5">
-                                    <svg class="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                                    <svg class="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor"
+                                        viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                    </svg>
                                     Email Body
                                 </label>
                                 <button type="button" onclick="copyOutreachField('manual-outreach-email-body')"
@@ -541,7 +666,8 @@
                                     Copy Body
                                 </button>
                             </div>
-                            <textarea id="manual-outreach-email-body" rows="9" placeholder="Generated after evaluation..."
+                            <textarea id="manual-outreach-email-body" rows="9"
+                                placeholder="Generated after evaluation..."
                                 class="w-full flex-1 bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 shadow-2xs font-medium leading-relaxed"></textarea>
                         </div>
                         <div class="flex justify-between items-center pt-1 text-[10px] text-slate-400 font-medium">
@@ -558,21 +684,28 @@
                 <!-- Add to Queue -->
                 <button id="btn-stage-job-bottom" type="button" onclick="stageCurrentManualJob()"
                     class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs transition-all shadow-md shadow-indigo-500/20 hover:shadow-lg flex items-center gap-1.5 cursor-pointer">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                    </svg>
                     <span>Add to Queue (+ Add Another)</span>
                 </button>
 
                 <!-- Update Staged Job Button (Visible during edit mode) -->
                 <button id="btn-update-staged-bottom" type="button" onclick="updateStagedJob()"
                     class="hidden px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-xs transition-all shadow-md shadow-amber-500/20 hover:shadow-lg flex items-center gap-1.5 cursor-pointer">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                    </svg>
                     <span>Save Changes to Queue</span>
                 </button>
 
 
                 <button type="button" onclick="clearManualForm()"
                     class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors cursor-pointer flex items-center gap-1.5 shadow-2xs">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
                     Clear / Reset Form
                 </button>
             </div>
@@ -583,47 +716,77 @@
     <!-- PANEL 3: Dice Search -->
     <div id="panel-dice" class="space-y-5 hidden">
         <form onsubmit="searchDice(event)" class="space-y-5">
-            <!-- Country Selection (Multi-Select) -->
+            <!-- Country Selection (Single-Select Radio Button for Fast, Focused Search) -->
             <div class="bg-slate-50/80 border border-slate-200 rounded-xl p-4 space-y-3">
                 <div class="flex items-center justify-between">
-                    <label class="block text-slate-700 text-xs font-bold uppercase tracking-wider flex items-center gap-2">
-                        <span>Countries</span>
-                        <span id="dice-country-count-badge" class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-600 border border-slate-200">0 Selected (Any)</span>
+                    <label
+                        class="block text-slate-700 text-xs font-bold uppercase tracking-wider flex items-center gap-2">
+                        <span>Target Location (Dice Supported)</span>
+                        <span id="dice-country-count-badge"
+                            class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">United
+                            States (Nationwide & Remote)</span>
                     </label>
-                    <div class="flex items-center gap-2 text-xs font-semibold">
-                        <button type="button" onclick="diceSelectAllCountries(false)" class="px-3 py-1 bg-white hover:bg-slate-100 text-slate-600 border border-slate-300 rounded-lg transition-all text-xs font-medium shadow-xs cursor-pointer">Clear</button>
-                    </div>
+                    <span class="text-slate-400 text-[11px] font-normal hidden sm:inline">Select 1 target market for
+                        optimal search speed</span>
                 </div>
-                <div id="dice-countries-checkbox-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 max-h-[140px] overflow-y-auto p-1 pr-2 scrollbar-thin">
-                    {% for c in countries %}
-                    <label class="dice-country-item flex items-center gap-2 bg-white hover:bg-blue-50/60 border border-slate-200 hover:border-blue-300 rounded-xl px-3 py-2 cursor-pointer transition-all shadow-2xs group">
-                        <input type="checkbox" name="dice_country_checkbox" value="{{ c.name }}" onchange="updateDiceCountryDisplay()"
-                            class="w-4 h-4 rounded bg-white border-slate-300 text-blue-600 focus:ring-blue-500/20 accent-blue-600 cursor-pointer">
-                        <span class="text-xs text-slate-800 font-bold group-hover:text-blue-700 truncate">{{ c.name }}</span>
+                <div id="dice-countries-radio-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-3 p-1">
+                    <label
+                        class="dice-country-item flex items-center gap-3 bg-white hover:bg-emerald-50/60 border border-slate-200 hover:border-emerald-300 rounded-xl px-4 py-3 cursor-pointer transition-all shadow-2xs group select-none">
+                        <input type="radio" name="dice_country_radio" value="United States" checked
+                            onchange="updateDiceCountryDisplay()"
+                            class="w-4 h-4 rounded-full bg-white border-slate-300 text-emerald-600 focus:ring-emerald-500/20 accent-emerald-600 cursor-pointer">
+                        <div class="flex flex-col">
+                            <span class="text-xs text-slate-800 font-bold group-hover:text-emerald-700 truncate">United
+                                States</span>
+                            <span class="text-[10px] text-slate-400 font-medium">Nationwide & Remote (US)</span>
+                        </div>
                     </label>
-                    {% endfor %}
+                    <label
+                        class="dice-country-item flex items-center gap-3 bg-white hover:bg-emerald-50/60 border border-slate-200 hover:border-emerald-300 rounded-xl px-4 py-3 cursor-pointer transition-all shadow-2xs group select-none">
+                        <input type="radio" name="dice_country_radio" value="Canada"
+                            onchange="updateDiceCountryDisplay()"
+                            class="w-4 h-4 rounded-full bg-white border-slate-300 text-emerald-600 focus:ring-emerald-500/20 accent-emerald-600 cursor-pointer">
+                        <div class="flex flex-col">
+                            <span
+                                class="text-xs text-slate-800 font-bold group-hover:text-emerald-700 truncate">Canada</span>
+                            <span class="text-[10px] text-slate-400 font-medium">Ontario, BC, Alberta & Remote
+                                (CA)</span>
+                        </div>
+                    </label>
                 </div>
             </div>
 
             <!-- Keywords (Multi-Select) -->
             <div class="bg-slate-50/80 border border-slate-200 rounded-xl p-4 space-y-3">
                 <div class="flex items-center justify-between">
-                    <label class="block text-slate-700 text-xs font-bold uppercase tracking-wider flex items-center gap-2">
+                    <label
+                        class="block text-slate-700 text-xs font-bold uppercase tracking-wider flex items-center gap-2">
                         <span>Keywords <span class="text-rose-500">*</span></span>
-                        <span id="dice-keyword-count-badge" class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">11 Active (Default All Selected)</span>
+                        <span id="dice-keyword-count-badge"
+                            class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">11
+                            Active (Default All Selected)</span>
                     </label>
                     <div class="flex items-center gap-2 text-xs font-semibold">
-                        <button type="button" onclick="diceSelectAllKeywords(true)" class="px-3 py-1 bg-white hover:bg-blue-50 text-blue-600 border border-slate-300 hover:border-blue-400 rounded-lg transition-all text-xs font-medium shadow-xs cursor-pointer">Select All</button>
-                        <button type="button" onclick="diceSelectAllKeywords(false)" class="px-3 py-1 bg-white hover:bg-slate-100 text-slate-600 border border-slate-300 rounded-lg transition-all text-xs font-medium shadow-xs cursor-pointer">Uncheck All</button>
+                        <button type="button" onclick="diceSelectAllKeywords(true)"
+                            class="px-3 py-1 bg-white hover:bg-emerald-50 text-emerald-600 border border-slate-300 hover:border-emerald-400 rounded-lg transition-all text-xs font-medium shadow-xs cursor-pointer">Select
+                            All</button>
+                        <button type="button" onclick="diceSelectAllKeywords(false)"
+                            class="px-3 py-1 bg-white hover:bg-slate-100 text-slate-600 border border-slate-300 rounded-lg transition-all text-xs font-medium shadow-xs cursor-pointer">Uncheck
+                            All</button>
                     </div>
                 </div>
 
-                <div id="dice-keywords-checkbox-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
-                    {% for kw in ["SharePoint", "Power Apps", "Power Automate", "Power BI", "Purview", "AI", ".NET", "React", "SPFx", "n8n", "Intune"] %}
-                    <label class="dice-keyword-item flex items-center gap-2 bg-white hover:bg-blue-50/60 border border-slate-200 hover:border-blue-300 rounded-xl px-3 py-2 cursor-pointer transition-all shadow-2xs group">
-                        <input type="checkbox" name="dice_keyword_checkbox" value="{{ kw }}" checked onchange="updateDiceKeywordDisplay()"
-                            class="w-4 h-4 rounded bg-white border-slate-300 text-blue-600 focus:ring-blue-500/20 accent-blue-600 cursor-pointer">
-                        <span class="text-xs text-slate-800 font-bold group-hover:text-blue-700 truncate">{{ kw }}</span>
+                <div id="dice-keywords-checkbox-grid"
+                    class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+                    {% for kw in ["SharePoint", "Power Apps", "Power Automate", "Power BI", "Purview", "AI", ".NET",
+                    "React", "SPFx", "n8n", "Intune"] %}
+                    <label
+                        class="dice-keyword-item flex items-center gap-2 bg-white hover:bg-emerald-50/60 border border-slate-200 hover:border-emerald-300 rounded-xl px-3 py-2 cursor-pointer transition-all shadow-2xs group">
+                        <input type="checkbox" name="dice_keyword_checkbox" value="{{ kw }}" checked
+                            onchange="updateDiceKeywordDisplay()"
+                            class="w-4 h-4 rounded bg-white border-slate-300 text-emerald-600 focus:ring-emerald-500/20 accent-emerald-600 cursor-pointer">
+                        <span class="text-xs text-slate-800 font-bold group-hover:text-emerald-700 truncate">{{ kw
+                            }}</span>
                     </label>
                     {% endfor %}
                 </div>
@@ -632,9 +795,12 @@
                 <div class="flex items-center gap-2 pt-1 border-t border-slate-200">
                     <span class="text-slate-500 text-xs font-medium shrink-0">Add Custom:</span>
                     <div class="relative flex-1">
-                        <input id="dice-input-new-keyword" type="text" placeholder="Type custom keyword and press Enter..." onkeydown="handleDiceKeywordInputKey(event)"
-                            class="w-full bg-white border border-slate-300 rounded-xl pl-3.5 pr-16 py-1.5 text-slate-800 text-xs placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 shadow-2xs font-medium">
-                        <button type="button" onclick="addDiceCustomKeywordCheckbox()" class="absolute right-1 top-1 px-2.5 py-0.5 bg-blue-50 hover:bg-blue-100 text-blue-600 text-xs font-bold rounded-lg transition-all cursor-pointer">
+                        <input id="dice-input-new-keyword" type="text"
+                            placeholder="Type custom keyword and press Enter..."
+                            onkeydown="handleDiceKeywordInputKey(event)"
+                            class="w-full bg-white border border-slate-300 rounded-xl pl-3.5 pr-16 py-1.5 text-slate-800 text-xs placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 shadow-2xs font-medium">
+                        <button type="button" onclick="addDiceCustomKeywordCheckbox()"
+                            class="absolute right-1 top-1 px-2.5 py-0.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 text-xs font-bold rounded-lg transition-all cursor-pointer">
                             + Add
                         </button>
                     </div>
@@ -645,9 +811,10 @@
             <div class="bg-slate-50/80 border border-slate-200 rounded-xl p-4 space-y-3">
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-5">
                     <div>
-                        <label class="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Date Posted</label>
+                        <label class="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Date
+                            Posted</label>
                         <select id="dice-posted-date"
-                            class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-slate-900 text-sm font-medium focus:border-blue-600 focus:ring-2 focus:ring-blue-500/10 focus:outline-none transition-all shadow-xs cursor-pointer">
+                            class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-slate-900 text-sm font-medium focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/10 focus:outline-none transition-all shadow-xs cursor-pointer">
                             <option value="" selected>Any Time</option>
                             <option value="ONE">Last 24 Hours</option>
                             <option value="THREE">Last 3 Days</option>
@@ -655,37 +822,23 @@
                         </select>
                     </div>
                 </div>
-
-                <div class="flex flex-wrap items-center gap-5 pt-2 border-t border-slate-200">
-                    <label class="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer select-none">
-                        <input id="dice-easy-apply" type="checkbox"
-                            class="w-4 h-4 rounded bg-white border-slate-300 text-blue-600 focus:ring-blue-500/20 accent-blue-600 cursor-pointer">
-                        Easy Apply Only
-                    </label>
-                    <label class="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer select-none">
-                        <input id="dice-willing-to-sponsor" type="checkbox"
-                            class="w-4 h-4 rounded bg-white border-slate-300 text-blue-600 focus:ring-blue-500/20 accent-blue-600 cursor-pointer">
-                        Willing to Sponsor Only
-                    </label>
-                </div>
             </div>
 
             <!-- Action Buttons -->
             <div class="flex items-center justify-between border-t border-slate-100 pt-4">
                 <button id="btn-dice-search" type="submit"
-                    class="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold rounded-xl text-sm transition-all shadow-md shadow-blue-500/20 hover:shadow-lg flex items-center gap-2 cursor-pointer">
-                    <svg id="btn-dice-search-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                    class="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-300 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold rounded-xl text-sm transition-all shadow-md shadow-emerald-500/20 hover:shadow-lg flex items-center gap-2 cursor-pointer">
+                    <svg id="btn-dice-search-icon" class="w-4 h-4" fill="none" stroke="currentColor"
+                        viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
                     <span id="btn-dice-search-label">Search Dice</span>
                 </button>
                 <p id="dice-status-note" class="text-xs text-slate-500 font-medium"></p>
             </div>
         </form>
 
-        <!-- AI Search Disclosure Banner (required by Dice MCP terms of use) -->
-        <div class="bg-amber-50/70 border border-amber-200 rounded-xl p-3.5 space-y-1">
-            <p class="text-xs text-slate-500">These job listings were found using AI-powered search. Please review all job details carefully and verify information directly with employers before applying.</p>
-            <p class="text-[11px] text-slate-400">Results appear in the Job Leads table below.</p>
-        </div>
     </div>
 </div>
 
@@ -702,7 +855,8 @@
         </div>
     </div>
     <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-        <div id="progress-bar" class="h-full rounded-full bg-blue-600 transition-all duration-500 ease-out" style="width: 0%"></div>
+        <div id="progress-bar" class="h-full rounded-full bg-blue-600 transition-all duration-500 ease-out"
+            style="width: 0%"></div>
     </div>
     <div class="flex items-center justify-between gap-3">
         <p id="log-text" class="text-xs font-mono text-slate-400 truncate">Ready for search query.</p>
@@ -715,14 +869,20 @@
     <div class="px-6 py-4 border-b border-slate-200 flex flex-wrap items-center justify-between gap-4 bg-slate-50/50">
         <div class="flex items-center gap-3">
             <h3 class="text-slate-900 font-extrabold text-base tracking-tight">Job Leads</h3>
-            <span id="leads-count" class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-700">0</span>
+            <span id="leads-count"
+                class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-700">0</span>
         </div>
-        
+
         <div class="flex items-center gap-3">
             <div class="relative">
-                <input id="filter-search" type="text" placeholder="Filter title, company, skills, or country..." onkeyup="filterTable()"
+                <input id="filter-search" type="text" placeholder="Filter title, company, skills, or country..."
+                    onkeyup="filterTable()"
                     class="bg-white border border-slate-300 rounded-xl pl-8 pr-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 w-64 shadow-2xs">
-                <svg class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                <svg class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" fill="none" stroke="currentColor"
+                    viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
             </div>
             <select id="leads-owner" title="Owner to assign when syncing to SharePoint"
                 class="bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-bold text-blue-700 focus:outline-none focus:border-blue-500 shadow-2xs cursor-pointer">
@@ -730,17 +890,29 @@
                 <option value="Sizan">Owner: Sizan</option>
                 <option value="Chetan">Owner: Chetan</option>
             </select>
-            <button id="table-generate-outreach-btn" type="button" onclick="generateOutreachForSelectedLeads()" title="Generate outreach email + LinkedIn message for the selected leads"
+            <button id="table-generate-outreach-btn" type="button" onclick="generateOutreachForSelectedLeads()"
+                title="Generate outreach email + LinkedIn message for the selected leads"
                 class="hidden px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl text-xs transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
                 <span id="table-generate-outreach-label">Generate Outreach</span>
             </button>
-            <button id="table-download-btn" type="button" onclick="exportExcel(event)" class="hidden px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-xs transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3"/></svg>
+            <button id="table-download-btn" type="button" onclick="exportExcel(event)"
+                class="hidden px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-xs transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M12 10v6m0 0l-3-3m3 3l3-3" />
+                </svg>
                 Download Excel
             </button>
-            <button id="table-sharepoint-btn" onclick="exportSharePoint()" class="hidden px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-xs transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+            <button id="table-sharepoint-btn" onclick="exportSharePoint()"
+                class="hidden px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-xs transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
                 Sync to SharePoint
             </button>
         </div>
@@ -748,11 +920,12 @@
 
     <div class="overflow-x-auto min-h-[350px] max-h-[750px]">
         <table class="w-full text-left text-sm border-collapse">
-            <thead class="sticky top-0 bg-slate-100 border-b border-slate-200 text-xs font-bold text-slate-600 uppercase tracking-wider z-10 shadow-2xs">
+            <thead
+                class="sticky top-0 bg-slate-100 border-b border-slate-200 text-xs font-bold text-slate-600 uppercase tracking-wider z-10 shadow-2xs">
                 <tr>
                     <th class="w-10 px-3 py-3.5 text-center">
-                        <input type="checkbox" id="select-all-leads" checked onchange="toggleSelectAllLeads(this.checked)"
-                            title="Select / Deselect All Leads"
+                        <input type="checkbox" id="select-all-leads" checked
+                            onchange="toggleSelectAllLeads(this.checked)" title="Select / Deselect All Leads"
                             class="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500/20 accent-blue-600 cursor-pointer">
                     </th>
                     <th class="w-12 px-3 py-3.5 text-center font-bold">#</th>
@@ -773,7 +946,8 @@
             <tbody id="leads-body" class="divide-y divide-slate-100 text-slate-700">
                 <tr>
                     <td colspan="14" class="px-5 py-16 text-center text-slate-400 font-medium">
-                        Enter your job role above and click <strong class="text-slate-700">"Search Jobs"</strong> to fetch leads.
+                        Enter your job role above and click <strong class="text-slate-700">"Search Jobs"</strong> to
+                        fetch leads.
                     </td>
                 </tr>
             </tbody>
@@ -785,22 +959,29 @@
 <div id="staged-queue-card" class="hidden bg-white border border-slate-200/90 rounded-2xl p-5 shadow-sm space-y-4">
     <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/80 pb-3">
         <div class="flex items-center gap-3">
-            <span class="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-sm">
+            <span
+                class="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-sm">
                 📋
             </span>
             <div>
                 <div class="flex items-center gap-2">
                     <h3 class="text-slate-900 font-extrabold text-sm tracking-tight">Staged Opportunities Queue</h3>
-                    <span id="staged-count-badge" class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-700">0 Jobs Ready</span>
+                    <span id="staged-count-badge"
+                        class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-700">0 Jobs
+                        Ready</span>
                 </div>
-                <p class="text-slate-500 text-[11px] font-medium">Add multiple job descriptions, click to review/edit any entry, then sync all in one click</p>
+                <p class="text-slate-500 text-[11px] font-medium">Add multiple job descriptions, click to review/edit
+                    any entry, then sync all in one click</p>
             </div>
         </div>
 
         <div class="flex items-center gap-2">
             <button id="btn-batch-sync-sharepoint" type="button" onclick="syncAllStagedToSharePoint()"
                 class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition-all shadow-md shadow-emerald-500/20 hover:shadow-lg flex items-center gap-1.5 cursor-pointer">
-                <svg id="batch-sync-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                <svg id="batch-sync-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
                 <span id="btn-batch-sync-label">Sync to SharePoint</span>
             </button>
             <button type="button" onclick="clearStagedQueue()"
@@ -812,15 +993,20 @@
 
     <!-- Empty Queue State -->
     <div id="staged-queue-empty" class="py-8 text-center text-slate-400 text-xs">
-        <div class="w-10 h-10 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-2 text-lg">📝</div>
+        <div
+            class="w-10 h-10 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-2 text-lg">
+            📝</div>
         <p class="font-bold text-slate-600 text-sm mb-1">Queue is Empty</p>
-        <p class="text-slate-400">Evaluate a job description above, adjust its fields, and click <strong class="text-indigo-600 font-semibold">"Add to Queue (+ Add Another)"</strong> to stage multiple jobs.</p>
+        <p class="text-slate-400">Evaluate a job description above, adjust its fields, and click <strong
+                class="text-indigo-600 font-semibold">"Add to Queue (+ Add Another)"</strong> to stage multiple jobs.
+        </p>
     </div>
 
     <!-- Staged Queue Table -->
     <div id="staged-queue-table-wrapper" class="hidden overflow-x-auto">
         <table class="w-full text-left text-xs border-collapse">
-            <thead class="bg-slate-100 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+            <thead
+                class="bg-slate-100 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
                 <tr>
                     <th class="px-3 py-2.5 text-center">#</th>
                     <th class="px-4 py-2.5">Job Title</th>
@@ -843,15 +1029,21 @@
 </div>
 
 <!-- Job Description Modal -->
-<div id="job-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
-    <div class="bg-white border border-slate-200 rounded-2xl max-w-3xl w-full max-h-[88vh] flex flex-col shadow-2xl overflow-hidden animate-fade-in-up">
+<div id="job-modal"
+    class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
+    <div
+        class="bg-white border border-slate-200 rounded-2xl max-w-3xl w-full max-h-[88vh] flex flex-col shadow-2xl overflow-hidden animate-fade-in-up">
         <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
             <div>
                 <h3 id="modal-job-title" class="text-slate-900 font-extrabold text-lg leading-tight">Job Title</h3>
-                <p id="modal-company-info" class="text-blue-600 text-xs font-semibold mt-0.5">Company Name • Location</p>
+                <p id="modal-company-info" class="text-blue-600 text-xs font-semibold mt-0.5">Company Name • Location
+                </p>
             </div>
-            <button type="button" onclick="closeDescriptionModal()" class="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-200 transition-colors">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            <button type="button" onclick="closeDescriptionModal()"
+                class="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-200 transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
             </button>
         </div>
 
@@ -866,7 +1058,8 @@
             </div>
             <div class="bg-white p-2.5 rounded-lg border border-slate-200/80 shadow-2xs">
                 <span class="text-slate-400 block text-[10px] uppercase font-bold">Location / Remote</span>
-                <span id="modal-location" class="text-slate-700 font-semibold text-xs mt-0.5 block truncate">Not listed</span>
+                <span id="modal-location" class="text-slate-700 font-semibold text-xs mt-0.5 block truncate">Not
+                    listed</span>
             </div>
         </div>
 
@@ -875,18 +1068,23 @@
             <div class="bg-blue-50/50 border border-blue-200 rounded-xl p-4 shadow-2xs">
                 <div class="flex items-center gap-1.5 mb-1.5">
                     <span class="text-sm">📋</span>
-                    <span class="text-xs font-bold uppercase tracking-wider text-blue-900">Job Description Summary</span>
+                    <span class="text-xs font-bold uppercase tracking-wider text-blue-900">Job Description
+                        Summary</span>
                 </div>
-                <p id="modal-job-summary" class="text-xs text-slate-800 leading-relaxed font-medium">No summary available.</p>
+                <p id="modal-job-summary" class="text-xs text-slate-800 leading-relaxed font-medium">No summary
+                    available.</p>
             </div>
             <!-- AI Match Analysis Card -->
-            <div id="modal-ai-card" class="bg-gradient-to-r from-blue-50/70 to-indigo-50/70 border border-blue-200/80 rounded-xl p-4.5 space-y-3">
+            <div id="modal-ai-card"
+                class="bg-gradient-to-r from-blue-50/70 to-indigo-50/70 border border-blue-200/80 rounded-xl p-4.5 space-y-3">
                 <div class="flex items-center justify-between">
                     <div class="flex items-center gap-2">
                         <span class="text-base">🤖</span>
-                        <span class="text-xs font-bold uppercase tracking-wider text-blue-900">AI Knowledge Base Match</span>
+                        <span class="text-xs font-bold uppercase tracking-wider text-blue-900">AI Knowledge Base
+                            Match</span>
                     </div>
-                    <span id="modal-match-score" class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-white text-blue-800 border border-blue-200 shadow-2xs">—</span>
+                    <span id="modal-match-score"
+                        class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-white text-blue-800 border border-blue-200 shadow-2xs">—</span>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
                     <div>
@@ -896,7 +1094,8 @@
                         </div>
                     </div>
                     <div>
-                        <span class="text-[10px] font-bold text-rose-800 uppercase block mb-1">Missing / Gap Skills</span>
+                        <span class="text-[10px] font-bold text-rose-800 uppercase block mb-1">Missing / Gap
+                            Skills</span>
                         <div id="modal-missing-skills" class="flex flex-wrap gap-1 text-[11px] text-slate-700">
                             <!-- Injected -->
                         </div>
@@ -904,12 +1103,16 @@
                 </div>
                 <div>
                     <span class="text-[10px] font-bold text-slate-500 uppercase block mb-0.5">Evaluation Reason</span>
-                    <p id="modal-match-reason" class="text-xs text-slate-700 leading-relaxed italic bg-white/70 p-2.5 rounded-lg border border-blue-100/70">—</p>
+                    <p id="modal-match-reason"
+                        class="text-xs text-slate-700 leading-relaxed italic bg-white/70 p-2.5 rounded-lg border border-blue-100/70">
+                        —</p>
                 </div>
             </div>
 
-            <h4 class="text-xs font-bold uppercase tracking-wider text-slate-500">Full Job Description & Requirements</h4>
-            <div id="modal-description-content" class="text-slate-700 text-sm whitespace-pre-line leading-relaxed font-sans bg-slate-50 p-5 rounded-xl border border-slate-200">
+            <h4 class="text-xs font-bold uppercase tracking-wider text-slate-500">Full Job Description & Requirements
+            </h4>
+            <div id="modal-description-content"
+                class="text-slate-700 text-sm whitespace-pre-line leading-relaxed font-sans bg-slate-50 p-5 rounded-xl border border-slate-200">
                 <!-- Injected dynamically by JS -->
             </div>
 
@@ -926,7 +1129,8 @@
                 </div>
 
                 <div id="modal-outreach-empty" class="text-xs text-slate-400 italic py-2">
-                    No outreach draft yet - click "Generate Outreach" to create an email and LinkedIn message for this job.
+                    No outreach draft yet - click "Generate Outreach" to create an email and LinkedIn message for this
+                    job.
                 </div>
 
                 <div id="modal-outreach-content" class="hidden space-y-3">
@@ -934,10 +1138,15 @@
                         <!-- LEFT PARTITION: Email Subject + LinkedIn Message -->
                         <div class="flex flex-col gap-3">
                             <!-- Email Subject Card -->
-                            <div class="bg-slate-50/70 border border-slate-200 rounded-2xl p-3 text-xs space-y-1.5 shadow-2xs">
+                            <div
+                                class="bg-slate-50/70 border border-slate-200 rounded-2xl p-3 text-xs space-y-1.5 shadow-2xs">
                                 <div class="flex items-center justify-between">
                                     <label class="font-bold text-slate-700 flex items-center gap-1.5">
-                                        <svg class="w-3.5 h-3.5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                                        <svg class="w-3.5 h-3.5 text-blue-600" fill="none" stroke="currentColor"
+                                            viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                        </svg>
                                         Email Subject
                                     </label>
                                     <button type="button" onclick="copyOutreachField('modal-outreach-email-subject')"
@@ -950,11 +1159,16 @@
                             </div>
 
                             <!-- LinkedIn Message Card -->
-                            <div class="bg-slate-50/70 border border-slate-200 rounded-2xl p-3 text-xs space-y-2 shadow-2xs flex-1 flex flex-col justify-between">
+                            <div
+                                class="bg-slate-50/70 border border-slate-200 rounded-2xl p-3 text-xs space-y-2 shadow-2xs flex-1 flex flex-col justify-between">
                                 <div>
                                     <div class="flex items-center justify-between mb-1.5">
                                         <label class="font-bold text-slate-700 flex items-center gap-1.5">
-                                            <svg class="w-3.5 h-3.5 text-indigo-600" fill="currentColor" viewBox="0 0 24 24"><path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/></svg>
+                                            <svg class="w-3.5 h-3.5 text-indigo-600" fill="currentColor"
+                                                viewBox="0 0 24 24">
+                                                <path
+                                                    d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z" />
+                                            </svg>
                                             LinkedIn Message
                                         </label>
                                         <div id="modal-linkedin-variant-tabs" class="flex gap-1"></div>
@@ -963,7 +1177,8 @@
                                         class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 shadow-2xs font-medium leading-relaxed"></textarea>
                                 </div>
                                 <div class="flex justify-between items-center pt-1">
-                                    <span class="text-[10px] text-slate-400 font-medium">Tailored short connection pitch</span>
+                                    <span class="text-[10px] text-slate-400 font-medium">Tailored short connection
+                                        pitch</span>
                                     <button type="button" onclick="copyOutreachField('modal-outreach-linkedin')"
                                         class="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-600 font-semibold rounded-lg border border-slate-200 text-[11px] transition-colors cursor-pointer shadow-2xs hover:text-indigo-600">
                                         Copy Message
@@ -973,11 +1188,16 @@
                         </div>
 
                         <!-- RIGHT PARTITION: Tailored Email Pitch Body -->
-                        <div class="bg-slate-50/70 border border-slate-200 rounded-2xl p-3 text-xs space-y-2 shadow-2xs flex flex-col justify-between">
+                        <div
+                            class="bg-slate-50/70 border border-slate-200 rounded-2xl p-3 text-xs space-y-2 shadow-2xs flex flex-col justify-between">
                             <div class="flex flex-col flex-1">
                                 <div class="flex items-center justify-between mb-1.5">
                                     <label class="font-bold text-slate-700 flex items-center gap-1.5">
-                                        <svg class="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                                        <svg class="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor"
+                                            viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                        </svg>
                                         Email Body
                                     </label>
                                     <button type="button" onclick="copyOutreachField('modal-outreach-email-body')"
@@ -997,7 +1217,10 @@
                     <div class="flex items-center justify-between pt-2 border-t border-slate-100">
                         <button type="button" onclick="saveModalOutreach()"
                             class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition-colors shadow-xs cursor-pointer flex items-center gap-1.5">
-                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M5 13l4 4L19 7" />
+                            </svg>
                             <span>Save Outreach</span>
                         </button>
                         <span id="modal-outreach-save-status" class="text-xs text-slate-400"></span>
@@ -1007,10 +1230,12 @@
         </div>
 
         <div class="px-6 py-3.5 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
-            <a id="modal-indeed-link" href="#" target="_blank" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition-all shadow flex items-center gap-1.5">
-                View on Indeed ↗
+            <a id="modal-indeed-link" href="#" target="_blank"
+                class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition-all shadow flex items-center gap-1.5">
+                URL ↗
             </a>
-            <button type="button" onclick="closeDescriptionModal()" class="px-4 py-2 bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 text-xs rounded-xl font-semibold transition-colors shadow-2xs">
+            <button type="button" onclick="closeDescriptionModal()"
+                class="px-4 py-2 bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 text-xs rounded-xl font-semibold transition-colors shadow-2xs">
                 Close
             </button>
         </div>
@@ -1018,29 +1243,39 @@
 </div>
 
 <!-- Reset Confirmation Modal -->
-<div id="reset-confirm-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden transition-opacity duration-200">
-    <div class="bg-white border border-slate-200 rounded-2xl max-w-md w-full shadow-2xl overflow-hidden p-6 space-y-5 animate-fade-in-up">
+<div id="reset-confirm-modal"
+    class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden transition-opacity duration-200">
+    <div
+        class="bg-white border border-slate-200 rounded-2xl max-w-md w-full shadow-2xl overflow-hidden p-6 space-y-5 animate-fade-in-up">
         <div class="flex items-start gap-4">
-            <div class="w-12 h-12 rounded-2xl bg-rose-50 border border-rose-200 text-rose-600 flex items-center justify-center shrink-0 shadow-2xs">
+            <div
+                class="w-12 h-12 rounded-2xl bg-rose-50 border border-rose-200 text-rose-600 flex items-center justify-center shrink-0 shadow-2xs">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                 </svg>
             </div>
             <div class="space-y-1 flex-1">
                 <h3 class="text-slate-900 font-extrabold text-base tracking-tight">Reset Entire Page?</h3>
                 <p class="text-slate-600 text-xs leading-relaxed">
-                    This will clear all search parameters, manual evaluation fields, active progress, and reset the Job Leads table.
+                    This will clear all search parameters, manual evaluation fields, active progress, and reset the Job
+                    Leads table.
                 </p>
             </div>
         </div>
 
-        <div class="bg-slate-50 border border-slate-200/80 rounded-xl p-3 text-xs text-slate-600 space-y-1.5 font-medium">
+        <div
+            class="bg-slate-50 border border-slate-200/80 rounded-xl p-3 text-xs text-slate-600 space-y-1.5 font-medium">
             <div class="flex items-center gap-2">
-                <svg class="w-3.5 h-3.5 text-rose-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                <svg class="w-3.5 h-3.5 text-rose-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                </svg>
                 <span>Resets Scraper & Manual Job forms</span>
             </div>
             <div class="flex items-center gap-2">
-                <svg class="w-3.5 h-3.5 text-rose-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                <svg class="w-3.5 h-3.5 text-rose-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                </svg>
                 <span>Clears all leads from current dashboard session</span>
             </div>
         </div>
@@ -1052,7 +1287,10 @@
             </button>
             <button type="button" onclick="executeResetPage()"
                 class="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-rose-500/20 hover:shadow-lg flex items-center gap-1.5 cursor-pointer active:scale-95">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
                 Yes, Reset Everything
             </button>
         </div>
@@ -1060,14 +1298,20 @@
 </div>
 
 <!-- Custom UI Notification / Alert Modal -->
-<div id="custom-alert-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden transition-opacity duration-200">
-    <div class="bg-white border border-slate-200 rounded-2xl max-w-md w-full shadow-2xl overflow-hidden p-6 space-y-4 animate-fade-in-up">
+<div id="custom-alert-modal"
+    class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden transition-opacity duration-200">
+    <div
+        class="bg-white border border-slate-200 rounded-2xl max-w-md w-full shadow-2xl overflow-hidden p-6 space-y-4 animate-fade-in-up">
         <div class="flex items-start gap-4">
-            <div id="custom-alert-icon-box" class="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center shrink-0 shadow-2xs">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+            <div id="custom-alert-icon-box"
+                class="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center shrink-0 shadow-2xs">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                </svg>
             </div>
             <div class="space-y-1 flex-1">
-                <h3 id="custom-alert-title" class="text-slate-900 font-extrabold text-base tracking-tight">Notification</h3>
+                <h3 id="custom-alert-title" class="text-slate-900 font-extrabold text-base tracking-tight">Notification
+                </h3>
                 <p id="custom-alert-message" class="text-slate-600 text-xs leading-relaxed whitespace-pre-line"></p>
             </div>
         </div>
@@ -1082,14 +1326,21 @@
 </div>
 
 <!-- Custom Confirmation Modal -->
-<div id="custom-confirm-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden transition-opacity duration-200">
-    <div class="bg-white border border-slate-200 rounded-2xl max-w-md w-full shadow-2xl overflow-hidden p-6 space-y-5 animate-fade-in-up">
+<div id="custom-confirm-modal"
+    class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden transition-opacity duration-200">
+    <div
+        class="bg-white border border-slate-200 rounded-2xl max-w-md w-full shadow-2xl overflow-hidden p-6 space-y-5 animate-fade-in-up">
         <div class="flex items-start gap-4">
-            <div id="custom-confirm-icon-box" class="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center shrink-0 shadow-2xs">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+            <div id="custom-confirm-icon-box"
+                class="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center shrink-0 shadow-2xs">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
             </div>
             <div class="space-y-1 flex-1">
-                <h3 id="custom-confirm-title" class="text-slate-900 font-extrabold text-base tracking-tight">Are you sure?</h3>
+                <h3 id="custom-confirm-title" class="text-slate-900 font-extrabold text-base tracking-tight">Are you
+                    sure?</h3>
                 <p id="custom-confirm-message" class="text-slate-600 text-xs leading-relaxed"></p>
             </div>
         </div>
@@ -1107,4 +1358,3 @@
     </div>
 </div>
 {% endblock %}
-

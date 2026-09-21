@@ -310,6 +310,11 @@ function getDiceSelectedKeywords() {
 }
 
 function getDiceSelectedCountries() {
+    const checkedRadio = document.querySelector('input[name="dice_country_radio"]:checked');
+    if (checkedRadio && checkedRadio.value.trim()) {
+        return [checkedRadio.value.trim()];
+    }
+    // Backward compatibility if checkboxes ever exist
     const checkedBoxes = document.querySelectorAll('input[name="dice_country_checkbox"]:checked');
     return Array.from(checkedBoxes).map(cb => cb.value.trim()).filter(Boolean);
 }
@@ -319,9 +324,12 @@ function diceSelectAllKeywords(checkAll) {
     updateDiceKeywordDisplay();
 }
 
-function diceSelectAllCountries(checkAll) {
-    document.querySelectorAll('input[name="dice_country_checkbox"]').forEach(cb => cb.checked = !!checkAll);
-    updateDiceCountryDisplay();
+function setDiceSelectedCountry(countryName) {
+    const radio = document.querySelector(`input[name="dice_country_radio"][value="${countryName}"]`);
+    if (radio) {
+        radio.checked = true;
+        updateDiceCountryDisplay();
+    }
 }
 
 function updateDiceKeywordDisplay() {
@@ -347,16 +355,16 @@ function updateDiceKeywordDisplay() {
 }
 
 function updateDiceCountryDisplay() {
-    const count = getDiceSelectedCountries().length;
+    const selected = getDiceSelectedCountries();
     const badge = document.getElementById('dice-country-count-badge');
+    const countryName = selected.length > 0 ? selected[0] : 'United States';
 
     if (badge) {
-        if (count === 0) {
-            badge.className = 'px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-600 border border-slate-200';
-            badge.textContent = '0 Selected (Any)';
+        badge.className = 'px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-200';
+        if (countryName.toLowerCase().includes('canada')) {
+            badge.textContent = 'Canada (Ontario, BC, Alberta & Remote)';
         } else {
-            badge.className = 'px-2 py-0.5 rounded-full text-[11px] font-bold bg-blue-100 text-blue-700 border border-blue-200';
-            badge.textContent = `${count} Selected`;
+            badge.textContent = 'United States (Nationwide & Remote)';
         }
     }
 
@@ -411,11 +419,11 @@ function addDiceCustomKeywordCheckbox() {
         if (existing) return;
 
         const label = document.createElement('label');
-        label.className = 'dice-keyword-item flex items-center gap-2 bg-blue-50/50 hover:bg-blue-50 border border-blue-300 rounded-xl px-3 py-2 cursor-pointer transition-all shadow-2xs group';
+        label.className = 'dice-keyword-item flex items-center gap-2 bg-emerald-50/50 hover:bg-emerald-50 border border-emerald-300 rounded-xl px-3 py-2 cursor-pointer transition-all shadow-2xs group';
         label.innerHTML = `
             <input type="checkbox" name="dice_keyword_checkbox" value="${esc(kw)}" checked onchange="updateDiceKeywordDisplay()"
-                class="w-4 h-4 rounded bg-white border-slate-300 text-blue-600 focus:ring-blue-500/20 accent-blue-600 cursor-pointer">
-            <span class="text-xs text-slate-800 font-bold group-hover:text-blue-700 truncate">${esc(kw)}</span>
+                class="w-4 h-4 rounded bg-white border-slate-300 text-emerald-600 focus:ring-emerald-500/20 accent-emerald-600 cursor-pointer">
+            <span class="text-xs text-slate-800 font-bold group-hover:text-emerald-700 truncate">${esc(kw)}</span>
             <button type="button" onclick="this.closest('label').remove(); updateDiceKeywordDisplay();" class="ml-auto text-slate-400 hover:text-rose-500 text-xs font-bold" title="Remove">&times;</button>
         `;
         grid.appendChild(label);
@@ -1468,16 +1476,79 @@ function switchMode(mode) {
 
     if (!btnScraper || !btnManual || !btnDice || !panelScraper || !panelManual || !panelDice) return;
 
-    const activeClass = 'px-4 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 bg-blue-600 text-white shadow-xs cursor-pointer';
-    const inactiveClass = 'px-4 py-2 text-xs font-semibold rounded-xl transition-all flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer';
+    // Distinct professional light styles for each tab
+    const tabStyles = {
+        scraper: {
+            active: 'px-4 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 bg-sky-50 text-sky-800 border-2 border-sky-400 shadow-xs cursor-pointer',
+            inactive: 'px-4 py-2 text-xs font-semibold rounded-xl transition-all flex items-center gap-2 bg-slate-100 hover:bg-sky-50 text-slate-700 hover:text-sky-700 border border-transparent hover:border-sky-200 cursor-pointer'
+        },
+        manual: {
+            active: 'px-4 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 bg-violet-50 text-violet-800 border-2 border-violet-400 shadow-xs cursor-pointer',
+            inactive: 'px-4 py-2 text-xs font-semibold rounded-xl transition-all flex items-center gap-2 bg-slate-100 hover:bg-violet-50 text-slate-700 hover:text-violet-700 border border-transparent hover:border-violet-200 cursor-pointer'
+        },
+        dice: {
+            active: 'px-4 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 bg-emerald-50 text-emerald-800 border-2 border-emerald-400 shadow-xs cursor-pointer',
+            inactive: 'px-4 py-2 text-xs font-semibold rounded-xl transition-all flex items-center gap-2 bg-slate-100 hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 border border-transparent hover:border-emerald-200 cursor-pointer'
+        }
+    };
 
-    btnScraper.className = mode === 'scraper' ? activeClass : inactiveClass;
-    btnManual.className = mode === 'manual' ? activeClass : inactiveClass;
-    btnDice.className = mode === 'dice' ? activeClass : inactiveClass;
+    btnScraper.className = mode === 'scraper' ? tabStyles.scraper.active : tabStyles.scraper.inactive;
+    btnManual.className = mode === 'manual' ? tabStyles.manual.active : tabStyles.manual.inactive;
+    btnDice.className = mode === 'dice' ? tabStyles.dice.active : tabStyles.dice.inactive;
 
     panelScraper.classList.toggle('hidden', mode !== 'scraper');
     panelManual.classList.toggle('hidden', mode !== 'manual');
     panelDice.classList.toggle('hidden', mode !== 'dice');
+
+    // Update dynamic top navbar header and card section heading with matching icon and text
+    const headerTitle = document.getElementById('header-portal-title');
+    const headerSubtitle = document.getElementById('header-portal-subtitle');
+    const headerIcon = document.getElementById('header-portal-icon');
+    const sectionTitle = document.getElementById('panel-section-title');
+    const sectionIcon = document.getElementById('panel-section-icon');
+
+    const modeConfigs = {
+        scraper: {
+            title: 'Automated Indeed Scraper',
+            subtitle: 'Multi-Country Targeted Job Extraction & AI Matching',
+            sectionTitle: 'Automated Indeed Scraper',
+            headerIconBg: 'bg-gradient-to-br from-blue-600 to-indigo-700 shadow-blue-500/20',
+            sectionIconBg: 'bg-blue-50 text-blue-600',
+            iconSvg: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>`,
+            sectionIconSvg: `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>`
+        },
+        manual: {
+            title: 'Manual Job Evaluator',
+            subtitle: 'AI Lead Qualification & Outreach Generation',
+            sectionTitle: 'Manual Job Evaluator (Paste Description)',
+            headerIconBg: 'bg-gradient-to-br from-purple-600 to-indigo-700 shadow-purple-500/20',
+            sectionIconBg: 'bg-purple-50 text-purple-600',
+            iconSvg: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>`,
+            sectionIconSvg: `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>`
+        },
+        dice: {
+            title: 'Dice Sourcing Search',
+            subtitle: 'Tech Career Platform Search & Direct Sourcing',
+            sectionTitle: 'Dice Search & Extraction',
+            headerIconBg: 'bg-gradient-to-br from-emerald-600 to-teal-700 shadow-emerald-500/20',
+            sectionIconBg: 'bg-emerald-50 text-emerald-600',
+            iconSvg: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>`,
+            sectionIconSvg: `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>`
+        }
+    };
+
+    const cfg = modeConfigs[mode] || modeConfigs.scraper;
+    if (headerTitle) headerTitle.textContent = cfg.title;
+    if (headerSubtitle) headerSubtitle.textContent = cfg.subtitle;
+    if (headerIcon) {
+        headerIcon.className = `w-10 h-10 rounded-xl ${cfg.headerIconBg} flex items-center justify-center font-black text-white text-base shadow-md transition-all`;
+        headerIcon.innerHTML = cfg.iconSvg;
+    }
+    if (sectionTitle) sectionTitle.textContent = cfg.sectionTitle;
+    if (sectionIcon) {
+        sectionIcon.className = `w-8 h-8 rounded-lg ${cfg.sectionIconBg} flex items-center justify-center font-bold transition-all`;
+        sectionIcon.innerHTML = cfg.sectionIconSvg;
+    }
 
     if (mode === 'scraper') {
         if (progressCard) progressCard.classList.remove('hidden');
@@ -1547,7 +1618,7 @@ async function hydrateDiceTable() {
 }
 
 // ==========================================
-// Dice Search (search_jobs via Dice MCP, reuses the shared leads table)
+// Dice Search (search_jobs via Dice MCP, reuses the shared leads table & progress bar)
 // ==========================================
 
 async function searchDice(event) {
@@ -1571,22 +1642,27 @@ async function searchDice(event) {
     }
 
     const postedDateEl = document.getElementById('dice-posted-date');
-    const easyApplyEl = document.getElementById('dice-easy-apply');
-    const sponsorEl = document.getElementById('dice-willing-to-sponsor');
     const statusNote = document.getElementById('dice-status-note');
     const btn = document.getElementById('btn-dice-search');
     const btnIcon = document.getElementById('btn-dice-search-icon');
     const btnLabel = document.getElementById('btn-dice-search-label');
 
+    // Progress bar elements
+    const progressCard = document.getElementById('progress-card');
+    const progressBar = document.getElementById('progress-bar');
+    const progressPct = document.getElementById('progress-pct');
+    const statusDot = document.getElementById('status-dot');
+    const statusText = document.getElementById('status-text');
+    const jobsFound = document.getElementById('jobs-found');
+    const logText = document.getElementById('log-text');
+
     const payload = {
         keywords,
         countries: countries.length > 0 ? countries : null,
-        // Workplace type is always Remote - not user-configurable. Employment type is
-        // intentionally left unfiltered (search all job types).
         workplace_types: ['Remote'],
         posted_date: postedDateEl && postedDateEl.value ? postedDateEl.value : null,
-        easy_apply: easyApplyEl && easyApplyEl.checked ? true : null,
-        willing_to_sponsor: sponsorEl && sponsorEl.checked ? true : null,
+        easy_apply: null,
+        willing_to_sponsor: null,
     };
 
     if (btn) btn.disabled = true;
@@ -1594,8 +1670,17 @@ async function searchDice(event) {
     if (btnLabel) btnLabel.textContent = 'Searching...';
     if (statusNote) statusNote.textContent = '';
 
+    // Reveal and initialize live progress bar for Dice
+    if (progressCard) progressCard.classList.remove('hidden');
+    if (progressBar) progressBar.style.width = '0%';
+    if (progressPct) progressPct.textContent = `0% (0/${combos})`;
+    if (statusDot) statusDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse';
+    if (statusText) statusText.textContent = 'Dice Search Active';
+    if (jobsFound) jobsFound.textContent = '0';
+    if (logText) logText.textContent = `Initializing Dice search across ${combos} combination(s)...`;
+
     try {
-        const resp = await fetch('/api/dice/search', {
+        const resp = await fetch('/api/dice/search-stream', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
@@ -1604,31 +1689,91 @@ async function searchDice(event) {
         if (!resp.ok) {
             const err = await resp.json().catch(() => ({}));
             showAlertModal('Dice Search Error', err.detail || 'Dice search failed.', 'error');
+            if (statusDot) statusDot.className = 'w-2.5 h-2.5 rounded-full bg-rose-500';
+            if (statusText) statusText.textContent = 'Failed';
             return;
         }
 
-        const data = await resp.json();
-        allLeads = data.leads || [];
-        selectedLeadIds = new Set(allLeads.map(l => String(l.id)));
-        lastLeadsHash = '';
-        renderTable(allLeads);
+        const reader = resp.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
 
-        const tblSp = document.getElementById('table-sharepoint-btn');
-        const tblDl = document.getElementById('table-download-btn');
-        const tblClr = document.getElementById('table-clear-btn');
-        if (tblSp) tblSp.classList.toggle('hidden', allLeads.length === 0);
-        // Excel export & the generic clear action operate on the Indeed lead store, not Dice's.
-        if (tblDl) tblDl.classList.add('hidden');
-        if (tblClr) tblClr.classList.add('hidden');
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop(); // keep partial line in buffer
 
-        if (statusNote) {
-            const newCount = typeof data.new_count === 'number' ? data.new_count : allLeads.length;
-            const ranCombos = typeof data.combos === 'number' ? data.combos : combos;
-            statusNote.className = 'text-xs text-slate-500 font-medium';
-            statusNote.textContent = `Found ${newCount} new Dice job${newCount === 1 ? '' : 's'} across ${ranCombos} search${ranCombos === 1 ? '' : 'es'}.`;
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (!trimmed.startsWith('data:')) continue;
+                const jsonStr = trimmed.slice(5).trim();
+                if (!jsonStr) continue;
+
+                try {
+                    const event = JSON.parse(jsonStr);
+                    if (event.type === 'start') {
+                        if (logText) logText.textContent = event.message;
+                        if (progressBar) progressBar.style.width = '0%';
+                        if (progressPct) progressPct.textContent = `0% (0/${event.total_combos})`;
+                    } else if (event.type === 'progress') {
+                        if (progressBar) progressBar.style.width = `${event.percent}%`;
+                        if (progressPct) progressPct.textContent = `${event.percent}% (${event.combo_index}/${event.total_combos}) [${event.remaining} left]`;
+                        if (jobsFound) jobsFound.textContent = `${event.jobs_found}`;
+                        if (logText) logText.textContent = event.message;
+                        if (statusNote) {
+                            statusNote.className = 'text-xs text-blue-600 font-medium';
+                            statusNote.textContent = `Searching "${event.keyword}" in ${event.location} (${event.combo_index}/${event.total_combos})...`;
+                        }
+                    } else if (event.type === 'enriching') {
+                        if (progressBar) progressBar.style.width = `${event.percent}%`;
+                        if (progressPct) progressPct.textContent = `${event.percent}% (Evaluating)`;
+                        if (jobsFound) jobsFound.textContent = `${event.jobs_found}`;
+                        if (logText) logText.textContent = event.message;
+                        if (statusNote) {
+                            statusNote.className = 'text-xs text-blue-600 font-medium';
+                            statusNote.textContent = 'Enriching job details & calculating AI match scores...';
+                        }
+                    } else if (event.type === 'complete') {
+                        if (progressBar) progressBar.style.width = '100%';
+                        if (progressPct) progressPct.textContent = '100%';
+                        if (statusDot) statusDot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500';
+                        if (statusText) statusText.textContent = 'Completed';
+                        if (jobsFound) jobsFound.textContent = `${event.total}`;
+                        if (logText) logText.textContent = event.message;
+
+                        allLeads = event.leads || [];
+                        selectedLeadIds = new Set(allLeads.map(l => String(l.id)));
+                        lastLeadsHash = '';
+                        renderTable(allLeads);
+
+                        const tblSp = document.getElementById('table-sharepoint-btn');
+                        const tblDl = document.getElementById('table-download-btn');
+                        const tblClr = document.getElementById('table-clear-btn');
+                        if (tblSp) tblSp.classList.toggle('hidden', allLeads.length === 0);
+                        if (tblDl) tblDl.classList.add('hidden');
+                        if (tblClr) tblClr.classList.add('hidden');
+
+                        if (statusNote) {
+                            statusNote.className = 'text-xs text-emerald-600 font-semibold';
+                            statusNote.textContent = `✅ Found ${event.new_count} new Dice job${event.new_count === 1 ? '' : 's'} across ${event.combos} search${event.combos === 1 ? '' : 'es'}.`;
+                        }
+                    } else if (event.type === 'error') {
+                        if (statusDot) statusDot.className = 'w-2.5 h-2.5 rounded-full bg-rose-500';
+                        if (statusText) statusText.textContent = 'Error';
+                        if (logText) logText.textContent = `Error: ${event.message}`;
+                        showAlertModal('Dice Search Error', event.message, 'error');
+                    }
+                } catch (parseErr) {
+                    console.warn('Failed to parse SSE event:', jsonStr, parseErr);
+                }
+            }
         }
     } catch (e) {
         showAlertModal('Network Error', e.message, 'error');
+        if (statusDot) statusDot.className = 'w-2.5 h-2.5 rounded-full bg-rose-500';
+        if (statusText) statusText.textContent = 'Error';
     } finally {
         if (btn) btn.disabled = false;
         if (btnIcon) btnIcon.classList.remove('animate-spin');
@@ -2763,6 +2908,19 @@ async function executeResetPage() {
     const fromageInput = document.getElementById('input-fromage');
     if (fromageInput) fromageInput.value = '1';
 
+    // 1b. Reset Dice Search Form
+    diceSelectAllKeywords(true);
+    setDiceSelectedCountry('United States');
+    const diceNewKwInput = document.getElementById('dice-input-new-keyword');
+    if (diceNewKwInput) diceNewKwInput.value = '';
+    const dicePostedDateEl = document.getElementById('dice-posted-date');
+    if (dicePostedDateEl) dicePostedDateEl.value = '';
+    const diceStatusNote = document.getElementById('dice-status-note');
+    if (diceStatusNote) {
+        diceStatusNote.className = 'text-xs text-slate-500 font-medium';
+        diceStatusNote.textContent = '';
+    }
+
     // 2. Reset Manual Job Evaluator Form
     lastEvaluatedManualLead = null;
     manualLinkedinVariants = [];
@@ -3015,6 +3173,17 @@ window.generateModalOutreach = generateModalOutreach;
 window.saveModalOutreach = saveModalOutreach;
 window.copyOutreachField = copyOutreachField;
 window.selectLinkedinVariant = selectLinkedinVariant;
+window.getDiceSelectedKeywords = getDiceSelectedKeywords;
+window.getDiceSelectedCountries = getDiceSelectedCountries;
+window.diceSelectAllKeywords = diceSelectAllKeywords;
+window.setDiceSelectedCountry = setDiceSelectedCountry;
+window.updateDiceKeywordDisplay = updateDiceKeywordDisplay;
+window.updateDiceCountryDisplay = updateDiceCountryDisplay;
+window.updateDiceComboCount = updateDiceComboCount;
+window.addDiceCustomKeywordCheckbox = addDiceCustomKeywordCheckbox;
+window.handleDiceKeywordInputKey = handleDiceKeywordInputKey;
+window.searchDice = searchDice;
+window.exportDiceSharePoint = exportDiceSharePoint;
 
 document.addEventListener('DOMContentLoaded', () => {
     initOwnerSynchronization();
