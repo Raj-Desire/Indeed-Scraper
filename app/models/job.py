@@ -31,6 +31,7 @@ class JobPosting(BaseModel):
     location: str = Field(default="", description="Location string")
     country: str = Field(default="US", description="Country code or name")
     search_query: str = Field(default="", description="Role or keyword searched")
+    lead_source: str = Field(default="Indeed", description="Origin of this lead: Indeed, Dice, etc.")
     remote_type: RemoteType = Field(default=RemoteType.UNKNOWN)
     salary_range: str = Field(default="Not listed", description="Salary string")
     industry: str = Field(default="Not listed", description="Industry or business sector")

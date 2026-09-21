@@ -548,7 +548,7 @@ class GraphSharePointExporter:
                     "company": job.company or "",
                     "location_remote_type": job.location_remote_type or "",
                     "Industry": _normalize_sharepoint_industry(job.industry),
-                    "LeadSource": "Indeed",
+                    "LeadSource": job.lead_source or "Indeed",
                     "Status": "New",
                     "Priority": score_to_priority(job.match_score),
                     "DateAdded": datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
