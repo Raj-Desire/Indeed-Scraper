@@ -1392,6 +1392,14 @@ async function hydrateDiceTable() {
     try {
         const res = await fetch('/api/dice/results');
         const data = await res.json();
+
+        // allLeads/selectedLeadIds/the table and its buttons are shared, mode-owned state.
+        // If the user switched away from the Dice tab while this fetch was in flight, don't
+        // clobber whatever mode is now active (mirrors the guard in fetchLeads()).
+        if (currentAppMode !== 'dice') {
+            return;
+        }
+
         allLeads = data.leads || [];
         selectedLeadIds = new Set(allLeads.map(l => String(l.id)));
         lastLeadsHash = '';
@@ -1399,10 +1407,14 @@ async function hydrateDiceTable() {
     } catch (e) {
         console.error('Error fetching Dice results:', e);
     } finally {
-        if (tblSp) tblSp.classList.toggle('hidden', allLeads.length === 0 || currentAppMode !== 'dice');
-        // Excel export & the generic clear action operate on the Indeed lead store, not Dice's.
-        if (tblDl) tblDl.classList.add('hidden');
-        if (tblClr) tblClr.classList.add('hidden');
+        // Only touch button visibility if Dice is still the active mode; otherwise the
+        // now-current mode already owns these buttons and we'd stomp on its state.
+        if (currentAppMode === 'dice') {
+            if (tblSp) tblSp.classList.toggle('hidden', allLeads.length === 0);
+            // Excel export & the generic clear action operate on the Indeed lead store, not Dice's.
+            if (tblDl) tblDl.classList.add('hidden');
+            if (tblClr) tblClr.classList.add('hidden');
+        }
     }
 }
 
