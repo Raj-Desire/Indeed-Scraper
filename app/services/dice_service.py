@@ -73,6 +73,30 @@ class DiceService:
         logger.info("Dice search '{}' added {} job(s) (total: {})", keyword, len(deduped), len(self._results))
         return deduped
 
+    async def search_multi(
+        self, keywords: list[str], countries: Optional[list[str]] = None, **filters
+    ) -> list[JobPosting]:
+        """Run one `search()` per (keyword, country) combination and return every
+        newly-added job across all combinations. Country names are passed through
+        as Dice's `location` filter, one search per country, since Dice's API takes
+        a single location string per call rather than a list. If `countries` is
+        empty, each keyword is searched once using whatever `location` was passed
+        in `filters` (e.g. a freeform city/state), or no location filter at all.
+        Cross-combination duplicates collapse to one result via the existing
+        stateful DedupFilter that `search()` already shares across calls.
+        """
+        new_jobs: list[JobPosting] = []
+        location_values = countries if countries else [filters.pop("location", None)]
+
+        for keyword in keywords:
+            for location in location_values:
+                combo_filters = dict(filters)
+                if location is not None:
+                    combo_filters["location"] = location
+                new_jobs.extend(await self.search(keyword, **combo_filters))
+
+        return new_jobs
+
     def get_results(self) -> list[JobPosting]:
         return list(self._results)
 

@@ -164,5 +164,65 @@ def test_search_still_scores_with_injected_match_service_regardless_of_setting()
     assert results[0].match_score == 88
 
 
+def test_search_multi_runs_one_call_per_keyword_country_pair():
+    dice_client = _FakeDiceClient([{"guid": "a1", "title": "Dev", "companyName": "Acme"}])
+    service = DiceService(dice_client=dice_client, match_service=_FakeMatchService())
+
+    asyncio.run(service.search_multi(keywords=["python", "java"], countries=["United States", "Canada"]))
+
+    assert len(dice_client.search_calls) == 4
+    called_pairs = {(kw, filters.get("location")) for kw, filters in dice_client.search_calls}
+    assert called_pairs == {
+        ("python", "United States"), ("python", "Canada"),
+        ("java", "United States"), ("java", "Canada"),
+    }
+
+
+def test_search_multi_with_no_countries_omits_location_filter():
+    dice_client = _FakeDiceClient([{"guid": "a1", "title": "Dev", "companyName": "Acme"}])
+    service = DiceService(dice_client=dice_client, match_service=_FakeMatchService())
+
+    asyncio.run(service.search_multi(keywords=["python"], countries=[]))
+
+    assert len(dice_client.search_calls) == 1
+    keyword, filters = dice_client.search_calls[0]
+    assert keyword == "python"
+    assert "location" not in filters
+
+
+def test_search_multi_dedupes_across_combinations():
+    """Same job returned by every combo call collapses to one result via the
+    existing stateful DedupFilter, which persists across search() calls."""
+    dice_client = _FakeDiceClient([{"guid": "a1", "title": "Same Dev", "companyName": "Acme"}])
+    service = DiceService(dice_client=dice_client, match_service=_FakeMatchService())
+
+    new_jobs = asyncio.run(service.search_multi(keywords=["python", "java"], countries=["United States"]))
+
+    assert len(new_jobs) == 1
+    assert len(service.get_results()) == 1
+
+
+def test_search_multi_forwards_shared_filters_to_every_combo():
+    dice_client = _FakeDiceClient([])
+    service = DiceService(dice_client=dice_client, match_service=_FakeMatchService())
+
+    asyncio.run(service.search_multi(keywords=["python"], countries=["United States"], easy_apply=True))
+
+    _, filters = dice_client.search_calls[0]
+    assert filters == {"location": "United States", "easy_apply": True}
+
+
+def test_search_multi_single_keyword_no_countries_uses_explicit_location_if_given():
+    """When no countries are selected, an explicit `location` kwarg (e.g. a
+    freeform city/state) should still be forwarded untouched."""
+    dice_client = _FakeDiceClient([])
+    service = DiceService(dice_client=dice_client, match_service=_FakeMatchService())
+
+    asyncio.run(service.search_multi(keywords=["python"], countries=[], location="New York, NY"))
+
+    _, filters = dice_client.search_calls[0]
+    assert filters == {"location": "New York, NY"}
+
+
 if __name__ == "__main__":
     print("Run with: python -m pytest tests/test_dice_service.py -v")

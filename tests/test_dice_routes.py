@@ -21,12 +21,12 @@ def _make_client(fake_service, monkeypatch):
 class _FakeDiceService:
     def __init__(self):
         self.results = []
-        self.search_args = None
+        self.search_multi_args = None
         self.cleared = False
         self.exported_with = None
 
-    async def search(self, keyword, **filters):
-        self.search_args = (keyword, filters)
+    async def search_multi(self, keywords, countries, **filters):
+        self.search_multi_args = (keywords, countries, filters)
         job = JobPosting(job_title="Python Dev", company="Acme", lead_source="Dice", match_score=90)
         self.results = [job]
         return self.results
@@ -47,14 +47,24 @@ def test_post_dice_search_returns_serialized_jobs(monkeypatch):
     fake_service = _FakeDiceService()
     client = _make_client(fake_service, monkeypatch)
 
-    resp = client.post("/api/dice/search", json={"keyword": "python", "location": "Remote"})
+    resp = client.post("/api/dice/search", json={"keywords": ["python"], "location": "Remote"})
 
     assert resp.status_code == 200
     body = resp.json()
     assert body["total"] == 1
     assert body["leads"][0]["job_title"] == "Python Dev"
     assert body["leads"][0]["lead_source"] == "Dice"
-    assert fake_service.search_args == ("python", {"location": "Remote"})
+    assert fake_service.search_multi_args == (["python"], [], {"location": "Remote"})
+
+
+def test_post_dice_search_accepts_singular_keyword_for_backward_compat(monkeypatch):
+    fake_service = _FakeDiceService()
+    client = _make_client(fake_service, monkeypatch)
+
+    resp = client.post("/api/dice/search", json={"keyword": "python"})
+
+    assert resp.status_code == 200
+    assert fake_service.search_multi_args[0] == ["python"]
 
 
 def test_post_dice_search_requires_keyword(monkeypatch):
@@ -64,6 +74,33 @@ def test_post_dice_search_requires_keyword(monkeypatch):
     resp = client.post("/api/dice/search", json={"location": "Remote"})
 
     assert resp.status_code == 422
+
+
+def test_post_dice_search_runs_multiple_keywords_and_countries(monkeypatch):
+    fake_service = _FakeDiceService()
+    client = _make_client(fake_service, monkeypatch)
+
+    resp = client.post("/api/dice/search", json={
+        "keywords": ["python", "java"],
+        "countries": ["United States", "Canada"],
+    })
+
+    assert resp.status_code == 200
+    assert resp.json()["combos"] == 4
+    assert fake_service.search_multi_args == (["python", "java"], ["United States", "Canada"], {})
+
+
+def test_post_dice_search_rejects_too_many_combinations(monkeypatch):
+    fake_service = _FakeDiceService()
+    client = _make_client(fake_service, monkeypatch)
+
+    resp = client.post("/api/dice/search", json={
+        "keywords": ["a", "b", "c", "d"],
+        "countries": ["US", "CA", "GB", "AU"],  # 4 x 4 = 16 > 15 cap
+    })
+
+    assert resp.status_code == 422
+    assert fake_service.search_multi_args is None
 
 
 def test_post_dice_search_returns_new_count_distinct_from_cumulative_total(monkeypatch):
@@ -79,7 +116,7 @@ def test_post_dice_search_returns_new_count_distinct_from_cumulative_total(monke
 
     assert resp.status_code == 200
     body = resp.json()
-    # fake_service.search() replaces .results with a single new job and returns it
+    # fake_service.search_multi() replaces .results with a single new job and returns it
     assert body["new_count"] == 1
     assert body["total"] == 1
 
@@ -91,7 +128,7 @@ def test_post_dice_search_clamps_jobs_per_page_within_range(monkeypatch):
     resp = client.post("/api/dice/search", json={"keyword": "python", "jobs_per_page": 500})
 
     assert resp.status_code == 200
-    assert fake_service.search_args == ("python", {"jobs_per_page": 50})
+    assert fake_service.search_multi_args == (["python"], [], {"jobs_per_page": 50})
 
 
 def test_post_dice_search_clamps_jobs_per_page_minimum(monkeypatch):
@@ -101,7 +138,7 @@ def test_post_dice_search_clamps_jobs_per_page_minimum(monkeypatch):
     resp = client.post("/api/dice/search", json={"keyword": "python", "jobs_per_page": -5})
 
     assert resp.status_code == 200
-    assert fake_service.search_args == ("python", {"jobs_per_page": 1})
+    assert fake_service.search_multi_args == (["python"], [], {"jobs_per_page": 1})
 
 
 def test_post_dice_search_ignores_non_numeric_jobs_per_page(monkeypatch):
@@ -111,7 +148,7 @@ def test_post_dice_search_ignores_non_numeric_jobs_per_page(monkeypatch):
     resp = client.post("/api/dice/search", json={"keyword": "python", "jobs_per_page": "not-a-number"})
 
     assert resp.status_code == 200
-    assert "jobs_per_page" not in fake_service.search_args[1]
+    assert "jobs_per_page" not in fake_service.search_multi_args[2]
 
 
 def test_get_dice_results(monkeypatch):

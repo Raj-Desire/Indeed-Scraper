@@ -583,18 +583,70 @@
     <!-- PANEL 3: Dice Search -->
     <div id="panel-dice" class="space-y-5 hidden">
         <form onsubmit="searchDice(event)" class="space-y-5">
-            <!-- Keyword & Location -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                <div>
-                    <label class="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Keyword <span class="text-rose-500">*</span></label>
-                    <input id="dice-keyword" type="text" required placeholder="e.g. SharePoint Developer"
-                        class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-slate-900 text-sm font-medium placeholder-slate-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-500/10 focus:outline-none transition-all shadow-xs">
+            <!-- Country Selection (Multi-Select) -->
+            <div class="bg-slate-50/80 border border-slate-200 rounded-xl p-4 space-y-3">
+                <div class="flex items-center justify-between">
+                    <label class="block text-slate-700 text-xs font-bold uppercase tracking-wider flex items-center gap-2">
+                        <span>Countries</span>
+                        <span id="dice-country-count-badge" class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-600 border border-slate-200">0 Selected (Any)</span>
+                    </label>
+                    <div class="flex items-center gap-2 text-xs font-semibold">
+                        <button type="button" onclick="diceSelectAllCountries(false)" class="px-3 py-1 bg-white hover:bg-slate-100 text-slate-600 border border-slate-300 rounded-lg transition-all text-xs font-medium shadow-xs cursor-pointer">Clear</button>
+                    </div>
                 </div>
-                <div>
-                    <label class="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Location</label>
-                    <input id="dice-location" type="text" placeholder="e.g. Remote, New York, NY"
-                        class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-slate-900 text-sm font-medium placeholder-slate-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-500/10 focus:outline-none transition-all shadow-xs">
+                <div id="dice-countries-checkbox-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 max-h-[140px] overflow-y-auto p-1 pr-2 scrollbar-thin">
+                    {% for c in countries %}
+                    <label class="dice-country-item flex items-center gap-2 bg-white hover:bg-blue-50/60 border border-slate-200 hover:border-blue-300 rounded-xl px-3 py-2 cursor-pointer transition-all shadow-2xs group">
+                        <input type="checkbox" name="dice_country_checkbox" value="{{ c.name }}" onchange="updateDiceCountryDisplay()"
+                            class="w-4 h-4 rounded bg-white border-slate-300 text-blue-600 focus:ring-blue-500/20 accent-blue-600 cursor-pointer">
+                        <span class="text-xs text-slate-800 font-bold group-hover:text-blue-700 truncate">{{ c.name }}</span>
+                    </label>
+                    {% endfor %}
                 </div>
+                <p class="text-[11px] text-slate-400">Leave none checked to use the freeform Location field below instead (e.g. a specific city).</p>
+            </div>
+
+            <!-- Keywords (Multi-Select) -->
+            <div class="bg-slate-50/80 border border-slate-200 rounded-xl p-4 space-y-3">
+                <div class="flex items-center justify-between">
+                    <label class="block text-slate-700 text-xs font-bold uppercase tracking-wider flex items-center gap-2">
+                        <span>Keywords <span class="text-rose-500">*</span></span>
+                        <span id="dice-keyword-count-badge" class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">11 Active (Default All Selected)</span>
+                    </label>
+                    <div class="flex items-center gap-2 text-xs font-semibold">
+                        <button type="button" onclick="diceSelectAllKeywords(true)" class="px-3 py-1 bg-white hover:bg-blue-50 text-blue-600 border border-slate-300 hover:border-blue-400 rounded-lg transition-all text-xs font-medium shadow-xs cursor-pointer">Select All</button>
+                        <button type="button" onclick="diceSelectAllKeywords(false)" class="px-3 py-1 bg-white hover:bg-slate-100 text-slate-600 border border-slate-300 rounded-lg transition-all text-xs font-medium shadow-xs cursor-pointer">Uncheck All</button>
+                    </div>
+                </div>
+
+                <div id="dice-keywords-checkbox-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+                    {% for kw in ["SharePoint", "Power Apps", "Power Automate", "Power BI", "Purview", "AI", ".NET", "React", "SPFx", "n8n", "Intune"] %}
+                    <label class="dice-keyword-item flex items-center gap-2 bg-white hover:bg-blue-50/60 border border-slate-200 hover:border-blue-300 rounded-xl px-3 py-2 cursor-pointer transition-all shadow-2xs group">
+                        <input type="checkbox" name="dice_keyword_checkbox" value="{{ kw }}" checked onchange="updateDiceKeywordDisplay()"
+                            class="w-4 h-4 rounded bg-white border-slate-300 text-blue-600 focus:ring-blue-500/20 accent-blue-600 cursor-pointer">
+                        <span class="text-xs text-slate-800 font-bold group-hover:text-blue-700 truncate">{{ kw }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+
+                <!-- Custom Keyword Addition -->
+                <div class="flex items-center gap-2 pt-1 border-t border-slate-200">
+                    <span class="text-slate-500 text-xs font-medium shrink-0">Add Custom:</span>
+                    <div class="relative flex-1">
+                        <input id="dice-input-new-keyword" type="text" placeholder="Type custom keyword and press Enter..." onkeydown="handleDiceKeywordInputKey(event)"
+                            class="w-full bg-white border border-slate-300 rounded-xl pl-3.5 pr-16 py-1.5 text-slate-800 text-xs placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 shadow-2xs font-medium">
+                        <button type="button" onclick="addDiceCustomKeywordCheckbox()" class="absolute right-1 top-1 px-2.5 py-0.5 bg-blue-50 hover:bg-blue-100 text-blue-600 text-xs font-bold rounded-lg transition-all cursor-pointer">
+                            + Add
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Freeform Location -->
+            <div>
+                <label class="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Location <span class="text-slate-400 normal-case font-medium">(used only if no countries are checked above)</span></label>
+                <input id="dice-location" type="text" placeholder="e.g. Remote, New York, NY"
+                    class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-slate-900 text-sm font-medium placeholder-slate-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-500/10 focus:outline-none transition-all shadow-xs">
             </div>
 
             <!-- Workplace Type, Employment Type, Date Posted -->

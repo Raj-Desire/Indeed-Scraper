@@ -783,18 +783,43 @@ async def api_export_sharepoint(request: Request):
         raise HTTPException(status_code=500, detail=f"SharePoint Export Error: {str(exc)}")
 
 
+DICE_MAX_SEARCH_COMBINATIONS = 15
+
+
 @router.post("/api/dice/search")
 async def api_dice_search(request: Request):
-    """Search Dice.com via its official MCP server, score results via the KB/LLM
-    matching pipeline, and return them for display."""
+    """Search Dice.com via its official MCP server for every (keyword, country)
+    combination, score results via the KB/LLM matching pipeline, and return them
+    for display. Accepts either `keywords` (list) or a singular `keyword` (str,
+    kept for backward compatibility); same for `countries` (list) vs `location`
+    (str, a freeform city/state used only when no countries are selected)."""
     try:
         body = await request.json()
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid JSON payload")
 
-    keyword = (body.get("keyword") or "").strip()
-    if not keyword:
-        raise HTTPException(status_code=422, detail="keyword is required")
+    keywords = body.get("keywords")
+    if not isinstance(keywords, list) or not keywords:
+        single_keyword = (body.get("keyword") or "").strip()
+        keywords = [single_keyword] if single_keyword else []
+    keywords = [k.strip() for k in keywords if isinstance(k, str) and k.strip()]
+    if not keywords:
+        raise HTTPException(status_code=422, detail="At least one keyword is required")
+
+    countries = body.get("countries")
+    if not isinstance(countries, list):
+        countries = []
+    countries = [c.strip() for c in countries if isinstance(c, str) and c.strip()]
+
+    combo_count = len(keywords) * max(len(countries), 1)
+    if combo_count > DICE_MAX_SEARCH_COMBINATIONS:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"Too many keyword × country combinations ({combo_count}). "
+                f"Narrow your selection to {DICE_MAX_SEARCH_COMBINATIONS} or fewer combinations."
+            ),
+        )
 
     jobs_per_page = body.get("jobs_per_page")
     if jobs_per_page is not None:
@@ -819,7 +844,7 @@ async def api_dice_search(request: Request):
 
     service = get_dice_service()
     try:
-        new_jobs = await service.search(keyword, **filters)
+        new_jobs = await service.search_multi(keywords, countries, **filters)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Dice search failed: {exc}")
 
@@ -828,6 +853,7 @@ async def api_dice_search(request: Request):
     return {
         "total": len(leads),
         "new_count": len(new_jobs),
+        "combos": combo_count,
         "leads": [_serialize_job(j) for j in leads],
     }
 

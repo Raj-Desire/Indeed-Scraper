@@ -297,6 +297,134 @@ function addCustomKeywordCheckbox() {
     updateSelectedKeywordsDisplay();
 }
 
+// --- Dice tab: keyword/country multi-select state, kept separate from the
+// scraper tab's own keyword/country state above (DEFAULT_CORE_KEYWORDS,
+// getSelectedKeywords, etc.) so the two panels never cross-contaminate each
+// other's search parameters. ---
+
+const DICE_MAX_SEARCH_COMBINATIONS = 15;
+
+function getDiceSelectedKeywords() {
+    const checkedBoxes = document.querySelectorAll('input[name="dice_keyword_checkbox"]:checked');
+    return Array.from(checkedBoxes).map(cb => cb.value.trim()).filter(Boolean);
+}
+
+function getDiceSelectedCountries() {
+    const checkedBoxes = document.querySelectorAll('input[name="dice_country_checkbox"]:checked');
+    return Array.from(checkedBoxes).map(cb => cb.value.trim()).filter(Boolean);
+}
+
+function diceSelectAllKeywords(checkAll) {
+    document.querySelectorAll('input[name="dice_keyword_checkbox"]').forEach(cb => cb.checked = !!checkAll);
+    updateDiceKeywordDisplay();
+}
+
+function diceSelectAllCountries(checkAll) {
+    document.querySelectorAll('input[name="dice_country_checkbox"]').forEach(cb => cb.checked = !!checkAll);
+    updateDiceCountryDisplay();
+}
+
+function updateDiceKeywordDisplay() {
+    const checkedBoxes = document.querySelectorAll('input[name="dice_keyword_checkbox"]:checked');
+    const totalBoxes = document.querySelectorAll('input[name="dice_keyword_checkbox"]');
+    const badge = document.getElementById('dice-keyword-count-badge');
+    const count = checkedBoxes.length;
+
+    if (badge) {
+        if (count === 0) {
+            badge.className = 'px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-700 border border-rose-200';
+            badge.textContent = '0 Selected (Select at least 1)';
+        } else if (count === totalBoxes.length) {
+            badge.className = 'px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-200';
+            badge.textContent = `${count} Active (All Selected)`;
+        } else {
+            badge.className = 'px-2 py-0.5 rounded-full text-[11px] font-bold bg-blue-100 text-blue-700 border border-blue-200';
+            badge.textContent = `${count} / ${totalBoxes.length} Selected`;
+        }
+    }
+
+    updateDiceComboCount();
+}
+
+function updateDiceCountryDisplay() {
+    const count = getDiceSelectedCountries().length;
+    const badge = document.getElementById('dice-country-count-badge');
+
+    if (badge) {
+        if (count === 0) {
+            badge.className = 'px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-600 border border-slate-200';
+            badge.textContent = '0 Selected (Any)';
+        } else {
+            badge.className = 'px-2 py-0.5 rounded-full text-[11px] font-bold bg-blue-100 text-blue-700 border border-blue-200';
+            badge.textContent = `${count} Selected`;
+        }
+    }
+
+    updateDiceComboCount();
+}
+
+function updateDiceComboCount() {
+    const keywordCount = getDiceSelectedKeywords().length;
+    const countryCount = Math.max(getDiceSelectedCountries().length, 1);
+    const combos = keywordCount * countryCount;
+
+    const btn = document.getElementById('btn-dice-search');
+    const statusNote = document.getElementById('dice-status-note');
+    const overCap = combos > DICE_MAX_SEARCH_COMBINATIONS;
+
+    if (btn) btn.disabled = keywordCount === 0 || overCap;
+
+    if (statusNote) {
+        if (keywordCount === 0) {
+            statusNote.className = 'text-xs text-rose-500 font-medium';
+            statusNote.textContent = 'Select at least one keyword.';
+        } else if (overCap) {
+            statusNote.className = 'text-xs text-rose-500 font-medium';
+            statusNote.textContent = `Too many combinations (${combos}). Narrow to ${DICE_MAX_SEARCH_COMBINATIONS} or fewer keyword × country pairs.`;
+        } else {
+            statusNote.className = 'text-xs text-slate-500 font-medium';
+            statusNote.textContent = `Will run ${combos} search${combos === 1 ? '' : 'es'} (${keywordCount} keyword${keywordCount === 1 ? '' : 's'} × ${getDiceSelectedCountries().length || 1} location${getDiceSelectedCountries().length === 1 ? '' : 's'}).`;
+        }
+    }
+}
+
+function handleDiceKeywordInputKey(e) {
+    if (e.key === 'Enter' || e.key === ',') {
+        e.preventDefault();
+        addDiceCustomKeywordCheckbox();
+    }
+}
+
+function addDiceCustomKeywordCheckbox() {
+    const input = document.getElementById('dice-input-new-keyword');
+    if (!input) return;
+    const rawVal = (input.value || '').trim();
+    if (!rawVal) return;
+
+    const parts = rawVal.split(',').map(p => p.trim()).filter(Boolean);
+    const grid = document.getElementById('dice-keywords-checkbox-grid');
+    if (!grid) return;
+
+    parts.forEach(kw => {
+        const existing = Array.from(document.querySelectorAll('input[name="dice_keyword_checkbox"]'))
+            .some(cb => cb.value.toLowerCase() === kw.toLowerCase());
+        if (existing) return;
+
+        const label = document.createElement('label');
+        label.className = 'dice-keyword-item flex items-center gap-2 bg-blue-50/50 hover:bg-blue-50 border border-blue-300 rounded-xl px-3 py-2 cursor-pointer transition-all shadow-2xs group';
+        label.innerHTML = `
+            <input type="checkbox" name="dice_keyword_checkbox" value="${esc(kw)}" checked onchange="updateDiceKeywordDisplay()"
+                class="w-4 h-4 rounded bg-white border-slate-300 text-blue-600 focus:ring-blue-500/20 accent-blue-600 cursor-pointer">
+            <span class="text-xs text-slate-800 font-bold group-hover:text-blue-700 truncate">${esc(kw)}</span>
+            <button type="button" onclick="this.closest('label').remove(); updateDiceKeywordDisplay();" class="ml-auto text-slate-400 hover:text-rose-500 text-xs font-bold" title="Remove">&times;</button>
+        `;
+        grid.appendChild(label);
+    });
+
+    input.value = '';
+    updateDiceKeywordDisplay();
+}
+
 let isSearchRunning = false;
 
 function setSearchButtonState(disabled, text = 'Search Jobs') {
@@ -1425,10 +1553,20 @@ async function hydrateDiceTable() {
 async function searchDice(event) {
     if (event) event.preventDefault();
 
-    const keywordEl = document.getElementById('dice-keyword');
-    const keyword = (keywordEl ? keywordEl.value : '').trim();
-    if (!keyword) {
-        showAlertModal('Input Required', 'Please enter a keyword to search Dice.', 'warning');
+    const keywords = getDiceSelectedKeywords();
+    if (keywords.length === 0) {
+        showAlertModal('Input Required', 'Please select or add at least one keyword to search Dice.', 'warning');
+        return;
+    }
+
+    const countries = getDiceSelectedCountries();
+    const combos = keywords.length * Math.max(countries.length, 1);
+    if (combos > DICE_MAX_SEARCH_COMBINATIONS) {
+        showAlertModal(
+            'Too Many Combinations',
+            `${keywords.length} keyword(s) × ${countries.length || 1} location(s) = ${combos} searches, which exceeds the limit of ${DICE_MAX_SEARCH_COMBINATIONS}. Narrow your keyword or country selection.`,
+            'warning'
+        );
         return;
     }
 
@@ -1446,8 +1584,10 @@ async function searchDice(event) {
     const employmentType = employmentTypeEl ? employmentTypeEl.value : '';
 
     const payload = {
-        keyword,
-        location: locationEl && locationEl.value.trim() ? locationEl.value.trim() : null,
+        keywords,
+        countries: countries.length > 0 ? countries : null,
+        // Freeform location only applies when no countries are checked (server-side rule).
+        location: countries.length === 0 && locationEl && locationEl.value.trim() ? locationEl.value.trim() : null,
         workplace_types: workplaceTypes.length > 0 ? workplaceTypes : null,
         employment_types: employmentType ? [employmentType] : null,
         posted_date: postedDateEl && postedDateEl.value ? postedDateEl.value : null,
@@ -1489,8 +1629,9 @@ async function searchDice(event) {
 
         if (statusNote) {
             const newCount = typeof data.new_count === 'number' ? data.new_count : allLeads.length;
+            const ranCombos = typeof data.combos === 'number' ? data.combos : combos;
             statusNote.className = 'text-xs text-slate-500 font-medium';
-            statusNote.textContent = `Found ${newCount} Dice job${newCount === 1 ? '' : 's'} for "${keyword}".`;
+            statusNote.textContent = `Found ${newCount} new Dice job${newCount === 1 ? '' : 's'} across ${ranCombos} search${ranCombos === 1 ? '' : 'es'}.`;
         }
     } catch (e) {
         showAlertModal('Network Error', e.message, 'error');
@@ -2887,6 +3028,8 @@ document.addEventListener('DOMContentLoaded', () => {
     setInterval(updateIstClock, 1000);
     updateSelectedCountryDisplay();
     updateSelectedKeywordsDisplay();
+    updateDiceKeywordDisplay();
+    updateDiceCountryDisplay();
     connectWebSocket();
     fetchLeads();
     renderStagedQueue();
