@@ -527,6 +527,15 @@ async function fetchLeads() {
         const data = await res.json();
         const incomingLeads = data.leads || [];
 
+        // allLeads/selectedLeadIds/the table and its buttons are shared, mode-owned state.
+        // This poll keeps running in the background while a scrape is active even if the
+        // user has switched to another tab, so don't let it clobber a different mode's
+        // view of that shared state. (Scraper progress/log polling is a separate function,
+        // fetchScraperProgress(), and is unaffected by this early return.)
+        if (currentAppMode !== 'scraper') {
+            return;
+        }
+
         // Auto-select newly scraped leads if not already in selectedLeadIds
         incomingLeads.forEach(l => {
             const idStr = String(l.id);
@@ -789,6 +798,12 @@ function openDescriptionModal(jobId) {
     }
 
     renderModalOutreach(job);
+
+    // Outreach generation only looks up leads in the Indeed/manual store server-side,
+    // so hide the modal's Generate Outreach action for Dice leads (mirrors the batch
+    // outreach button, which switchMode() already hides in dice mode).
+    const genOutreachBtn = document.getElementById('btn-generate-outreach');
+    if (genOutreachBtn) genOutreachBtn.classList.toggle('hidden', currentAppMode === 'dice');
 
     const modal = document.getElementById('job-modal');
     if (modal) modal.classList.remove('hidden');
@@ -1341,9 +1356,11 @@ function switchMode(mode) {
         if (stagedCard) stagedCard.classList.add('hidden');
         if (thCompany) thCompany.classList.remove('hidden');
         document.querySelectorAll('.col-company').forEach(el => el.classList.remove('hidden'));
-        if (navSp && allLeads.length > 0) navSp.classList.remove('hidden');
-        if (tblSp && allLeads.length > 0) tblSp.classList.remove('hidden');
-        if (tblOutreach && allLeads.length > 0) tblOutreach.classList.remove('hidden');
+        // Re-hydrate the shared table/allLeads from the Indeed/manual store so a background
+        // scraper poll (mode-gated in fetchLeads()) or a prior Dice search doesn't leave
+        // stale/foreign rows visible, which could otherwise export the wrong store.
+        lastLeadsHash = '';
+        fetchLeads();
     } else if (mode === 'manual') {
         if (progressCard) progressCard.classList.add('hidden');
         if (stagedCard) stagedCard.classList.remove('hidden');
@@ -1361,9 +1378,31 @@ function switchMode(mode) {
         // Dice results sync to a dedicated SharePoint endpoint; outreach batch generation
         // targets the Indeed lead store, so it stays hidden here.
         if (navSp) navSp.classList.add('hidden');
-        if (tblSp && allLeads.length > 0) tblSp.classList.remove('hidden');
-        else if (tblSp) tblSp.classList.add('hidden');
         if (tblOutreach) tblOutreach.classList.add('hidden');
+        // Re-hydrate the shared table/allLeads from the Dice store so leftover Indeed rows
+        // (and their scraper-mode Sync button) aren't shown while the user is on this tab.
+        hydrateDiceTable();
+    }
+}
+
+async function hydrateDiceTable() {
+    const tblSp = document.getElementById('table-sharepoint-btn');
+    const tblDl = document.getElementById('table-download-btn');
+    const tblClr = document.getElementById('table-clear-btn');
+    try {
+        const res = await fetch('/api/dice/results');
+        const data = await res.json();
+        allLeads = data.leads || [];
+        selectedLeadIds = new Set(allLeads.map(l => String(l.id)));
+        lastLeadsHash = '';
+        renderTable(allLeads);
+    } catch (e) {
+        console.error('Error fetching Dice results:', e);
+    } finally {
+        if (tblSp) tblSp.classList.toggle('hidden', allLeads.length === 0 || currentAppMode !== 'dice');
+        // Excel export & the generic clear action operate on the Indeed lead store, not Dice's.
+        if (tblDl) tblDl.classList.add('hidden');
+        if (tblClr) tblClr.classList.add('hidden');
     }
 }
 
@@ -1437,8 +1476,9 @@ async function searchDice(event) {
         if (tblClr) tblClr.classList.add('hidden');
 
         if (statusNote) {
+            const newCount = typeof data.new_count === 'number' ? data.new_count : allLeads.length;
             statusNote.className = 'text-xs text-slate-500 font-medium';
-            statusNote.textContent = `Found ${allLeads.length} Dice job${allLeads.length === 1 ? '' : 's'} for "${keyword}".`;
+            statusNote.textContent = `Found ${newCount} Dice job${newCount === 1 ? '' : 's'} for "${keyword}".`;
         }
     } catch (e) {
         showAlertModal('Network Error', e.message, 'error');
@@ -2655,11 +2695,16 @@ async function executeResetPage() {
     const countEl = document.getElementById('leads-count');
     if (countEl) countEl.textContent = '0';
 
-    // 5. Clear backend leads
+    // 5. Clear backend leads (both the Indeed/manual store and the Dice store)
     try {
         await fetch('/api/jobs/clear', { method: 'POST' });
     } catch (e) {
         console.error('Error clearing backend jobs:', e);
+    }
+    try {
+        await fetch('/api/dice/clear', { method: 'POST' });
+    } catch (e) {
+        console.error('Error clearing backend Dice results:', e);
     }
 
     // 6. Reset leads state and render empty table

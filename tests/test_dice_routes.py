@@ -66,6 +66,54 @@ def test_post_dice_search_requires_keyword(monkeypatch):
     assert resp.status_code == 422
 
 
+def test_post_dice_search_returns_new_count_distinct_from_cumulative_total(monkeypatch):
+    """The status note in the frontend needs the per-call count, not the cumulative
+    total across all searches this process lifetime — new_count must reflect just
+    what this call's search() returned."""
+    fake_service = _FakeDiceService()
+    # Simulate a service that already has accumulated results from a prior search.
+    fake_service.results = [JobPosting(job_title="Old", company="Prev", lead_source="Dice")]
+    client = _make_client(fake_service, monkeypatch)
+
+    resp = client.post("/api/dice/search", json={"keyword": "python"})
+
+    assert resp.status_code == 200
+    body = resp.json()
+    # fake_service.search() replaces .results with a single new job and returns it
+    assert body["new_count"] == 1
+    assert body["total"] == 1
+
+
+def test_post_dice_search_clamps_jobs_per_page_within_range(monkeypatch):
+    fake_service = _FakeDiceService()
+    client = _make_client(fake_service, monkeypatch)
+
+    resp = client.post("/api/dice/search", json={"keyword": "python", "jobs_per_page": 500})
+
+    assert resp.status_code == 200
+    assert fake_service.search_args == ("python", {"jobs_per_page": 50})
+
+
+def test_post_dice_search_clamps_jobs_per_page_minimum(monkeypatch):
+    fake_service = _FakeDiceService()
+    client = _make_client(fake_service, monkeypatch)
+
+    resp = client.post("/api/dice/search", json={"keyword": "python", "jobs_per_page": -5})
+
+    assert resp.status_code == 200
+    assert fake_service.search_args == ("python", {"jobs_per_page": 1})
+
+
+def test_post_dice_search_ignores_non_numeric_jobs_per_page(monkeypatch):
+    fake_service = _FakeDiceService()
+    client = _make_client(fake_service, monkeypatch)
+
+    resp = client.post("/api/dice/search", json={"keyword": "python", "jobs_per_page": "not-a-number"})
+
+    assert resp.status_code == 200
+    assert "jobs_per_page" not in fake_service.search_args[1]
+
+
 def test_get_dice_results(monkeypatch):
     fake_service = _FakeDiceService()
     fake_service.results = [JobPosting(job_title="X", company="Y", lead_source="Dice")]

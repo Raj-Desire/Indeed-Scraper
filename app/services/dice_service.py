@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from typing import Optional
 
+from app.config.settings import get_settings
 from app.filters.dedup_filter import DedupFilter
 from app.matching.match_service import MatchService
 from app.models.job import JobPosting
@@ -26,8 +27,9 @@ class DiceService:
         dice_client: Optional[DiceMCPClient] = None,
         match_service: Optional[MatchService] = None,
     ) -> None:
+        self._settings = get_settings()
         self._dice_client = dice_client if dice_client is not None else DiceMCPClient()
-        self._match_service = match_service if match_service is not None else MatchService()
+        self._match_service = match_service  # lazily constructed in search() unless injected
         self._dedup_filter = DedupFilter()
         self._results: list[JobPosting] = []
         self._sharepoint_exporter = None  # lazily constructed in export_sharepoint
@@ -57,11 +59,15 @@ class DiceService:
 
         deduped = self._dedup_filter.filter(mapped)
 
-        for job in deduped:
-            try:
-                await self._match_service.evaluate_job(job)
-            except Exception as match_err:
-                logger.error("Dice job matching error for '{}': {}", job.job_title, match_err)
+        if self._match_service is None and self._settings.enable_kb_matching:
+            self._match_service = MatchService()
+
+        if self._match_service is not None:
+            for job in deduped:
+                try:
+                    await self._match_service.evaluate_job(job)
+                except Exception as match_err:
+                    logger.error("Dice job matching error for '{}': {}", job.job_title, match_err)
 
         self._results.extend(deduped)
         logger.info("Dice search '{}' added {} job(s) (total: {})", keyword, len(deduped), len(self._results))

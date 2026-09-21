@@ -117,5 +117,52 @@ def test_export_sharepoint_filters_by_selected_ids():
     assert str(fake_exporter.exported[0][0].id) == keep_id
 
 
+def test_search_skips_scoring_when_kb_matching_disabled_and_no_match_service_injected():
+    """Mirrors ScraperService._run_pipeline's enable_kb_matching killswitch: when no
+    match_service is injected and the setting is off, scoring must not happen at all."""
+    dice_client = _FakeDiceClient([{"guid": "a1", "title": "Dev", "companyName": "Acme"}])
+    service = DiceService(dice_client=dice_client)  # no match_service injected
+    service._settings.enable_kb_matching = False
+
+    results = asyncio.run(service.search(keyword="python"))
+
+    assert len(results) == 1
+    assert results[0].match_score is None
+    assert service._match_service is None
+
+
+def test_search_lazily_builds_match_service_when_kb_matching_enabled_and_none_injected(monkeypatch):
+    """When nothing is injected but the setting is on, DiceService should lazily
+    construct a real MatchService the same way ScraperService does."""
+    import app.services.dice_service as dice_service_mod
+
+    dice_client = _FakeDiceClient([{"guid": "a1", "title": "Dev", "companyName": "Acme"}])
+    service = DiceService(dice_client=dice_client)  # no match_service injected
+    service._settings.enable_kb_matching = True
+
+    fake_instance = _FakeMatchService()
+    monkeypatch.setattr(dice_service_mod, "MatchService", lambda: fake_instance)
+
+    results = asyncio.run(service.search(keyword="python"))
+
+    assert service._match_service is fake_instance
+    assert len(fake_instance.evaluated) == 1
+    assert results[0].match_score == 88
+
+
+def test_search_still_scores_with_injected_match_service_regardless_of_setting():
+    """Existing tests inject a match_service directly; the lazy-construction change
+    must not affect that path even when enable_kb_matching is False."""
+    dice_client = _FakeDiceClient([{"guid": "a1", "title": "Dev", "companyName": "Acme"}])
+    match_service = _FakeMatchService()
+    service = DiceService(dice_client=dice_client, match_service=match_service)
+    service._settings.enable_kb_matching = False
+
+    results = asyncio.run(service.search(keyword="python"))
+
+    assert len(match_service.evaluated) == 1
+    assert results[0].match_score == 88
+
+
 if __name__ == "__main__":
     print("Run with: python -m pytest tests/test_dice_service.py -v")

@@ -796,6 +796,13 @@ async def api_dice_search(request: Request):
     if not keyword:
         raise HTTPException(status_code=422, detail="keyword is required")
 
+    jobs_per_page = body.get("jobs_per_page")
+    if jobs_per_page is not None:
+        try:
+            jobs_per_page = min(max(int(jobs_per_page), 1), 50)
+        except (TypeError, ValueError):
+            jobs_per_page = None
+
     filters = {
         k: v for k, v in {
             "location": body.get("location"),
@@ -806,19 +813,23 @@ async def api_dice_search(request: Request):
             "posted_date": body.get("posted_date"),
             "easy_apply": body.get("easy_apply"),
             "willing_to_sponsor": body.get("willing_to_sponsor"),
-            "jobs_per_page": body.get("jobs_per_page"),
+            "jobs_per_page": jobs_per_page,
         }.items() if v is not None
     }
 
     service = get_dice_service()
     try:
-        await service.search(keyword, **filters)
+        new_jobs = await service.search(keyword, **filters)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Dice search failed: {exc}")
 
     leads = service.get_results()
     leads.sort(key=lambda j: (j.match_score is not None, j.match_score or 0), reverse=True)
-    return {"total": len(leads), "leads": [_serialize_job(j) for j in leads]}
+    return {
+        "total": len(leads),
+        "new_count": len(new_jobs),
+        "leads": [_serialize_job(j) for j in leads],
+    }
 
 
 @router.get("/api/dice/results")
