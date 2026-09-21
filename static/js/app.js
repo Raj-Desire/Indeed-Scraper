@@ -1570,8 +1570,6 @@ async function searchDice(event) {
         return;
     }
 
-    const locationEl = document.getElementById('dice-location');
-    const employmentTypeEl = document.getElementById('dice-employment-type');
     const postedDateEl = document.getElementById('dice-posted-date');
     const easyApplyEl = document.getElementById('dice-easy-apply');
     const sponsorEl = document.getElementById('dice-willing-to-sponsor');
@@ -1580,16 +1578,12 @@ async function searchDice(event) {
     const btnIcon = document.getElementById('btn-dice-search-icon');
     const btnLabel = document.getElementById('btn-dice-search-label');
 
-    const workplaceTypes = Array.from(document.querySelectorAll('input[name="dice_workplace_checkbox"]:checked')).map(cb => cb.value);
-    const employmentType = employmentTypeEl ? employmentTypeEl.value : '';
-
     const payload = {
         keywords,
         countries: countries.length > 0 ? countries : null,
-        // Freeform location only applies when no countries are checked (server-side rule).
-        location: countries.length === 0 && locationEl && locationEl.value.trim() ? locationEl.value.trim() : null,
-        workplace_types: workplaceTypes.length > 0 ? workplaceTypes : null,
-        employment_types: employmentType ? [employmentType] : null,
+        // Workplace type is always Remote - not user-configurable. Employment type is
+        // intentionally left unfiltered (search all job types).
+        workplace_types: ['Remote'],
         posted_date: postedDateEl && postedDateEl.value ? postedDateEl.value : null,
         easy_apply: easyApplyEl && easyApplyEl.checked ? true : null,
         willing_to_sponsor: sponsorEl && sponsorEl.checked ? true : null,
