@@ -133,3 +133,52 @@ class DiceMCPClient:
         call), so this is a no-op kept for interface symmetry with other clients
         in this codebase (e.g. AzureSearchKnowledgeBase.close())."""
         return None
+
+
+from app.models.job import JobPosting, RemoteType
+from datetime import datetime
+
+
+def _parse_workplace_type(raw: dict) -> RemoteType:
+    workplace_types = raw.get("workplaceTypes") or []
+    lowered = [str(w).lower() for w in workplace_types]
+    if any("remote" in w for w in lowered) or raw.get("isRemote") is True:
+        return RemoteType.FULLY_REMOTE
+    if any("hybrid" in w for w in lowered):
+        return RemoteType.HYBRID
+    if any("site" in w for w in lowered):
+        return RemoteType.ON_SITE
+    return RemoteType.UNKNOWN
+
+
+def _parse_posted_date(raw_value: Optional[str]) -> Optional[datetime]:
+    if not raw_value:
+        return None
+    try:
+        return datetime.fromisoformat(raw_value.replace("Z", "+00:00"))
+    except (ValueError, AttributeError):
+        return None
+
+
+def map_to_job_posting(raw: dict, details: Optional[dict], search_query: str) -> JobPosting:
+    """Map a raw Dice `search_jobs` result (+ optional `get_job_details` result)
+    into a JobPosting tagged lead_source="Dice"."""
+    location = ((raw.get("jobLocation") or {}).get("displayName")) or ""
+    details = details or {}
+    posted_raw = raw.get("postedDate") or ""
+
+    return JobPosting(
+        job_title=raw.get("title") or "Untitled Role",
+        company=raw.get("companyName") or "",
+        location=location,
+        search_query=search_query,
+        remote_type=_parse_workplace_type(raw),
+        salary_range=raw.get("salary") or "Not listed",
+        posted_date_raw=posted_raw,
+        posted_date=_parse_posted_date(posted_raw),
+        job_url=raw.get("detailsPageUrl") or "",
+        apply_url=raw.get("detailsPageUrl") or "",
+        job_description=details.get("description") or "",
+        has_full_description=bool(details.get("description")),
+        lead_source="Dice",
+    )
