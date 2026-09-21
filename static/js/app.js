@@ -1169,6 +1169,10 @@ async function exportSharePoint() {
     if (currentAppMode === 'manual') {
         return await syncAllStagedToSharePoint();
     }
+    // If currently in Dice Search mode, route to the Dice-specific export endpoint
+    if (currentAppMode === 'dice') {
+        return await exportDiceSharePoint();
+    }
 
     const selectedIdsArray = Array.from(selectedLeadIds);
     if (allLeads.length > 0 && selectedIdsArray.length === 0) {
@@ -1300,7 +1304,7 @@ function updateIstClock() {
 }
 
 // ==========================================
-// Mode Switcher (Scraper vs Manual Evaluator)
+// Mode Switcher (Scraper vs Manual Evaluator vs Dice Search)
 // ==========================================
 let currentAppMode = 'scraper';
 
@@ -1308,8 +1312,10 @@ function switchMode(mode) {
     currentAppMode = mode;
     const btnScraper = document.getElementById('tab-btn-scraper');
     const btnManual = document.getElementById('tab-btn-manual');
+    const btnDice = document.getElementById('tab-btn-dice');
     const panelScraper = document.getElementById('panel-scraper');
     const panelManual = document.getElementById('panel-manual');
+    const panelDice = document.getElementById('panel-dice');
     const thCompany = document.getElementById('th-company');
     const navSp = document.getElementById('nav-sharepoint-btn');
     const tblSp = document.getElementById('table-sharepoint-btn');
@@ -1317,13 +1323,20 @@ function switchMode(mode) {
     const progressCard = document.getElementById('progress-card');
     const stagedCard = document.getElementById('staged-queue-card');
 
-    if (!btnScraper || !btnManual || !panelScraper || !panelManual) return;
+    if (!btnScraper || !btnManual || !btnDice || !panelScraper || !panelManual || !panelDice) return;
+
+    const activeClass = 'px-4 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 bg-blue-600 text-white shadow-xs cursor-pointer';
+    const inactiveClass = 'px-4 py-2 text-xs font-semibold rounded-xl transition-all flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer';
+
+    btnScraper.className = mode === 'scraper' ? activeClass : inactiveClass;
+    btnManual.className = mode === 'manual' ? activeClass : inactiveClass;
+    btnDice.className = mode === 'dice' ? activeClass : inactiveClass;
+
+    panelScraper.classList.toggle('hidden', mode !== 'scraper');
+    panelManual.classList.toggle('hidden', mode !== 'manual');
+    panelDice.classList.toggle('hidden', mode !== 'dice');
 
     if (mode === 'scraper') {
-        btnScraper.className = 'px-4 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 bg-blue-600 text-white shadow-xs cursor-pointer';
-        btnManual.className = 'px-4 py-2 text-xs font-semibold rounded-xl transition-all flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer';
-        panelScraper.classList.remove('hidden');
-        panelManual.classList.add('hidden');
         if (progressCard) progressCard.classList.remove('hidden');
         if (stagedCard) stagedCard.classList.add('hidden');
         if (thCompany) thCompany.classList.remove('hidden');
@@ -1331,11 +1344,7 @@ function switchMode(mode) {
         if (navSp && allLeads.length > 0) navSp.classList.remove('hidden');
         if (tblSp && allLeads.length > 0) tblSp.classList.remove('hidden');
         if (tblOutreach && allLeads.length > 0) tblOutreach.classList.remove('hidden');
-    } else {
-        btnManual.className = 'px-4 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 bg-blue-600 text-white shadow-xs cursor-pointer';
-        btnScraper.className = 'px-4 py-2 text-xs font-semibold rounded-xl transition-all flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer';
-        panelManual.classList.remove('hidden');
-        panelScraper.classList.add('hidden');
+    } else if (mode === 'manual') {
         if (progressCard) progressCard.classList.add('hidden');
         if (stagedCard) stagedCard.classList.remove('hidden');
         if (thCompany) thCompany.classList.add('hidden');
@@ -1344,6 +1353,144 @@ function switchMode(mode) {
         if (navSp) navSp.classList.add('hidden');
         if (tblSp) tblSp.classList.add('hidden');
         if (tblOutreach) tblOutreach.classList.add('hidden');
+    } else if (mode === 'dice') {
+        if (progressCard) progressCard.classList.add('hidden');
+        if (stagedCard) stagedCard.classList.add('hidden');
+        if (thCompany) thCompany.classList.remove('hidden');
+        document.querySelectorAll('.col-company').forEach(el => el.classList.remove('hidden'));
+        // Dice results sync to a dedicated SharePoint endpoint; outreach batch generation
+        // targets the Indeed lead store, so it stays hidden here.
+        if (navSp) navSp.classList.add('hidden');
+        if (tblSp && allLeads.length > 0) tblSp.classList.remove('hidden');
+        else if (tblSp) tblSp.classList.add('hidden');
+        if (tblOutreach) tblOutreach.classList.add('hidden');
+    }
+}
+
+// ==========================================
+// Dice Search (search_jobs via Dice MCP, reuses the shared leads table)
+// ==========================================
+
+async function searchDice(event) {
+    if (event) event.preventDefault();
+
+    const keywordEl = document.getElementById('dice-keyword');
+    const keyword = (keywordEl ? keywordEl.value : '').trim();
+    if (!keyword) {
+        showAlertModal('Input Required', 'Please enter a keyword to search Dice.', 'warning');
+        return;
+    }
+
+    const locationEl = document.getElementById('dice-location');
+    const employmentTypeEl = document.getElementById('dice-employment-type');
+    const postedDateEl = document.getElementById('dice-posted-date');
+    const easyApplyEl = document.getElementById('dice-easy-apply');
+    const sponsorEl = document.getElementById('dice-willing-to-sponsor');
+    const statusNote = document.getElementById('dice-status-note');
+    const btn = document.getElementById('btn-dice-search');
+    const btnIcon = document.getElementById('btn-dice-search-icon');
+    const btnLabel = document.getElementById('btn-dice-search-label');
+
+    const workplaceTypes = Array.from(document.querySelectorAll('input[name="dice_workplace_checkbox"]:checked')).map(cb => cb.value);
+    const employmentType = employmentTypeEl ? employmentTypeEl.value : '';
+
+    const payload = {
+        keyword,
+        location: locationEl && locationEl.value.trim() ? locationEl.value.trim() : null,
+        workplace_types: workplaceTypes.length > 0 ? workplaceTypes : null,
+        employment_types: employmentType ? [employmentType] : null,
+        posted_date: postedDateEl && postedDateEl.value ? postedDateEl.value : null,
+        easy_apply: easyApplyEl && easyApplyEl.checked ? true : null,
+        willing_to_sponsor: sponsorEl && sponsorEl.checked ? true : null,
+    };
+
+    if (btn) btn.disabled = true;
+    if (btnIcon) btnIcon.classList.add('animate-spin');
+    if (btnLabel) btnLabel.textContent = 'Searching...';
+    if (statusNote) statusNote.textContent = '';
+
+    try {
+        const resp = await fetch('/api/dice/search', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+
+        if (!resp.ok) {
+            const err = await resp.json().catch(() => ({}));
+            showAlertModal('Dice Search Error', err.detail || 'Dice search failed.', 'error');
+            return;
+        }
+
+        const data = await resp.json();
+        allLeads = data.leads || [];
+        selectedLeadIds = new Set(allLeads.map(l => String(l.id)));
+        lastLeadsHash = '';
+        renderTable(allLeads);
+
+        const tblSp = document.getElementById('table-sharepoint-btn');
+        const tblDl = document.getElementById('table-download-btn');
+        const tblClr = document.getElementById('table-clear-btn');
+        if (tblSp) tblSp.classList.toggle('hidden', allLeads.length === 0);
+        // Excel export & the generic clear action operate on the Indeed lead store, not Dice's.
+        if (tblDl) tblDl.classList.add('hidden');
+        if (tblClr) tblClr.classList.add('hidden');
+
+        if (statusNote) {
+            statusNote.className = 'text-xs text-slate-500 font-medium';
+            statusNote.textContent = `Found ${allLeads.length} Dice job${allLeads.length === 1 ? '' : 's'} for "${keyword}".`;
+        }
+    } catch (e) {
+        showAlertModal('Network Error', e.message, 'error');
+    } finally {
+        if (btn) btn.disabled = false;
+        if (btnIcon) btnIcon.classList.remove('animate-spin');
+        if (btnLabel) btnLabel.textContent = 'Search Dice';
+    }
+}
+
+async function exportDiceSharePoint() {
+    const selectedIdsArray = Array.from(selectedLeadIds);
+    if (allLeads.length > 0 && selectedIdsArray.length === 0) {
+        showAlertModal('No Leads Selected', 'Please select at least one lead from the table to sync to SharePoint.', 'warning');
+        return;
+    }
+
+    const btns = [document.getElementById('table-sharepoint-btn')].filter(Boolean);
+    btns.forEach(b => {
+        b.disabled = true;
+        b.innerHTML = `<svg class="w-3.5 h-3.5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m0 14v1m8-8h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707"/></svg> Syncing...`;
+    });
+
+    try {
+        const payload = selectedIdsArray.length < allLeads.length
+            ? { selected_ids: selectedIdsArray }
+            : {};
+
+        const ownerEl = document.getElementById('leads-owner');
+        if (ownerEl && ownerEl.value) {
+            payload.owner = ownerEl.value;
+        }
+
+        const res = await fetch('/api/dice/export/sharepoint', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (res.ok) {
+            showAlertModal('SharePoint Sync Complete', data.message || 'Successfully synced Dice leads to SharePoint!', 'success');
+        } else {
+            showAlertModal('SharePoint Sync Error', data.detail || data.message || 'Failed to sync', 'error');
+        }
+    } catch (e) {
+        showAlertModal('Network Error', e.message, 'error');
+    } finally {
+        btns.forEach(b => {
+            b.disabled = false;
+            b.innerHTML = `<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg> Sync to SharePoint`;
+        });
+        updateSelectedLeadsUI();
     }
 }
 

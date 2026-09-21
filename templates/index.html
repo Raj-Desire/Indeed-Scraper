@@ -28,6 +28,11 @@
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                 Manual Job Evaluator (Paste Description)
             </button>
+            <button id="tab-btn-dice" type="button" onclick="switchMode('dice')"
+                class="px-4 py-2 text-xs font-semibold rounded-xl transition-all flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                Dice Search
+            </button>
         </div>
         <button id="btn-global-reset" type="button" onclick="confirmResetPage()"
             class="px-4 py-2 text-xs font-bold rounded-xl text-rose-600 hover:text-white bg-rose-50 hover:bg-rose-600 border border-rose-200 hover:border-rose-600 transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer active:scale-95">
@@ -572,6 +577,101 @@
                 </button>
             </div>
             <p id="manual-bottom-note" class="text-xs text-slate-400 font-medium"></p>
+        </div>
+    </div>
+
+    <!-- PANEL 3: Dice Search -->
+    <div id="panel-dice" class="space-y-5 hidden">
+        <form onsubmit="searchDice(event)" class="space-y-5">
+            <!-- Keyword & Location -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                <div>
+                    <label class="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Keyword <span class="text-rose-500">*</span></label>
+                    <input id="dice-keyword" type="text" required placeholder="e.g. SharePoint Developer"
+                        class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-slate-900 text-sm font-medium placeholder-slate-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-500/10 focus:outline-none transition-all shadow-xs">
+                </div>
+                <div>
+                    <label class="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Location</label>
+                    <input id="dice-location" type="text" placeholder="e.g. Remote, New York, NY"
+                        class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-slate-900 text-sm font-medium placeholder-slate-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-500/10 focus:outline-none transition-all shadow-xs">
+                </div>
+            </div>
+
+            <!-- Workplace Type, Employment Type, Date Posted -->
+            <div class="bg-slate-50/80 border border-slate-200 rounded-xl p-4 space-y-3">
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-5">
+                    <div>
+                        <label class="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Workplace Type</label>
+                        <div class="flex flex-wrap items-center gap-3 pt-1">
+                            <label class="flex items-center gap-1.5 text-xs font-semibold text-slate-700 cursor-pointer select-none">
+                                <input type="checkbox" name="dice_workplace_checkbox" value="Remote"
+                                    class="w-4 h-4 rounded bg-white border-slate-300 text-blue-600 focus:ring-blue-500/20 accent-blue-600 cursor-pointer">
+                                Remote
+                            </label>
+                            <label class="flex items-center gap-1.5 text-xs font-semibold text-slate-700 cursor-pointer select-none">
+                                <input type="checkbox" name="dice_workplace_checkbox" value="On-Site"
+                                    class="w-4 h-4 rounded bg-white border-slate-300 text-blue-600 focus:ring-blue-500/20 accent-blue-600 cursor-pointer">
+                                On-Site
+                            </label>
+                            <label class="flex items-center gap-1.5 text-xs font-semibold text-slate-700 cursor-pointer select-none">
+                                <input type="checkbox" name="dice_workplace_checkbox" value="Hybrid"
+                                    class="w-4 h-4 rounded bg-white border-slate-300 text-blue-600 focus:ring-blue-500/20 accent-blue-600 cursor-pointer">
+                                Hybrid
+                            </label>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Employment Type</label>
+                        <select id="dice-employment-type"
+                            class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-slate-900 text-sm font-medium focus:border-blue-600 focus:ring-2 focus:ring-blue-500/10 focus:outline-none transition-all shadow-xs cursor-pointer">
+                            <option value="" selected>Any</option>
+                            <option value="FULLTIME">Full-Time</option>
+                            <option value="PARTTIME">Part-Time</option>
+                            <option value="CONTRACTS">Contract</option>
+                            <option value="THIRD_PARTY">Third Party</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-slate-700 text-xs font-bold uppercase tracking-wider mb-1.5">Date Posted</label>
+                        <select id="dice-posted-date"
+                            class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-slate-900 text-sm font-medium focus:border-blue-600 focus:ring-2 focus:ring-blue-500/10 focus:outline-none transition-all shadow-xs cursor-pointer">
+                            <option value="" selected>Any Time</option>
+                            <option value="ONE">Last 24 Hours</option>
+                            <option value="THREE">Last 3 Days</option>
+                            <option value="SEVEN">Last 7 Days</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-5 pt-2 border-t border-slate-200">
+                    <label class="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer select-none">
+                        <input id="dice-easy-apply" type="checkbox"
+                            class="w-4 h-4 rounded bg-white border-slate-300 text-blue-600 focus:ring-blue-500/20 accent-blue-600 cursor-pointer">
+                        Easy Apply Only
+                    </label>
+                    <label class="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer select-none">
+                        <input id="dice-willing-to-sponsor" type="checkbox"
+                            class="w-4 h-4 rounded bg-white border-slate-300 text-blue-600 focus:ring-blue-500/20 accent-blue-600 cursor-pointer">
+                        Willing to Sponsor Only
+                    </label>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex items-center justify-between border-t border-slate-100 pt-4">
+                <button id="btn-dice-search" type="submit"
+                    class="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold rounded-xl text-sm transition-all shadow-md shadow-blue-500/20 hover:shadow-lg flex items-center gap-2 cursor-pointer">
+                    <svg id="btn-dice-search-icon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                    <span id="btn-dice-search-label">Search Dice</span>
+                </button>
+                <p id="dice-status-note" class="text-xs text-slate-500 font-medium"></p>
+            </div>
+        </form>
+
+        <!-- AI Search Disclosure Banner (required by Dice MCP terms of use) -->
+        <div class="bg-amber-50/70 border border-amber-200 rounded-xl p-3.5 space-y-1">
+            <p class="text-xs text-slate-500">These job listings were found using AI-powered search. Please review all job details carefully and verify information directly with employers before applying.</p>
+            <p class="text-[11px] text-slate-400">Results appear in the Job Leads table below.</p>
         </div>
     </div>
 </div>
