@@ -32,6 +32,7 @@ class DiceService:
         self._match_service = match_service  # lazily constructed in search() unless injected
         self._dedup_filter = DedupFilter()
         self._results: list[JobPosting] = []
+        self._last_search_params: dict = {}
         self._sharepoint_exporter = None  # lazily constructed in export_sharepoint
 
     async def search(self, keyword: str, **filters) -> list[JobPosting]:
@@ -86,6 +87,11 @@ class DiceService:
         Cross-combination duplicates collapse to one result via the existing
         stateful DedupFilter that `search()` already shares across calls.
         """
+        self._last_search_params = {
+            "keywords": list(keywords),
+            "countries": list(countries) if countries else [],
+            **filters,
+        }
         new_jobs: list[JobPosting] = []
         location_values = countries if countries else [filters.pop("location", None)]
 
@@ -102,6 +108,11 @@ class DiceService:
         self, keywords: list[str], countries: Optional[list[str]] = None, **filters
     ):
         """Run search_multi step-by-step and yield progress events as an async generator."""
+        self._last_search_params = {
+            "keywords": list(keywords),
+            "countries": list(countries) if countries else [],
+            **filters,
+        }
         location_values = countries if countries else [filters.pop("location", None)]
         combos = [(kw, loc) for kw in keywords for loc in location_values]
         total_combos = len(combos)
@@ -178,7 +189,44 @@ class DiceService:
 
     def clear_results(self) -> None:
         self._results.clear()
+        self._last_search_params.clear()
         self._dedup_filter.reset()
+
+    def export_excel(
+        self,
+        selected_ids: Optional[list[str]] = None,
+        output_dir: Optional[str] = None,
+    ):
+        """Export current (or selected) Dice results to a clean, styled Excel workbook."""
+        from pathlib import Path
+        from app.excel.exporter import ExcelExporter
+
+        leads_to_export = self._results
+        if selected_ids is not None:
+            id_set = {str(i) for i in selected_ids}
+            leads_to_export = [j for j in self._results if str(j.id) in id_set]
+
+        if not leads_to_export:
+            raise ValueError("No Dice job leads to export.")
+
+        keywords = self._last_search_params.get("keywords", [])
+        countries = self._last_search_params.get("countries", [])
+        posted_date = self._last_search_params.get("posted_date", "all")
+        workplace_types = self._last_search_params.get("workplace_types", ["Remote"])
+        location_type = "remote" if "Remote" in workplace_types else "all"
+        query_str = ", ".join(keywords) if keywords else ""
+
+        exporter = ExcelExporter()
+        return exporter.export(
+            jobs=leads_to_export,
+            output_dir=output_dir or self._settings.output_dir,
+            query=query_str,
+            countries=countries,
+            fromage=posted_date or "all",
+            location_type=location_type,
+            source="Dice",
+            filename_prefix="Dice_Job_Leads",
+        )
 
     async def export_sharepoint(self, selected_ids: Optional[list[str]] = None, owner: Optional[str] = None) -> int:
         """Export current (or selected) Dice results to SharePoint via Graph API."""

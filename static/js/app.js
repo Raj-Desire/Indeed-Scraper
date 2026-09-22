@@ -110,6 +110,7 @@ function updateSelectedLeadsUI() {
     // Update Download Excel and SharePoint buttons text/href
     const navDl = document.getElementById('nav-download-btn');
     const tblDl = document.getElementById('table-download-btn');
+    const diceDl = document.getElementById('btn-dice-download');
     const navSp = document.getElementById('nav-sharepoint-btn');
     const tblSp = document.getElementById('table-sharepoint-btn');
 
@@ -125,6 +126,14 @@ function updateSelectedLeadsUI() {
         const svg = `<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>`;
         btn.innerHTML = `${svg} ${dlText}`;
     });
+
+    if (diceDl) {
+        const svg = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>`;
+        diceDl.innerHTML = `${svg} <span>${dlText}</span>`;
+        if (currentAppMode === 'dice') {
+            diceDl.classList.toggle('hidden', total === 0);
+        }
+    }
 
     [navSp, tblSp].forEach(btn => {
         if (!btn) return;
@@ -1265,7 +1274,8 @@ async function exportExcel(event) {
 
     const btns = [
         document.getElementById('nav-download-btn'),
-        document.getElementById('table-download-btn')
+        document.getElementById('table-download-btn'),
+        document.getElementById('btn-dice-download')
     ].filter(Boolean);
 
     btns.forEach(b => {
@@ -1277,7 +1287,9 @@ async function exportExcel(event) {
             ? { selected_ids: selectedIdsArray }
             : {};
 
-        const res = await fetch('/api/export/excel', {
+        const exportUrl = currentAppMode === 'dice' ? '/api/dice/export/excel' : '/api/export/excel';
+
+        const res = await fetch(exportUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
@@ -1291,7 +1303,7 @@ async function exportExcel(event) {
 
         const blob = await res.blob();
         const disposition = res.headers.get('Content-Disposition') || '';
-        let filename = 'indeed_leads.xlsx';
+        let filename = currentAppMode === 'dice' ? 'dice_leads.xlsx' : 'indeed_leads.xlsx';
         const match = disposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
         if (match && match[1]) {
             filename = match[1].replace(/['"]/g, '');
@@ -1609,10 +1621,13 @@ async function hydrateDiceTable() {
         // Only touch button visibility if Dice is still the active mode; otherwise the
         // now-current mode already owns these buttons and we'd stomp on its state.
         if (currentAppMode === 'dice') {
+            const diceDl = document.getElementById('btn-dice-download');
+            const navDl = document.getElementById('nav-download-btn');
+            if (diceDl) diceDl.classList.toggle('hidden', allLeads.length === 0);
             if (tblSp) tblSp.classList.toggle('hidden', allLeads.length === 0);
-            // Excel export & the generic clear action operate on the Indeed lead store, not Dice's.
-            if (tblDl) tblDl.classList.add('hidden');
-            if (tblClr) tblClr.classList.add('hidden');
+            if (tblDl) tblDl.classList.toggle('hidden', allLeads.length === 0);
+            if (navDl) navDl.classList.toggle('hidden', allLeads.length === 0);
+            if (tblClr) tblClr.classList.toggle('hidden', allLeads.length === 0);
         }
     }
 }
@@ -1748,12 +1763,16 @@ async function searchDice(event) {
                         lastLeadsHash = '';
                         renderTable(allLeads);
 
+                        const diceDl = document.getElementById('btn-dice-download');
                         const tblSp = document.getElementById('table-sharepoint-btn');
                         const tblDl = document.getElementById('table-download-btn');
+                        const navDl = document.getElementById('nav-download-btn');
                         const tblClr = document.getElementById('table-clear-btn');
+                        if (diceDl) diceDl.classList.toggle('hidden', allLeads.length === 0);
                         if (tblSp) tblSp.classList.toggle('hidden', allLeads.length === 0);
-                        if (tblDl) tblDl.classList.add('hidden');
-                        if (tblClr) tblClr.classList.add('hidden');
+                        if (tblDl) tblDl.classList.toggle('hidden', allLeads.length === 0);
+                        if (navDl) navDl.classList.toggle('hidden', allLeads.length === 0);
+                        if (tblClr) tblClr.classList.toggle('hidden', allLeads.length === 0);
 
                         if (statusNote) {
                             statusNote.className = 'text-xs text-emerald-600 font-semibold';
@@ -3020,11 +3039,12 @@ async function executeResetPage() {
     // 7. Hide Action Buttons
     const navDl = document.getElementById('nav-download-btn');
     const tblDl = document.getElementById('table-download-btn');
+    const diceDl = document.getElementById('btn-dice-download');
     const navSp = document.getElementById('nav-sharepoint-btn');
     const tblSp = document.getElementById('table-sharepoint-btn');
     const tblOutreach = document.getElementById('table-generate-outreach-btn');
     const tblClr = document.getElementById('table-clear-btn');
-    [navDl, tblDl, navSp, tblSp, tblOutreach, tblClr].forEach(b => b && b.classList.add('hidden'));
+    [navDl, tblDl, diceDl, navSp, tblSp, tblOutreach, tblClr].forEach(b => b && b.classList.add('hidden'));
 
     // 8. Reset Staged Queue
     stagedOpportunities = [];

@@ -982,6 +982,67 @@ async def api_dice_export_sharepoint(request: Request):
         raise HTTPException(status_code=500, detail=f"SharePoint Export Error: {str(exc)}")
 
 
+@router.get("/api/dice/export/excel")
+async def api_dice_export_excel(selected_ids: Optional[str] = Query(default=None)):
+    """Download clean Excel workbook for Dice search leads. Supports filtering by selected_ids."""
+    service = get_dice_service()
+    leads = service.get_results()
+
+    if not leads:
+        raise HTTPException(status_code=400, detail="No Dice job leads to export. Run a search first.")
+
+    id_list = None
+    if selected_ids and isinstance(selected_ids, str):
+        id_list = [i.strip() for i in selected_ids.split(",") if i.strip()]
+        if id_list:
+            filtered = [j for j in leads if str(j.id) in set(id_list)]
+            if not filtered:
+                raise HTTPException(status_code=400, detail="No selected Dice job leads match to export.")
+
+    try:
+        output_path = service.export_excel(selected_ids=id_list)
+        return FileResponse(
+            path=str(output_path),
+            filename=output_path.name,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Excel Export Error: {str(exc)}")
+
+
+@router.post("/api/dice/export/excel")
+async def api_dice_export_excel_post(request: Request):
+    """Download clean Excel workbook for Dice search leads with JSON payload containing selected_ids."""
+    body = {}
+    try:
+        body = await request.json()
+    except Exception:
+        pass
+
+    service = get_dice_service()
+    leads = service.get_results()
+
+    if not leads:
+        raise HTTPException(status_code=400, detail="No Dice job leads to export. Run a search first.")
+
+    selected_ids = body.get("selected_ids") if isinstance(body, dict) else None
+    if selected_ids and isinstance(selected_ids, list):
+        id_set = {str(i) for i in selected_ids}
+        filtered = [j for j in leads if str(j.id) in id_set]
+        if not filtered:
+            raise HTTPException(status_code=400, detail="No selected Dice job leads match to export.")
+
+    try:
+        output_path = service.export_excel(selected_ids=selected_ids)
+        return FileResponse(
+            path=str(output_path),
+            filename=output_path.name,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Excel Export Error: {str(exc)}")
+
+
 @router.websocket("/ws/progress")
 async def websocket_progress(websocket: WebSocket):
     """WebSocket endpoint for real-time progress bar updates."""

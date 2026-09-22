@@ -46,6 +46,9 @@ class ExcelExporter:
         countries: Optional[list[str]] = None,
         fromage: str = "all",
         location_type: str = "all",
+        source: str = "Indeed",
+        filename_prefix: Optional[str] = None,
+        report_title: Optional[str] = None,
     ) -> Path:
         """
         Export job postings to an Excel workbook with a clean executive parameters header.
@@ -57,6 +60,9 @@ class ExcelExporter:
             countries: Target country codes/names.
             fromage: Date posted filter window.
             location_type: Remote/onsite/all filter.
+            source: Lead source (e.g. 'Indeed', 'Dice').
+            filename_prefix: Custom prefix for the output filename.
+            report_title: Custom title for executive banner.
 
         Returns:
             Path object pointing to the generated .xlsx file.
@@ -65,7 +71,8 @@ class ExcelExporter:
         output_path.mkdir(parents=True, exist_ok=True)
 
         date_str = datetime.now(tz=IST).strftime("%Y-%m-%d")
-        file_path = output_path / f"Indeed_Job_Leads_{date_str}.xlsx"
+        prefix = filename_prefix or (f"{source}_Job_Leads" if source else "Job_Leads")
+        file_path = output_path / f"{prefix}_{date_str}.xlsx"
 
         wb = openpyxl.Workbook()
         ws = wb.active
@@ -101,7 +108,8 @@ class ExcelExporter:
         # Row 1: Executive Title Banner
         # ---------------------------------------------------------------------
         ws.merge_cells("A1:O1")
-        banner = ws.cell(row=1, column=1, value="🎯 INDEED JOB SOURCING REPORT")
+        banner_title = report_title or (f"🎯 {source.upper()} JOB SOURCING REPORT" if source else "🎯 JOB SOURCING REPORT")
+        banner = ws.cell(row=1, column=1, value=banner_title)
         banner.font = Font(name="Calibri", size=13, bold=True, color="FFFFFF")
         banner.fill = PatternFill(start_color="1E3A8A", end_color="1E3A8A", fill_type="solid")
         banner.alignment = Alignment(horizontal="center", vertical="center")
@@ -284,7 +292,16 @@ class ExcelExporter:
                     cell.alignment = Alignment(horizontal="center", vertical="center")
                     cell.value = val
                 elif col_idx == 15 and str(val).startswith("http"):  # Job URL hyperlink
-                    cell.value = "View on Indeed"
+                    val_str = str(val).lower()
+                    if "dice.com" in val_str or (job.lead_source and job.lead_source.lower() == "dice") or (source and source.lower() == "dice"):
+                        link_text = "View on Dice"
+                    elif "indeed" in val_str or (job.lead_source and job.lead_source.lower() == "indeed") or (source and source.lower() == "indeed"):
+                        link_text = "View on Indeed"
+                    elif job.lead_source:
+                        link_text = f"View on {job.lead_source}"
+                    else:
+                        link_text = "View Job"
+                    cell.value = link_text
                     cell.hyperlink = str(val)
                     cell.font = link_font
                 else:
