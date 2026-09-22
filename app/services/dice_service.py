@@ -34,6 +34,7 @@ class DiceService:
         self._results: list[JobPosting] = []
         self._last_search_params: dict = {}
         self._sharepoint_exporter = None  # lazily constructed in export_sharepoint
+        self._email_sent: bool = False
 
     async def search(self, keyword: str, **filters) -> list[JobPosting]:
         """Run a Dice search: fetch results, enrich with full descriptions,
@@ -191,6 +192,45 @@ class DiceService:
         self._results.clear()
         self._last_search_params.clear()
         self._dedup_filter.reset()
+        self._email_sent = False
+
+    async def send_email_notification(
+        self,
+        excel_path: Optional[str] = None,
+        query: str = "",
+        queries: Optional[list[str]] = None,
+        countries: Optional[list[str]] = None,
+        fromage: str = "all",
+        location_type: str = "remote",
+        status: str = "completed",
+        error_note: Optional[str] = None,
+    ) -> bool:
+        """Send daily Dice email report with Excel attachment via Microsoft Graph API."""
+        from app.notifications.graph_mail import GraphMailNotifier
+        notifier = GraphMailNotifier()
+        sent = await notifier.send_report(
+            jobs=self._results,
+            excel_path=excel_path,
+            query=query,
+            queries=queries,
+            countries=countries,
+            fromage=fromage,
+            location_type=location_type,
+            status=status,
+            error_note=error_note,
+            source="Dice",
+        )
+        if sent:
+            self._email_sent = True
+        return sent
+
+    def is_email_sent(self) -> bool:
+        """Return whether an email has already been dispatched for the current Dice search session."""
+        return self._email_sent
+
+    def mark_email_sent(self, sent: bool = True) -> None:
+        """Set the email sent status."""
+        self._email_sent = sent
 
     def export_excel(
         self,

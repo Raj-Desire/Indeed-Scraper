@@ -142,6 +142,15 @@ function updateSelectedLeadsUI() {
             btn.innerHTML = `${svg} ${spText}`;
         }
     });
+
+    const tblOutreach = document.getElementById('table-generate-outreach-btn');
+    if (tblOutreach && !tblOutreach.disabled) {
+        const outreachText = selectedCount < total && selectedCount > 0
+            ? `Generate Outreach (${selectedCount})`
+            : 'Generate Outreach';
+        const svg = `<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>`;
+        tblOutreach.innerHTML = `${svg} <span id="table-generate-outreach-label">${outreachText}</span>`;
+    }
 }
 
 function getSelectedCountries() {
@@ -944,11 +953,8 @@ function openDescriptionModal(jobId) {
 
     renderModalOutreach(job);
 
-    // Outreach generation only looks up leads in the Indeed/manual store server-side,
-    // so hide the modal's Generate Outreach action for Dice leads (mirrors the batch
-    // outreach button, which switchMode() already hides in dice mode).
     const genOutreachBtn = document.getElementById('btn-generate-outreach');
-    if (genOutreachBtn) genOutreachBtn.classList.toggle('hidden', currentAppMode === 'dice');
+    if (genOutreachBtn) genOutreachBtn.classList.remove('hidden');
 
     const modal = document.getElementById('job-modal');
     if (modal) modal.classList.remove('hidden');
@@ -1586,10 +1592,7 @@ function switchMode(mode) {
         if (stagedCard) stagedCard.classList.add('hidden');
         if (thCompany) thCompany.classList.remove('hidden');
         document.querySelectorAll('.col-company').forEach(el => el.classList.remove('hidden'));
-        // Dice results sync to a dedicated SharePoint endpoint; outreach batch generation
-        // targets the Indeed lead store, so it stays hidden here.
         if (navSp) navSp.classList.add('hidden');
-        if (tblOutreach) tblOutreach.classList.add('hidden');
         // Re-hydrate the shared table/allLeads from the Dice store so leftover Indeed rows
         // (and their scraper-mode Sync button) aren't shown while the user is on this tab.
         hydrateDiceTable();
@@ -1623,10 +1626,12 @@ async function hydrateDiceTable() {
         if (currentAppMode === 'dice') {
             const diceDl = document.getElementById('btn-dice-download');
             const navDl = document.getElementById('nav-download-btn');
+            const tblOutreach = document.getElementById('table-generate-outreach-btn');
             if (diceDl) diceDl.classList.toggle('hidden', allLeads.length === 0);
             if (tblSp) tblSp.classList.toggle('hidden', allLeads.length === 0);
             if (tblDl) tblDl.classList.toggle('hidden', allLeads.length === 0);
             if (navDl) navDl.classList.toggle('hidden', allLeads.length === 0);
+            if (tblOutreach) tblOutreach.classList.toggle('hidden', allLeads.length === 0);
             if (tblClr) tblClr.classList.toggle('hidden', allLeads.length === 0);
         }
     }
@@ -1767,11 +1772,13 @@ async function searchDice(event) {
                         const tblSp = document.getElementById('table-sharepoint-btn');
                         const tblDl = document.getElementById('table-download-btn');
                         const navDl = document.getElementById('nav-download-btn');
+                        const tblOutreach = document.getElementById('table-generate-outreach-btn');
                         const tblClr = document.getElementById('table-clear-btn');
                         if (diceDl) diceDl.classList.toggle('hidden', allLeads.length === 0);
                         if (tblSp) tblSp.classList.toggle('hidden', allLeads.length === 0);
                         if (tblDl) tblDl.classList.toggle('hidden', allLeads.length === 0);
                         if (navDl) navDl.classList.toggle('hidden', allLeads.length === 0);
+                        if (tblOutreach) tblOutreach.classList.toggle('hidden', allLeads.length === 0);
                         if (tblClr) tblClr.classList.toggle('hidden', allLeads.length === 0);
 
                         if (statusNote) {

@@ -85,3 +85,44 @@ def test_generate_outreach_batch_reports_failures_without_failing_whole_batch():
         data = resp.json()
         assert data["generated"] == 0
         assert len(data["failed"]) == 2
+
+
+def test_generate_outreach_batch_for_dice_leads():
+    from app.services.dice_service import get_dice_service
+    dice_service = get_dice_service()
+    dice_service.clear_results()
+
+    job1 = JobPosting(job_title="Dice Cloud Dev 1", company="Cloud Corp", job_description="Cloud architecture", lead_source="Dice")
+    job2 = JobPosting(job_title="Dice Cloud Dev 2", company="Data Corp", job_description="Data engineering", lead_source="Dice")
+    dice_service._results.extend([job1, job2])
+
+    client = TestClient(app)
+
+    fake_outreach = {
+        "email_subject": "Dice Opportunity",
+        "email_body": "Hi there,\n\nWe would love to connect on Dice role.",
+        "linkedin_variants": ["Hi, saw your Dice listing."],
+        "opening_line": "Opening.",
+        "alignment_paragraph": "Alignment.",
+    }
+
+    with patch("app.matching.outreach_generator.generate_outreach", new_callable=AsyncMock) as mock_gen, \
+         patch("app.knowledge_base.azure_search.AzureSearchKnowledgeBase.search", new_callable=AsyncMock) as mock_search:
+        mock_gen.return_value = fake_outreach
+        mock_search.return_value = []
+
+        lead_ids = [str(job1.id), str(job2.id)]
+        resp = client.post("/api/jobs/generate-outreach-batch", json={"lead_ids": lead_ids})
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "success"
+        assert data["generated"] == 2
+        assert len(data["leads"]) == 2
+
+        assert job1.outreach_email_subject == "Dice Opportunity"
+        assert job1.outreach_email_body == "Hi there,\n\nWe would love to connect on Dice role."
+        assert job1.outreach_linkedin_message == "Hi, saw your Dice listing."
+
+    dice_service.clear_results()
+

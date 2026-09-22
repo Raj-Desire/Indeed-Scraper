@@ -24,6 +24,8 @@ class _FakeDiceService:
         self.search_multi_args = None
         self.cleared = False
         self.exported_with = None
+        self._email_sent = False
+        self._last_search_params = {}
 
     async def search_multi(self, keywords, countries, **filters):
         self.search_multi_args = (keywords, countries, filters)
@@ -45,6 +47,21 @@ class _FakeDiceService:
     def clear_results(self):
         self.cleared = True
         self.results = []
+        self._email_sent = False
+
+    def is_email_sent(self):
+        return self._email_sent
+
+    def mark_email_sent(self, sent=True):
+        self._email_sent = sent
+
+    async def send_email_notification(self, **kwargs):
+        self._email_sent = True
+        return True
+
+    def export_excel(self, selected_ids=None):
+        from pathlib import Path
+        return Path("outputs/test_dice.xlsx")
 
     async def export_sharepoint(self, selected_ids=None, owner=None):
         self.exported_with = (selected_ids, owner)

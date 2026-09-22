@@ -5,9 +5,12 @@ Verifies HTML email report generation, metrics badges, Excel attachments, and se
 
 import asyncio
 import os
+import sys
 from pathlib import Path
 from uuid import uuid4
 import pytest
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.models.job import JobPosting, RemoteType
 from app.notifications.graph_mail import GraphMailNotifier
@@ -65,10 +68,12 @@ def test_build_html_report_structure():
         jobs=jobs,
         query="Applied AI Engineer",
         countries=["US"],
+        source="Indeed",
     )
 
     # Check header and metrics
-    assert "Indeed Job Sourcing Daily Report" in html_content
+    assert "Indeed Job Leads - Sourcing Report" in html_content
+    assert "Top Matched Indeed Job Leads" in html_content
     assert "Applied AI Engineer" in html_content
     assert "US" in html_content
     assert "IST (GMT+5:30)" in html_content
@@ -92,6 +97,17 @@ def test_build_html_report_structure():
 
     # Check Excel attachment notice
     assert "Attached Workbook" in html_content
+
+    # Check Dice source headline
+    dice_html = notifier.build_html_report(
+        jobs=jobs,
+        query="Applied AI Engineer",
+        countries=["US"],
+        source="Dice",
+    )
+    assert "Dice Job Leads - Sourcing Report" in dice_html
+    assert "Top Matched Dice Job Leads" in dice_html
+    assert "View on Dice ↗" in dice_html
 
 
 def test_send_report_skipped_when_disabled():

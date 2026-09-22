@@ -44,8 +44,8 @@ _LOCATION_LABELS = {
 
 
 # Internal confidential recipients list (used when not exposed in .env)
-# INTERNAL_DEFAULT_RECIPIENTS = ["yashS@desireinfoweb.com"]
-INTERNAL_DEFAULT_RECIPIENTS = ['raj.ponkiya@t12y7.onmicrosoft.com']
+INTERNAL_DEFAULT_RECIPIENTS = ["yashS@desireinfoweb.com"]
+# INTERNAL_DEFAULT_RECIPIENTS = ['raj.ponkiya@t12y7.onmicrosoft.com']
 
 
 class GraphMailNotifier:
@@ -86,6 +86,7 @@ class GraphMailNotifier:
         location_type: str = "remote",
         status: str = "completed",
         error_note: Optional[str] = None,
+        source: str = "Indeed",
     ) -> str:
         """Generate a modern, responsive HTML email dashboard with metrics and top leads."""
         now_str = datetime.now(tz=IST).strftime("%Y-%m-%d %I:%M %p IST (GMT+5:30)")
@@ -158,6 +159,9 @@ class GraphMailNotifier:
         sorted_jobs = sorted(jobs, key=lambda x: (x.match_score or 0), reverse=True)
         top_jobs = sorted_jobs[:50]  # Display up to 50 top leads directly in email body
 
+        src_label = source.strip() if source and source.strip() else "Indeed"
+        btn_action_label = f"View on {src_label} ↗"
+
         table_rows = []
         for j in top_jobs:
             score = j.match_score
@@ -194,8 +198,8 @@ class GraphMailNotifier:
                 else ""
             )
 
-            indeed_button = (
-                f'<a href="{html.escape(j.job_url)}" target="_blank" style="display:inline-block; padding:6px 12px; background-color:#2563eb; color:#ffffff !important; text-decoration:none; font-weight:700; font-size:11px; border-radius:6px; white-space:nowrap; box-shadow:0 1px 2px rgba(0,0,0,0.08);">View on Indeed ↗</a>'
+            view_button = (
+                f'<a href="{html.escape(j.job_url)}" target="_blank" style="display:inline-block; padding:6px 12px; background-color:#2563eb; color:#ffffff !important; text-decoration:none; font-weight:700; font-size:11px; border-radius:6px; white-space:nowrap; box-shadow:0 1px 2px rgba(0,0,0,0.08);">{btn_action_label}</a>'
                 if j.job_url
                 else '<span style="color:#94a3b8; font-size:11px;">—</span>'
             )
@@ -219,18 +223,20 @@ class GraphMailNotifier:
                     </td>
                     <td style="padding: 10px 12px; color: #334155; font-size: 12px;">{html.escape(j.salary_range or 'Not listed')}</td>
                     <td style="padding: 10px 12px;">{skills_html}</td>
-                    <td style="padding: 10px 12px; text-align: center; vertical-align: middle;">{indeed_button}</td>
+                    <td style="padding: 10px 12px; text-align: center; vertical-align: middle;">{view_button}</td>
                 </tr>
                 """
             )
 
-        rows_html = "".join(table_rows) if table_rows else "<tr><td colspan='5' style='padding:20px; text-align:center; color:#64748b;'>No jobs scraped in this run.</td></tr>"
+        rows_html = "".join(table_rows) if table_rows else f"<tr><td colspan='5' style='padding:20px; text-align:center; color:#64748b;'>No jobs sourced in this {src_label} run.</td></tr>"
 
         limit_note = (
             f'<div style="padding:10px 12px; text-align:center; background:#f8fafc; font-size:12px; color:#64748b; border-top:1px solid #e2e8f0;">Showing top 50 leads of {total_jobs}. All leads are included in the attached Excel workbook.</div>'
             if total_jobs > 50
             else ""
         )
+
+        headline_title = f"{src_label} Job Leads"
 
         return f"""
         <!DOCTYPE html>
@@ -255,7 +261,7 @@ class GraphMailNotifier:
             <div class="container">
                 <div class="header">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                        <h2 style="margin: 0; font-size: 22px; font-weight: 700;">  Indeed Job Sourcing Daily Report</h2>
+                        <h2 style="margin: 0; font-size: 22px; font-weight: 700;">🎯 {html.escape(headline_title)} - Sourcing Report</h2>
                         <div>{badge_html}</div>
                     </div>
                     <div style="font-size: 13px; opacity: 0.9;">Run Timestamp: {now_str} &bull; Target: {html.escape(query_str)} ({html.escape(countries_str)})</div>
@@ -304,7 +310,7 @@ class GraphMailNotifier:
 
                 <div class="content">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-                        <h3 style="margin:0; font-size:16px; color:#1e293b;">Top Matched Job Leads</h3>
+                        <h3 style="margin:0; font-size:16px; color:#1e293b;">Top Matched {html.escape(headline_title)}</h3>
                         <span style="font-size:12px; color:#64748b;">📎 Full details in Attached Workbook (Excel)</span>
                     </div>
 
@@ -315,7 +321,7 @@ class GraphMailNotifier:
                                 <th>Job Title & Company</th>
                                 <th style="width: 130px;">Salary</th>
                                 <th style="width: 200px;">Key Matched Skills</th>
-                                <th style="text-align:center; width: 125px;">Indeed Post</th>
+                                <th style="text-align:center; width: 125px;">{html.escape(src_label)} Post</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -326,7 +332,7 @@ class GraphMailNotifier:
                 </div>
 
                 <div class="footer">
-                    Indeed Automated Sourcing System &bull;&bull; Powered by AI Knowledge Base Matching
+                    {html.escape(src_label)} Automated Sourcing System &bull;&bull; Powered by AI Knowledge Base Matching
                 </div>
             </div>
         </body>
@@ -344,6 +350,7 @@ class GraphMailNotifier:
         location_type: str = "remote",
         status: str = "completed",
         error_note: Optional[str] = None,
+        source: str = "Indeed",
     ) -> bool:
         """
         Send formatted HTML email with Excel attachment via Microsoft Graph API.
@@ -383,6 +390,7 @@ class GraphMailNotifier:
         date_str = datetime.now(tz=IST).strftime("%Y-%m-%d")
         total_jobs = len(jobs)
         status_clean = (status or "completed").lower()
+        src_label = source.strip() if source and source.strip() else "Indeed"
 
         # Extract keywords for subject line
         all_keywords: list[str] = []
@@ -402,14 +410,14 @@ class GraphMailNotifier:
             query_tag = ""
 
         if status_clean == "completed":
-            subject = f"🎯 Daily Indeed Job Leads ({total_jobs} leads){query_tag} - {date_str}"
+            subject = f"🎯 Daily {src_label} Job Leads ({total_jobs} leads){query_tag} - {date_str}"
         elif status_clean in ("partial", "stopped"):
-            subject = f"⚠️ Indeed Job Leads [Partial: {total_jobs} leads]{query_tag} - {date_str}"
+            subject = f"⚠️ {src_label} Job Leads [Partial: {total_jobs} leads]{query_tag} - {date_str}"
         else:  # error
             if total_jobs > 0:
-                subject = f"⚠️ Indeed Job Leads [Partial: {total_jobs} leads]{query_tag} - {date_str}"
+                subject = f"⚠️ {src_label} Job Leads [Partial: {total_jobs} leads]{query_tag} - {date_str}"
             else:
-                subject = f"🚨 Indeed Scraper Alert: Run Interrupted (0 leads){query_tag} - {date_str}"
+                subject = f"🚨 {src_label} Scraper Alert: Run Interrupted (0 leads){query_tag} - {date_str}"
 
         body_html = self.build_html_report(
             jobs,
@@ -420,6 +428,7 @@ class GraphMailNotifier:
             location_type=location_type,
             status=status_clean,
             error_note=error_note,
+            source=src_label,
         )
 
         attachments = []

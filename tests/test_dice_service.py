@@ -260,6 +260,39 @@ def test_search_resolves_canadian_and_us_countries():
     assert results[2].country == "US"  # Explicit USA displayName maps to US
 
 
+def test_dice_service_send_email_notification(monkeypatch):
+    from unittest.mock import AsyncMock
+    dice_client = _FakeDiceClient([{"guid": "a1", "title": "Dev", "companyName": "Acme"}])
+    service = DiceService(dice_client=dice_client, match_service=_FakeMatchService())
+    asyncio.run(service.search("python"))
+
+    assert service.is_email_sent() is False
+
+    mock_send_report = AsyncMock(return_value=True)
+    import app.notifications.graph_mail as gm
+    monkeypatch.setattr(gm.GraphMailNotifier, "send_report", mock_send_report)
+
+    sent = asyncio.run(service.send_email_notification(
+        query="python",
+        queries=["python"],
+        countries=["US"],
+        fromage="1",
+        location_type="remote",
+        status="completed",
+    ))
+
+    assert sent is True
+    assert service.is_email_sent() is True
+    assert mock_send_report.called
+    kwargs = mock_send_report.call_args.kwargs
+    assert kwargs.get("source") == "Dice"
+    assert kwargs.get("query") == "python"
+
+    # Verify clear_results resets is_email_sent
+    service.clear_results()
+    assert service.is_email_sent() is False
+
+
 if __name__ == "__main__":
     print("Run with: python -m pytest tests/test_dice_service.py -v")
 

@@ -282,15 +282,40 @@ async def api_manual_evaluate(request: Request):
         raise HTTPException(status_code=500, detail=str(exc))
 
 
+def _find_job_in_services(lead_id: str) -> Optional[JobPosting]:
+    scraper_service = get_scraper_service()
+    job = next((j for j in scraper_service._results if str(j.id) == str(lead_id)), None)
+    if job:
+        return job
+    dice_service = get_dice_service()
+    return next((j for j in dice_service._results if str(j.id) == str(lead_id)), None)
+
+
+def _find_jobs_in_services(lead_ids: list[str]) -> list[JobPosting]:
+    id_set = {str(i) for i in lead_ids}
+    scraper_service = get_scraper_service()
+    dice_service = get_dice_service()
+    seen_ids = set()
+    found = []
+    for j in scraper_service._results:
+        if str(j.id) in id_set and str(j.id) not in seen_ids:
+            found.append(j)
+            seen_ids.add(str(j.id))
+    for j in dice_service._results:
+        if str(j.id) in id_set and str(j.id) not in seen_ids:
+            found.append(j)
+            seen_ids.add(str(j.id))
+    return found
+
+
 @router.post("/api/jobs/{lead_id}/generate-outreach")
 async def api_generate_outreach(lead_id: str):
     """
-    On-demand outreach draft generation for a scraped (or manual) lead already in memory.
+    On-demand outreach draft generation for a scraped (or manual/Dice) lead already in memory.
     Kept separate from bulk scraping/evaluation so it's only ever run for leads the user
     is actually about to act on, not automatically for every scraped result.
     """
-    service = get_scraper_service()
-    job = next((j for j in service._results if str(j.id) == str(lead_id)), None)
+    job = _find_job_in_services(lead_id)
     if not job:
         raise HTTPException(status_code=404, detail="Lead not found")
 
@@ -345,9 +370,7 @@ async def api_generate_outreach_batch(request: Request):
     if not lead_ids or not isinstance(lead_ids, list):
         raise HTTPException(status_code=400, detail="lead_ids (non-empty list) is required")
 
-    service = get_scraper_service()
-    id_set = {str(i) for i in lead_ids}
-    jobs = [j for j in service._results if str(j.id) in id_set]
+    jobs = _find_jobs_in_services(lead_ids)
     if not jobs:
         raise HTTPException(status_code=404, detail="No matching leads found")
 
@@ -407,8 +430,7 @@ async def api_update_outreach(lead_id: str, request: Request):
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid JSON payload")
 
-    service = get_scraper_service()
-    job = next((j for j in service._results if str(j.id) == str(lead_id)), None)
+    job = _find_job_in_services(lead_id)
     if not job:
         raise HTTPException(status_code=404, detail="Lead not found")
 
@@ -849,6 +871,29 @@ async def api_dice_search(request: Request):
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Dice search failed: {exc}")
 
+    # Dispatch email notification if enabled and not sent yet
+    if settings.email_notifications_enabled and not service.is_email_sent() and service.get_results():
+        try:
+            excel_path = None
+            try:
+                excel_path = str(service.export_excel())
+            except Exception as ex_err:
+                logger.warning("Could not pre-generate Excel attachment for Dice email: {}", ex_err)
+
+            sent = await service.send_email_notification(
+                excel_path=excel_path,
+                query=", ".join(keywords) if keywords else "",
+                queries=keywords,
+                countries=countries,
+                fromage=filters.get("posted_date", "all"),
+                location_type="remote" if "Remote" in filters.get("workplace_types", ["Remote"]) else "all",
+                status="completed",
+            )
+            if sent:
+                logger.info("Dice search complete: Email report successfully dispatched to sender and recipients.")
+        except Exception as mail_err:
+            logger.error("Dice search complete: Error dispatching email notification: {}", mail_err)
+
     leads = service.get_results()
     leads.sort(key=lambda j: (j.match_score is not None, j.match_score or 0), reverse=True)
     return {
@@ -917,6 +962,29 @@ async def api_dice_search_stream(request: Request):
             async for event in service.search_multi_stream(keywords, countries, **filters):
                 if event.get("type") == "complete" and "leads" in event:
                     event["leads"] = [_serialize_job(j) for j in event["leads"]]
+                    # When stream completes, dispatch Graph email notification to sender and recipients
+                    if settings.email_notifications_enabled and not service.is_email_sent() and service.get_results():
+                        try:
+                            excel_path = None
+                            try:
+                                excel_path = str(service.export_excel())
+                            except Exception as ex_err:
+                                logger.warning("Could not pre-generate Excel for Dice email: {}", ex_err)
+
+                            sent = await service.send_email_notification(
+                                excel_path=excel_path,
+                                query=", ".join(keywords) if keywords else "",
+                                queries=keywords,
+                                countries=countries,
+                                fromage=filters.get("posted_date", "all"),
+                                location_type="remote" if "Remote" in filters.get("workplace_types", ["Remote"]) else "all",
+                                status="completed",
+                            )
+                            if sent:
+                                logger.info("Dice search stream: Email successfully dispatched to sender and recipients.")
+                        except Exception as mail_err:
+                            logger.error("Dice search stream: Error sending email: {}", mail_err)
+
                 payload = json.dumps(event)
                 yield f"data: {payload}\n\n"
         except Exception as exc:
@@ -1001,6 +1069,30 @@ async def api_dice_export_excel(selected_ids: Optional[str] = Query(default=None
 
     try:
         output_path = service.export_excel(selected_ids=id_list)
+
+        # Check if email notification was already sent for this Dice run; if not, dispatch now
+        if settings.email_notifications_enabled and not service.is_email_sent():
+            logger.info("Dice Download Excel clicked: Email has not been sent yet. Dispatching email report to sender and recipients...")
+            try:
+                params = service._last_search_params
+                kws = params.get("keywords", [])
+                countries = params.get("countries", [])
+                posted_date = params.get("posted_date", "all")
+                workplace_types = params.get("workplace_types", ["Remote"])
+                sent = await service.send_email_notification(
+                    excel_path=str(output_path),
+                    query=", ".join(kws) if kws else "",
+                    queries=kws,
+                    countries=countries,
+                    fromage=posted_date,
+                    location_type="remote" if "Remote" in workplace_types else "all",
+                    status="completed",
+                )
+                if sent:
+                    logger.info("Dice Download Excel: Email successfully dispatched to sender and recipients.")
+            except Exception as mail_err:
+                logger.error("Dice Download Excel: Error dispatching email notification: {}", mail_err)
+
         return FileResponse(
             path=str(output_path),
             filename=output_path.name,
@@ -1034,6 +1126,30 @@ async def api_dice_export_excel_post(request: Request):
 
     try:
         output_path = service.export_excel(selected_ids=selected_ids)
+
+        # Check if email notification was already sent for this Dice run; if not, dispatch now
+        if settings.email_notifications_enabled and not service.is_email_sent():
+            logger.info("Dice Download Excel POST clicked: Email has not been sent yet. Dispatching email report...")
+            try:
+                params = service._last_search_params
+                kws = params.get("keywords", [])
+                countries = params.get("countries", [])
+                posted_date = params.get("posted_date", "all")
+                workplace_types = params.get("workplace_types", ["Remote"])
+                sent = await service.send_email_notification(
+                    excel_path=str(output_path),
+                    query=", ".join(kws) if kws else "",
+                    queries=kws,
+                    countries=countries,
+                    fromage=posted_date,
+                    location_type="remote" if "Remote" in workplace_types else "all",
+                    status="completed",
+                )
+                if sent:
+                    logger.info("Dice Download Excel POST: Email successfully dispatched to sender and recipients.")
+            except Exception as mail_err:
+                logger.error("Dice Download Excel POST: Error dispatching email notification: {}", mail_err)
+
         return FileResponse(
             path=str(output_path),
             filename=output_path.name,
