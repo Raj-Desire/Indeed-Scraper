@@ -43,9 +43,7 @@ _LOCATION_LABELS = {
 }
 
 
-# Internal confidential recipients list (used when not exposed in .env)
-INTERNAL_DEFAULT_RECIPIENTS = ["yashS@desireinfoweb.com"]
-# INTERNAL_DEFAULT_RECIPIENTS = ['raj.ponkiya@t12y7.onmicrosoft.com']
+
 
 
 class GraphMailNotifier:
@@ -359,18 +357,17 @@ class GraphMailNotifier:
         if not self._settings.email_notifications_enabled:
             return False
 
-        mail_sender = (self._settings.graph_sender_email.strip() or self._settings.mail_sender.strip())
+        mail_sender = self._settings.mail_sender.strip()
         recipients_raw = self._settings.notification_email_to.strip()
 
-        # If recipients are not configured in .env, use internal confidential recipients
+        # If recipient is specified in .env, send to that recipient
         if recipients_raw:
             raw_list = [r.strip() for r in recipients_raw.split(",") if r.strip() and "@" in r]
+        elif mail_sender and "@" in mail_sender:
+            # Fallback to sender if no recipient is explicitly defined
+            raw_list = [mail_sender]
         else:
-            raw_list = list(INTERNAL_DEFAULT_RECIPIENTS)
-
-        # Include sender mailbox in recipient list so sender receives a copy
-        if mail_sender and "@" in mail_sender and mail_sender not in raw_list:
-            raw_list.append(mail_sender)
+            raw_list = []
 
         recipients = [
             {"emailAddress": {"address": r}}

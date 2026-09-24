@@ -127,7 +127,6 @@ def test_send_report_skipped_when_sender_missing():
     notifier = GraphMailNotifier()
     notifier._settings.email_notifications_enabled = True
     notifier._settings.mail_sender = ""
-    notifier._settings.graph_sender_email = ""
     notifier._settings.notification_email_to = "test@example.com"
 
 
@@ -172,7 +171,6 @@ def test_send_report_includes_sender_in_recipients(monkeypatch):
     notifier = GraphMailNotifier()
     notifier._settings.email_notifications_enabled = True
     notifier._settings.mail_sender = "sender@company.com"
-    notifier._settings.graph_sender_email = "sender@company.com"
     notifier._settings.notification_email_to = "recipient@company.com"
 
     monkeypatch.setattr(notifier, "_acquire_token", lambda: "fake-token")
@@ -204,7 +202,6 @@ def test_send_report_includes_sender_in_recipients(monkeypatch):
     assert result is True
     recipients = [r["emailAddress"]["address"] for r in captured_payload["message"]["toRecipients"]]
     assert "recipient@company.com" in recipients
-    assert "sender@company.com" in recipients  # Sender must be included!
 
 
 def test_build_html_report_shows_all_selected_keywords_and_indeed_links():

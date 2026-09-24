@@ -109,20 +109,15 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("GRAPH_CLIENT_SECRET", "graph_client_secret", "EMAIL_CLIENT_SECRET", "email_client_secret"),
         description="Microsoft Graph Email Client Secret",
     )
-    graph_sender_email: str = Field(
-        default="",
-        validation_alias=AliasChoices("GRAPH_SENDER_EMAIL", "graph_sender_email", "MAIL_SENDER", "mail_sender", "NOTIFICATION_EMAIL_FROM", "sender_email"),
-        description="Microsoft 365 sender mailbox (e.g. user@yourdomain.com)",
-    )
     mail_sender: str = Field(
         default="",
         validation_alias=AliasChoices("MAIL_SENDER", "mail_sender", "GRAPH_SENDER_EMAIL", "graph_sender_email"),
-        description="Microsoft 365 sender mailbox",
+        description="Microsoft 365 sender mailbox (from which email is sent)",
     )
     notification_email_to: str = Field(
         default="",
-        validation_alias=AliasChoices("NOTIFICATION_EMAIL_TO", "notification_email_to", "RECIPIENT_EMAIL"),
-        description="Recipient email address(es), comma-separated",
+        validation_alias=AliasChoices("NOTIFICATION_EMAIL_TO", "notification_email_to", "RECIPIENT_EMAIL", "recipient_email"),
+        description="Recipient email address(es) that receive the report, comma-separated",
     )
 
 
