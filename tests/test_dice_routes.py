@@ -44,6 +44,15 @@ class _FakeDiceService:
     def get_results(self):
         return self.results
 
+    def get_exportable(self, selected_ids=None):
+        if selected_ids:
+            ids = {str(i) for i in selected_ids}
+            return [j for j in self.results if str(j.id) in ids]
+        return self.get_visible_results()
+
+    def get_visible_results(self):
+        return [j for j in self.results if getattr(j, "lead_class", "") != "Rejected"]
+
     def clear_results(self):
         self.cleared = True
         self.results = []

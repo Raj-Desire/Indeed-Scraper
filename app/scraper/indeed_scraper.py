@@ -368,6 +368,9 @@ class IndeedScraper:
                     logger.debug("Selector health report error: {}", h_err)
 
         final_status = ScraperStatus.STOPPED if self._stop_event.is_set() else ScraperStatus.COMPLETED
+        if final_status == ScraperStatus.COMPLETED and getattr(self, "defer_completion", False):
+            # The owning service marks COMPLETED after background match scoring has finished
+            final_status = ScraperStatus.RUNNING
         self._progress.status = final_status
         self._emit_progress()
 

@@ -9,6 +9,8 @@ there is no pause/resume/progress-broadcast machinery here.
 
 from __future__ import annotations
 
+import asyncio
+
 from typing import Optional
 
 from app.config.settings import get_settings
@@ -32,6 +34,7 @@ class DiceService:
         self._match_service = match_service  # lazily constructed in search() unless injected
         self._dedup_filter = DedupFilter()
         self._results: list[JobPosting] = []
+        self._rejected: list[JobPosting] = []  # rejected by the lead filter (hidden by default)
         self._last_search_params: dict = {}
         self._sharepoint_exporter = None  # lazily constructed in export_sharepoint
         self._email_sent: bool = False
@@ -65,16 +68,35 @@ class DiceService:
         if self._match_service is None and self._settings.enable_kb_matching:
             self._match_service = MatchService()
 
-        if self._match_service is not None:
-            for job in deduped:
-                try:
-                    await self._match_service.evaluate_job(job)
-                except Exception as match_err:
-                    logger.error("Dice job matching error for '{}': {}", job.job_title, match_err)
+        lead_on = bool(getattr(self._settings, "enable_lead_filter", False))
+        elig_on = bool(getattr(self._settings, "enable_eligibility_filter", False))
+        if self._match_service is not None or lead_on or elig_on:
+            sem = asyncio.Semaphore(3)
 
-        self._results.extend(deduped)
-        logger.info("Dice search '{}' added {} job(s) (total: {})", keyword, len(deduped), len(self._results))
-        return deduped
+            async def _score(job: JobPosting) -> None:
+                async with sem:
+                    try:
+                        if elig_on:
+                            from app.filters.eligibility_filter import apply_eligibility
+                            apply_eligibility(job)  # mandatory citizenship/visa/clearance/residency -> Rejected, no LLM
+                        if lead_on and job.lead_class != "Rejected":
+                            from app.matching.lead_classifier import get_lead_classifier
+                            await get_lead_classifier().apply(job)
+                        from app.matching.lead_reconcile import match_and_reconcile
+                        await match_and_reconcile(job, self._match_service)  # skips plain rejections; reconciles the rest
+                    except Exception as match_err:
+                        logger.error("Dice job matching error for '{}': {}", job.job_title, match_err)
+
+            await asyncio.gather(*(_score(j) for j in deduped))
+
+        accepted = [j for j in deduped if j.lead_class != "Rejected"]
+        self._rejected.extend(j for j in deduped if j.lead_class == "Rejected")
+        self._results.extend(accepted)
+        logger.info(
+            "Dice search '{}' added {} job(s), {} rejected by lead filter (total: {})",
+            keyword, len(accepted), len(deduped) - len(accepted), len(self._results),
+        )
+        return accepted
 
     async def search_multi(
         self, keywords: list[str], countries: Optional[list[str]] = None, **filters
@@ -188,8 +210,34 @@ class DiceService:
     def get_results(self) -> list[JobPosting]:
         return list(self._results)
 
+    def get_rejected_results(self) -> list[JobPosting]:
+        return list(self._rejected)
+
+    def get_exportable(self, selected_ids=None) -> list[JobPosting]:
+        """Explicit selection is honoured exactly (even rejected leads); otherwise only useful leads."""
+        if selected_ids:
+            ids = {str(i) for i in selected_ids}
+            return [j for j in self._results + self._rejected if str(j.id) in ids]
+        return self.get_visible_results()
+
+    def find_rejected(self, lead_id: str):
+        for j in self._rejected:
+            if str(j.id) == str(lead_id):
+                return j
+        return None
+
+    def admit_promoted(self, job: JobPosting) -> None:
+        self._rejected = [j for j in self._rejected if j is not job]
+        if not any(j is job for j in self._results):
+            self._results.insert(0, job)
+
+    def get_visible_results(self) -> list[JobPosting]:
+        """Everything except jobs the lead filter rejected."""
+        return [j for j in self._results if getattr(j, "lead_class", "") != "Rejected"]
+
     def clear_results(self) -> None:
         self._results.clear()
+        self._rejected.clear()
         self._last_search_params.clear()
         self._dedup_filter.reset()
         self._email_sent = False
@@ -241,10 +289,7 @@ class DiceService:
         from pathlib import Path
         from app.excel.exporter import ExcelExporter
 
-        leads_to_export = self._results
-        if selected_ids is not None:
-            id_set = {str(i) for i in selected_ids}
-            leads_to_export = [j for j in self._results if str(j.id) in id_set]
+        leads_to_export = self.get_exportable(selected_ids)
 
         if not leads_to_export:
             raise ValueError("No Dice job leads to export.")
@@ -274,10 +319,7 @@ class DiceService:
             from app.sharepoint.graph_exporter import GraphSharePointExporter
             self._sharepoint_exporter = GraphSharePointExporter()
 
-        leads_to_export = self._results
-        if selected_ids is not None:
-            id_set = {str(i) for i in selected_ids}
-            leads_to_export = [j for j in self._results if str(j.id) in id_set]
+        leads_to_export = self.get_exportable(selected_ids)
 
         return await self._sharepoint_exporter.export_jobs(leads_to_export, owner=owner)
 

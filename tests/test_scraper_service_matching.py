@@ -13,7 +13,8 @@ from app.services.scraper_service import ScraperService
 class _FakeScraper:
     def __init__(self, jobs, progress_callback=None):
         self._jobs = jobs
-        self.progress = type("P", (), {"jobs_found": 0})()
+        from app.models.scraper import ScraperProgress
+        self.progress = ScraperProgress()
 
     async def scrape(self, config):
         for job in self._jobs:
@@ -89,9 +90,10 @@ def test_run_pipeline_isolates_match_service_failure_to_one_job(monkeypatch, tmp
     from app.models.scraper import RunConfig
     asyncio.run(service._run_pipeline(RunConfig()))
 
-    assert fake_match_service.calls == ["Job A", "Job B"]
+    # Job A failed first (isolated - Job B still scored), then the retry pass recovered it
+    assert fake_match_service.calls == ["Job A", "Job B", "Job A"]
     assert [j.job_title for j in service._results] == ["Job A", "Job B"]
-    assert job1.match_score is None
+    assert job1.match_score == 42
     assert job2.match_score == 42
     assert service._match_service is None
 

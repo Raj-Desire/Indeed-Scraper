@@ -208,7 +208,67 @@ def truncate_text(text: str, max_length: int = 500, suffix: str = "...") -> str:
     return text[: max_length - len(suffix)] + suffix
 
 
+_MONEY_RE = re.compile(
+    r"(?P<cur>[$£€₹]|Rs\.?)\s?(?P<a>\d[\d,]*(?:\.\d+)?)\s?(?P<ak>[kK])?"
+    r"(?:\s*(?:-|–|—|to)\s*(?:[$£€₹]|Rs\.?)?\s?(?P<b>\d[\d,]*(?:\.\d+)?)\s?(?P<bk>[kK])?)?"
+    r"(?P<unit>\s*(?:/|per\s+|a\s+|an\s+)\s?(?:year|yr|annum|hour|hr|month|mo|day|week)\b|\s*(?:annually|hourly|yearly))?",
+    re.IGNORECASE,
+)
+_SALARY_CTX_RE = re.compile(r"salary|compensation|pay\b|base pay|wage|annual|rate|range|earn|ctc|remuneration", re.IGNORECASE)
+_NON_SALARY_CTX_RE = re.compile(
+    r"bonus|overtime|stipend|per diem|referral|401|match|reimburs|sign[- ]?on|signing|commission|equity|"
+    r"allowance|budget|revenue|funding|raised|valuation|insurance|deductible|tuition|relocation|"
+    r"gift card|penalt|fine|fee\b|contribution",
+    re.IGNORECASE,
+)
+
+
+def _money_value(num: str, k: str | None) -> float:
+    v = float(num.replace(",", ""))
+    return v * 1000 if k else v
+
+
 def extract_salary_range(text: str) -> str:
+    """Pick the most salary-like amount in the text using context, not first-match.
+
+    Ranges beat single amounts; amounts near salary/compensation/pay words beat bare
+    ones; bonus/overtime/benefit/budget amounts and tiny unlabeled figures are penalised.
+    Falls back to the legacy pattern scan only for Lakh/LPA style salaries.
+    """
+    if not text:
+        return "Not listed"
+    best, best_score = None, 0
+    for m in _MONEY_RE.finditer(text):
+        a = _money_value(m.group("a"), m.group("ak"))
+        b = _money_value(m.group("b"), m.group("bk")) if m.group("b") else None
+        unit = (m.group("unit") or "").lower()
+        hourly = "hour" in unit or "hr" in unit
+        if b is not None and b < a:
+            b = None
+        before = text[max(0, m.start() - 90):m.start()]
+        after = re.split(r"[,;\n]|\.\s", text[m.end():m.end() + 40])[0]  # same clause only
+        score = 0
+        if b is not None:
+            score += 5
+        if _SALARY_CTX_RE.search(before):
+            score += 4
+        if unit:
+            score += 2
+        after_clean = re.sub(r"(?:plus\s+)?equity", "", after, flags=re.IGNORECASE)
+        if _NON_SALARY_CTX_RE.search(before[-50:]) or _NON_SALARY_CTX_RE.search(after_clean):
+            score -= 8
+        if b is None and a < 1000 and not hourly and not (unit and "hour" in unit):
+            score -= 6  # bare small amount ("$70") with no hourly/period unit is not a salary
+        if a < 10:
+            score -= 6
+        if score > best_score:
+            best, best_score = m.group(0).strip(), score
+    if best:
+        return best
+    return _extract_salary_range_legacy(text, lakh_only=True)
+
+
+def _extract_salary_range_legacy(text: str, lakh_only: bool = False) -> str:
     """
     Attempt to extract salary/rate/compensation information from job text or description.
 
@@ -220,6 +280,9 @@ def extract_salary_range(text: str) -> str:
     """
     if not text:
         return "Not listed"
+    if lakh_only:
+        m = re.search(r"([\d,.]+\s*(?:Lakh|LPA|Lakhs)\s*[\-–—to]+\s*[\d,.]+\s*(?:Lakh|LPA|Lakhs)?)", text, re.IGNORECASE)
+        return m.group(1).strip() if m else "Not listed"
 
     # Pattern 1: Explicit Compensation label e.g. "Compensation: $250,000–$500,000 + 1%-5% equity" or "Pay: $120,000/yr"
     p_comp = re.search(

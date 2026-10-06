@@ -61,43 +61,63 @@ class AzureSearchKnowledgeBase:
             credential=AzureKeyCredential(settings.azure_search_api_key),
         )
 
-    async def search(self, query_text: str, top_k: Optional[int] = None) -> list[RetrievedChunk]:
-        """Retrieve the most relevant company-knowledge chunks for a job description.
+    @property
+    def enabled(self) -> bool:
+        return bool(self._enabled and self._client)
 
-        Never raises: any Azure Search failure is logged and results in an empty list
-        so scraping/matching can continue without the run crashing.
+    async def search(
+        self, query_text: str, top_k: Optional[int] = None, raise_on_error: bool = False
+    ) -> list[RetrievedChunk]:
+        """Retrieve the most relevant company-knowledge chunks for a query.
+
+        By default never raises: any Azure Search failure is logged and results in an
+        empty list so scraping/matching can continue. Callers that must tell "no
+        relevant knowledge" apart from "retrieval broke" pass raise_on_error=True.
         """
         if not self._enabled or not self._client or not query_text.strip():
             return []
 
+        settings = get_settings()
         k = top_k or self._top_k
-        # Optimize query for vectorizer (first 1500 chars of core technical requirements)
         search_query = query_text.strip()[:1500]
         try:
             from azure.search.documents.models import VectorizableTextQuery
 
             vector_query = VectorizableTextQuery(text=search_query, k_nearest_neighbors=k, fields="text_vector")
+            kwargs = {}
+            semantic_config = getattr(settings, "azure_search_semantic_config", "")
+            if semantic_config:
+                kwargs["query_type"] = "semantic"
+                kwargs["semantic_configuration_name"] = semantic_config
             results = await self._client.search(
                 search_text=search_query,
                 vector_queries=[vector_query],
                 select=["chunk_id", "parent_id", "title", "chunk"],
                 top=k,
+                **kwargs,
             )
 
+            min_score = float(getattr(settings, "azure_search_min_score", 0.0) or 0.0)
             chunks: list[RetrievedChunk] = []
             async for result in results:
+                # Semantic reranker score (0-4) is more comparable than the hybrid RRF score
+                score = float(result.get("@search.reranker_score") or result.get("@search.score", 0.0) or 0.0)
+                if min_score and score < min_score:
+                    continue
                 chunks.append(
                     RetrievedChunk(
                         chunk_id=str(result.get("chunk_id") or ""),
                         parent_id=str(result.get("parent_id") or ""),
                         title=str(result.get("title") or ""),
                         chunk=str(result.get("chunk") or ""),
-                        score=float(result.get("@search.score", 0.0) or 0.0),
+                        score=score,
                     )
                 )
             return chunks
         except Exception as exc:
             logger.error("Azure AI Search retrieval failed: {}", exc)
+            if raise_on_error:
+                raise
             return []
 
     async def close(self) -> None:

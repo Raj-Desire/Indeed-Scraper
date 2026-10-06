@@ -894,6 +894,15 @@
                         d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
             </div>
+            <select id="lead-fit-filter" onchange="onLeadFitFilterChange()" title="Show only the leads that fit our IT-services business"
+                class="bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-bold text-emerald-700 focus:outline-none focus:border-blue-500 shadow-2xs cursor-pointer">
+                <option value="useful" selected>Useful leads</option>
+                <option value="high">High Priority</option>
+                <option value="relevant">Relevant &amp; above</option>
+                <option value="review">Needs Review</option>
+                <option value="rejected">Rejected</option>
+                <option value="all">All</option>
+            </select>
             <select id="leads-owner" title="Owner to assign when syncing to SharePoint"
                 class="bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-bold text-blue-700 focus:outline-none focus:border-blue-500 shadow-2xs cursor-pointer">
                 <option value="Meet">Owner: Meet</option>
@@ -908,6 +917,10 @@
                         d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                 </svg>
                 <span id="table-generate-outreach-label">Generate Outreach</span>
+            </button>
+            <button id="table-promote-selected-btn" type="button" onclick="promoteSelectedLeads()"
+                class="hidden px-3.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold rounded-xl text-xs transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer">
+                <span id="table-promote-selected-label">+ Add selected to useful leads</span>
             </button>
             <button id="table-download-btn" type="button" onclick="exportExcel(event)"
                 class="hidden px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-xs transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer">
@@ -943,9 +956,11 @@
                     <th id="th-company" class="px-5 py-3.5 font-bold">Company</th>
                     <th class="px-5 py-3.5 font-bold text-center">Country</th>
                     <th class="px-5 py-3.5 font-bold">Type</th>
-                    <th class="px-5 py-3.5 font-bold text-center">Match Score</th>
-                    <th class="px-5 py-3.5 font-bold">Matched Skills</th>
-                    <th class="px-5 py-3.5 font-bold">Missing Skills</th>
+                    <th class="px-5 py-3.5 font-bold">Lead Fit</th>
+                    <th class="col-reject-reason hidden px-5 py-3.5 font-bold text-rose-700">Reject Reason</th>
+                    <th class="col-kb px-5 py-3.5 font-bold text-center">Match Score</th>
+                    <th class="col-kb px-5 py-3.5 font-bold">Matched Skills</th>
+                    <th class="col-kb px-5 py-3.5 font-bold">Missing Skills</th>
                     <th class="px-5 py-3.5 font-bold">Job Summary</th>
                     <th class="px-5 py-3.5 font-bold">Experience</th>
                     <th class="px-5 py-3.5 font-bold">Compensation</th>
@@ -955,7 +970,7 @@
             </thead>
             <tbody id="leads-body" class="divide-y divide-slate-100 text-slate-700">
                 <tr>
-                    <td colspan="14" class="px-5 py-16 text-center text-slate-400 font-medium">
+                    <td colspan="16" class="px-5 py-16 text-center text-slate-400 font-medium">
                         Enter your job role above and click <strong class="text-slate-700">"Search Jobs"</strong> to
                         fetch leads.
                     </td>

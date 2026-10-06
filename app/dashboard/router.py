@@ -16,6 +16,7 @@ from fastapi.templating import Jinja2Templates
 from app.config.constants import COMMON_COUNTRIES
 from app.config.settings import get_settings
 from app.dashboard.websocket import ws_manager
+from app.models.job import JobPosting
 from app.models.scraper import RunConfig
 from app.services.dice_service import get_dice_service
 from app.services.scraper_service import get_scraper_service
@@ -23,6 +24,17 @@ from app.utils.logger import logger
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
+
+
+def _asset_version() -> int:
+    """Cache-buster for /static assets: changes whenever app.js changes, so browsers never run a stale copy."""
+    try:
+        return int(Path("static/js/app.js").stat().st_mtime)
+    except OSError:
+        return 0
+
+
+templates.env.globals["asset_version"] = _asset_version
 settings = get_settings()
 
 
@@ -98,6 +110,12 @@ async def api_get_scraper_progress():
     return service.get_progress().model_dump()
 
 
+def _lead_sort_key(j):
+    """High Priority first, rejected last; within a class, best KB match first."""
+    from app.matching.lead_classifier import CLASS_RANK
+    return (-CLASS_RANK.get(j.lead_class or "", 3), j.match_score is not None, j.match_score or 0)
+
+
 def _serialize_job(j):
     return {
         "id": str(j.id),
@@ -120,6 +138,12 @@ def _serialize_job(j):
         "matched_skills": j.matched_skills or [],
         "missing_skills": j.missing_skills or [],
         "match_reason": j.match_reason or "",
+        "lead_class": j.lead_class or "",
+        "lead_score": j.lead_score,
+        "lead_category": j.lead_category or "",
+        "lead_reason": j.lead_reason or "",
+        "reject_reason": j.reject_reason or "",
+        "engagement_type": j.engagement_type or "",
         "job_summary": j.summary,
         "summary": j.summary,
         "outreach_email_subject": j.outreach_email_subject,
@@ -171,7 +195,45 @@ async def api_manual_evaluate(request: Request):
 
     # These two calls are independent (neither needs the other's output) and use
     # the same shared LLM client, so they run concurrently rather than sequentially.
-    parsed, outreach = await asyncio.gather(
+    from app.config.settings import get_settings
+    from app.matching.engine import get_match_engine
+    from app.matching.models import MatchResult
+
+    engine = get_match_engine()
+    use_v2 = get_settings().match_engine.lower() == "v2" and engine.available()
+
+    async def _v2_match() -> MatchResult:
+        if not use_v2:
+            return MatchResult(match_status="unscored")
+        return await engine.evaluate(job_description, (body.get("job_title") or "").strip())
+
+    async def _lead_verdict():
+        """Lead filter verdict for the pasted JD; shown to the user but never blocks a manual evaluation."""
+        elig_hit = None
+        if get_settings().enable_eligibility_filter:
+            from app.filters.eligibility_filter import check_text
+            verdict = check_text(job_description, (body.get("job_title") or "").strip())
+            if verdict.restricted:
+                from app.matching.lead_classifier import LeadVerdict
+                elig_hit = LeadVerdict(
+                    lead_class="Rejected", lead_score=0, category="Eligibility restriction",
+                    engagement="eligibility_restricted", reason=verdict.reason, short_reason=verdict.short_reason,
+                )
+        if elig_hit is not None:
+            return elig_hit  # shown to the user, never blocks a manual evaluation
+        if not get_settings().enable_lead_filter:
+            return None
+        try:
+            from app.matching.lead_classifier import get_lead_classifier
+            return await get_lead_classifier().classify(
+                (body.get("job_title") or "").strip(), (body.get("company") or "").strip(), job_description,
+                (body.get("location") or "").strip(),
+            )
+        except Exception as lead_err:
+            logger.warning("Lead classification failed for manual evaluate: {}", lead_err)
+            return None
+
+    parsed, outreach, v2, lead_v = await asyncio.gather(
         parse_job_description_with_ai(job_description, kb_chunks=kb_chunks),
         generate_outreach(
             job_title=(body.get("job_title") or "").strip(),
@@ -180,16 +242,23 @@ async def api_manual_evaluate(request: Request):
             kb_context=kb_context,
             matcher=get_llm_matcher(),
         ),
+        _v2_match(),
+        _lead_verdict(),
     )
 
-    reconciled_matched, reconciled_missing, reconciled_score, reconciled_reason = reconcile_skills_and_score(
-        parsed.get("matched_skills") or [],
-        parsed.get("missing_skills") or [],
-        parsed.get("match_score"),
-        kb_context,
-        job_description[:2000],
-        parsed.get("match_reason") or "",
-    )
+    if v2.match_status != "unscored" and v2.match_score is not None:
+        # Same engine and scoring rules as Auto and Dice
+        reconciled_matched, reconciled_missing = v2.matched_skills, v2.missing_skills
+        reconciled_score, reconciled_reason = v2.match_score, v2.match_reason
+    else:
+        reconciled_matched, reconciled_missing, reconciled_score, reconciled_reason = reconcile_skills_and_score(
+            parsed.get("matched_skills") or [],
+            parsed.get("missing_skills") or [],
+            parsed.get("match_score"),
+            kb_context,
+            job_description[:2000],
+            parsed.get("match_reason") or "",
+        )
 
     job_title = (body.get("job_title") or "").strip()
     if not job_title or job_title in ["Untitled Role", "Untitled Opportunity"]:
@@ -233,6 +302,16 @@ async def api_manual_evaluate(request: Request):
         job.missing_skills = reconciled_missing
         job.match_score = reconciled_score
         job.match_reason = reconciled_reason
+        job.match_status = v2.match_status if v2.match_status != "unscored" else "legacy"
+        if lead_v is not None:
+            job.lead_class, job.lead_score = lead_v.lead_class, lead_v.lead_score
+            job.lead_category, job.lead_reason, job.engagement_type = lead_v.category, lead_v.reason, lead_v.engagement
+            job.reject_reason = lead_v.short_reason if lead_v.lead_class == "Rejected" else ""
+            job.lead_tech_fit = getattr(lead_v, "tech_fit", None)
+            from app.matching.lead_reconcile import reconcile_lead_with_match
+            reconcile_lead_with_match(job)  # cross-check the verdict with the KB score computed above
+        if v2.job_summary:
+            job.job_summary = v2.job_summary
 
         # Rebuild the email body using the outreach call's connective sentences
         # (opening_line/alignment_paragraph) but the EXTRACTION branch's reconciled
@@ -501,10 +580,13 @@ async def api_clear_jobs():
 async def api_get_leads(
     search: str = Query(default=""),
     page_size: int = Query(default=1000, ge=1, le=5000),
+    include_rejected: bool = Query(default=False),
 ):
-    """Return scraped job leads for direct rendering."""
+    """Return accepted job leads. `include_rejected=true` also returns leads the lead filter rejected (for review)."""
     service = get_scraper_service()
     leads = service.get_results()
+    if include_rejected:
+        leads = leads + service.get_rejected_results()
 
     if search:
         sq = search.lower()
@@ -513,11 +595,12 @@ async def api_get_leads(
             if sq in j.job_title.lower() or sq in j.company.lower() or sq in j.location.lower()
         ]
 
-    # Sort leads by match_score descending (highest score on top, unranked at bottom)
-    leads.sort(key=lambda j: (j.match_score is not None, j.match_score or 0), reverse=True)
+    # High Priority first, then by match_score descending (unranked / rejected at the bottom)
+    leads.sort(key=_lead_sort_key, reverse=True)
 
     return {
         "total": len(leads),
+        "rejected_count": len(service.get_rejected_results()),
         "leads": [_serialize_job(j) for j in leads],
     }
 
@@ -528,15 +611,12 @@ async def api_export_excel(selected_ids: Optional[str] = Query(default=None)):
     from app.excel.exporter import ExcelExporter
 
     service = get_scraper_service()
-    leads = service.get_results()
+    id_list = [i.strip() for i in selected_ids.split(",") if i.strip()] if isinstance(selected_ids, str) and selected_ids else None
+    # An explicit selection is exported exactly (even rejected leads picked from the Rejected view)
+    leads = service.get_exportable(id_list)
 
     if not leads:
         raise HTTPException(status_code=400, detail="No job leads to export. Run a search first.")
-
-    if selected_ids and isinstance(selected_ids, str):
-        id_set = {i.strip() for i in selected_ids.split(",") if i.strip()}
-        if id_set:
-            leads = [j for j in leads if str(j.id) in id_set]
 
     if not leads:
         raise HTTPException(status_code=400, detail="No selected job leads match to export.")
@@ -595,15 +675,11 @@ async def api_export_excel_post(request: Request):
         pass
 
     service = get_scraper_service()
-    leads = service.get_results()
+    selected_ids = body.get("selected_ids")
+    leads = service.get_exportable(selected_ids if isinstance(selected_ids, list) else None)
 
     if not leads:
         raise HTTPException(status_code=400, detail="No job leads to export. Run a search first.")
-
-    selected_ids = body.get("selected_ids")
-    if selected_ids and isinstance(selected_ids, list):
-        id_set = {str(i) for i in selected_ids}
-        leads = [j for j in leads if str(j.id) in id_set]
 
     if not leads:
         raise HTTPException(status_code=400, detail="No selected job leads match to export.")
@@ -787,12 +863,12 @@ async def api_export_sharepoint(request: Request):
         pass
 
     service = get_scraper_service()
-    leads = service.get_results()
+    selected_ids = body.get("selected_ids") if isinstance(body, dict) else None
+    leads = service.get_exportable(selected_ids if isinstance(selected_ids, list) else None)
 
     if not leads:
         raise HTTPException(status_code=400, detail="No job leads to export. Run a search first.")
 
-    selected_ids = body.get("selected_ids") if isinstance(body, dict) else None
     owner = body.get("owner") if isinstance(body, dict) else None
 
     try:
@@ -804,6 +880,22 @@ async def api_export_sharepoint(request: Request):
         }
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"SharePoint Export Error: {str(exc)}")
+
+
+@router.post("/api/leads/{lead_id}/promote")
+async def api_promote_lead(lead_id: str):
+    """Add a lead the lead filter rejected to the useful leads: score it against the KB and re-classify it."""
+    from app.matching.promotion import promote_job
+
+    for service in (get_scraper_service(), get_dice_service()):
+        job = service.find_rejected(lead_id)
+        if job is None:
+            continue
+        await promote_job(job)
+        service.admit_promoted(job)
+        logger.info("Lead '{}' promoted from Rejected: {} (match {})", job.job_title, job.lead_class, job.match_score)
+        return {"status": "success", "lead": _serialize_job(job)}
+    raise HTTPException(status_code=404, detail="Rejected lead not found (it may have been cleared).")
 
 
 DICE_MAX_SEARCH_COMBINATIONS = 15
@@ -895,7 +987,7 @@ async def api_dice_search(request: Request):
             logger.error("Dice search complete: Error dispatching email notification: {}", mail_err)
 
     leads = service.get_results()
-    leads.sort(key=lambda j: (j.match_score is not None, j.match_score or 0), reverse=True)
+    leads.sort(key=_lead_sort_key, reverse=True)
     return {
         "total": len(leads),
         "new_count": len(new_jobs),
@@ -1004,11 +1096,13 @@ async def api_dice_search_stream(request: Request):
 
 
 @router.get("/api/dice/results")
-async def api_dice_results():
-    """Return current Dice search results."""
+async def api_dice_results(include_rejected: bool = Query(default=False)):
+    """Return accepted Dice leads; `include_rejected=true` also returns lead-filter rejects (for review)."""
     service = get_dice_service()
     leads = service.get_results()
-    leads.sort(key=lambda j: (j.match_score is not None, j.match_score or 0), reverse=True)
+    if include_rejected:
+        leads = leads + getattr(service, "get_rejected_results", lambda: [])()
+    leads.sort(key=_lead_sort_key, reverse=True)
     return {"total": len(leads), "leads": [_serialize_job(j) for j in leads]}
 
 
@@ -1031,12 +1125,12 @@ async def api_dice_export_sharepoint(request: Request):
         pass
 
     service = get_dice_service()
-    leads = service.get_results()
+    selected_ids = body.get("selected_ids") if isinstance(body, dict) else None
+    leads = service.get_exportable(selected_ids if isinstance(selected_ids, list) else None)
 
     if not leads:
         raise HTTPException(status_code=400, detail="No Dice job leads to export. Run a search first.")
 
-    selected_ids = body.get("selected_ids") if isinstance(body, dict) else None
     owner = body.get("owner") if isinstance(body, dict) else None
 
     try:
@@ -1054,18 +1148,16 @@ async def api_dice_export_sharepoint(request: Request):
 async def api_dice_export_excel(selected_ids: Optional[str] = Query(default=None)):
     """Download clean Excel workbook for Dice search leads. Supports filtering by selected_ids."""
     service = get_dice_service()
-    leads = service.get_results()
-
-    if not leads:
-        raise HTTPException(status_code=400, detail="No Dice job leads to export. Run a search first.")
-
     id_list = None
     if selected_ids and isinstance(selected_ids, str):
-        id_list = [i.strip() for i in selected_ids.split(",") if i.strip()]
-        if id_list:
-            filtered = [j for j in leads if str(j.id) in set(id_list)]
-            if not filtered:
-                raise HTTPException(status_code=400, detail="No selected Dice job leads match to export.")
+        id_list = [i.strip() for i in selected_ids.split(",") if i.strip()] or None
+    leads = service.get_exportable(id_list)
+
+    if not leads:
+        raise HTTPException(
+            status_code=400,
+            detail="No selected Dice job leads match to export." if id_list else "No Dice job leads to export. Run a search first.",
+        )
 
     try:
         output_path = service.export_excel(selected_ids=id_list)
@@ -1112,17 +1204,14 @@ async def api_dice_export_excel_post(request: Request):
         pass
 
     service = get_dice_service()
-    leads = service.get_results()
+    selected_ids = body.get("selected_ids") if isinstance(body, dict) else None
+    leads = service.get_exportable(selected_ids if isinstance(selected_ids, list) else None)
 
     if not leads:
-        raise HTTPException(status_code=400, detail="No Dice job leads to export. Run a search first.")
-
-    selected_ids = body.get("selected_ids") if isinstance(body, dict) else None
-    if selected_ids and isinstance(selected_ids, list):
-        id_set = {str(i) for i in selected_ids}
-        filtered = [j for j in leads if str(j.id) in id_set]
-        if not filtered:
-            raise HTTPException(status_code=400, detail="No selected Dice job leads match to export.")
+        raise HTTPException(
+            status_code=400,
+            detail="No selected Dice job leads match to export." if selected_ids else "No Dice job leads to export. Run a search first.",
+        )
 
     try:
         output_path = service.export_excel(selected_ids=selected_ids)

@@ -7,6 +7,7 @@ __pycache__/
 *$py.class
 *.so
 .Python
+tests
 
 # =============================================================================
 # Environments & Secrets
@@ -115,4 +116,4 @@ Desktop.ini
 .gemini/
 .agent/
 .agents/
-scratch/
+scratch/

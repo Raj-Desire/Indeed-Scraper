@@ -240,8 +240,8 @@ async def _extract_with_llm(matcher: Any, raw_text: str, kb_chunks: Optional[lis
         "job_title": str(data.get("title", "")).strip() or heuristic.get("job_title", ""),
         "company": str(data.get("company", "")).strip() or heuristic.get("company", ""),
         "country": c_code,
-        "salary_range": str(data.get("salary_range", "")).strip() or heuristic.get("salary_range", ""),
-        "estimated_value": est_float or heuristic.get("estimated_value"),
+        "salary_range": heuristic.get("salary_range", "") or str(data.get("salary_range", "")).strip(),
+        "estimated_value": heuristic.get("estimated_value") or est_float,
         "currency_code": currency_val,
         "experience": exp_val,
         "owner": owner_val,
@@ -425,6 +425,12 @@ def parse_job_description(text: str) -> dict[str, Any]:
         extracted["currency_code"] = "CAD"
 
     # Regex Salary & Estimated Value
+    if not extracted["salary_range"]:
+        from app.utils.helpers import extract_salary_range
+        found_sal = extract_salary_range(raw)
+        if found_sal and found_sal != "Not listed":
+            extracted["salary_range"] = found_sal
+
     if not extracted["salary_range"]:
         sal_m = re.search(r"(?:sal(?:a)?ry|compensation|budget|rate)(?:\s+amount)?[:\s]+([$€£₹]?\s*\d[\d,.]*(?:\s*k|\s*thousand|\s*(?:-|to)\s*[$€£₹]?\s*\d[\d,.]*)?(?:\s*(?:/|per)\s*(?:yr|year|mo|month|hr|hour))?)", raw_lower)
         if sal_m:

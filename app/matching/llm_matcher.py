@@ -11,7 +11,9 @@ only this LLM's structured judgement sets JobPosting.match_score.
 
 from __future__ import annotations
 
+import asyncio
 import json
+import re
 from typing import Optional
 
 from app.config.settings import get_settings
@@ -85,6 +87,8 @@ class LLMMatcher:
             azure_endpoint=settings.azure_openai_endpoint,
             api_key=settings.azure_openai_api_key,
             api_version=settings.azure_openai_api_version,
+            timeout=60.0,
+            max_retries=1,
         )
         logger.info("Initialized LLMMatcher with Azure OpenAI deployment '{}'", self._deployment)
 
@@ -104,10 +108,12 @@ class LLMMatcher:
             if snippet:
                 compact_chunks.append(f"- {snippet}")
         
-        context = "\n".join(compact_chunks) if compact_chunks else (
-            "- Microsoft 365, SharePoint Online, SPFx, Power Apps, Power Automate, Power BI, Power Platform\n"
-            "- .NET Core, C#, Azure Cloud, AI & Copilot integrations, Modern Workplace Solutions"
-        )
+        if not compact_chunks:
+            # No KB evidence: do not substitute an assumed stack (that silently inflates scores
+            # when retrieval is down). Report unscored instead.
+            return MatchResult(match_score=None, matched_skills=[], missing_skills=[],
+                               match_reason="No company knowledge retrieved - not scored", match_status="unscored")
+        context = "\n".join(compact_chunks)
 
         user_prompt = (
             f"COMPANY CAPABILITIES:\n{context}\n\n"
@@ -210,12 +216,95 @@ class LLMMatcher:
             logger.error("LLM match evaluation failed: {}", exc)
             return MatchResult(match_score=None, matched_skills=[], missing_skills=[], match_reason=f"Evaluation failed: {exc}", job_summary="")
 
+    @property
+    def available(self) -> bool:
+        return bool(self._enabled and self._client)
+
+    async def complete_json(self, system: str, user: str, max_tokens: int = 1200, attempts: int = 3) -> Optional[dict]:
+        """Run one chat completion and return the parsed JSON object, or None on any failure."""
+        if not self.available:
+            return None
+        import re
+
+        kwargs = {
+            "model": self._deployment,
+            "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
+            "temperature": 0.0,
+            "max_tokens": max_tokens,
+        }
+        if self._provider == "azure" and "phi" not in str(self._deployment).lower():
+            kwargs["response_format"] = {"type": "json_object"}
+        for attempt in range(1, attempts + 1):
+            if attempt > 1:
+                await asyncio.sleep(2 * (attempt - 1))  # back off: the endpoint is throttling/stalling
+            try:
+                response = await asyncio.wait_for(self._client.chat.completions.create(**kwargs), timeout=45)
+                msg = response.choices[0].message if response and response.choices else None
+                text = (getattr(msg, "content", "") or "").strip()
+            except Exception as exc:
+                logger.error("LLM complete_json request failed (attempt {}): {}", attempt, exc)
+                continue
+            data = parse_json_lenient(text)
+            if data:
+                return data
+            logger.warning("LLM returned unparseable JSON (attempt {}): {!r}", attempt, text[:120])
+        return None
+
     async def close(self) -> None:
         if self._client and hasattr(self._client, "close"):
             try:
                 await self._client.close()
             except Exception as exc:
                 logger.error("Error closing LLM client: {}", exc)
+
+
+_TRAIL_RE = re.compile(r",\s*([\]}])")
+
+
+def _strip_trailing_commas(t: str) -> str:
+    return _TRAIL_RE.sub(lambda m: m.group(1), t)
+
+
+def parse_json_lenient(text: str) -> Optional[dict]:
+    """Parse model output as JSON; small models often add prose, trailing commas or truncate.
+
+    Falls back to salvaging individual flat objects ({"skill":..,"verdict":..}) so a cut-off
+    response still yields the verdicts that were completed.
+    """
+    import re
+
+    if not text:
+        return None
+    block = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", text, re.IGNORECASE)
+    cand = block.group(1).strip() if block else text
+    brace = re.search(r"\{[\s\S]*\}", cand)
+    cand = brace.group(0) if brace else cand
+    try:
+        data = json.loads(_strip_trailing_commas(cand))
+        if isinstance(data, dict):
+            return data
+    except Exception:
+        pass
+    objs = []
+    for m in re.findall(r"\{[^{}]*\}", text):
+        try:
+            objs.append(json.loads(_strip_trailing_commas(m)))
+        except Exception:
+            continue
+    results = [o for o in objs if "verdict" in o and "skill" in o]
+    reqs = [o for o in objs if "skill" in o and "verdict" not in o]
+    out: dict = {}
+    if results:
+        out["results"] = results
+    if reqs:
+        out["requirements"] = reqs
+    fit = re.search(r'"role_fit"\s*:\s*"(strong|partial|weak)"', text, re.IGNORECASE)
+    if fit:
+        out["role_fit"] = fit.group(1).lower()
+    title = re.search(r'"role_title"\s*:\s*"([^"]*)"', text)
+    if title:
+        out["role_title"] = title.group(1)
+    return out or None
 
 
 def build_kb_context(kb_chunks: Optional[list[RetrievedChunk]]) -> str:
@@ -300,7 +389,7 @@ def reconcile_skills_and_score(
             # falsely promote a missing skill to matched and inflate match_score.
             significant_matches = [
                 t for t in tokens
-                if f" {t} " in context_lower or (len(t) >= 4 and t in context_lower)
+                if f" {t} " in context_lower or (len(t) >= 4 and f" {t}s " in context_lower)
             ]
             if len(significant_matches) >= 1 and (len(significant_matches) / len(tokens) >= 0.5 or len(tokens) == 1):
                 is_present_in_context = True
@@ -386,7 +475,8 @@ def reconcile_skills_and_score(
         # Also capture capitalized tech acronyms
         common_stop = {
             "AN", "OR", "IN", "TO", "WE", "AS", "DO", "IF", "US", "THE", "AND", "WITH", "NOT",
-            "OUR", "WHAT", "THIS", "RUN", "CAN", "GET", "THAT", "FULL", "REAL", "BY", "FOR", "AT", "BE", "JD", "HR"
+            "OUR", "WHAT", "THIS", "RUN", "CAN", "GET", "THAT", "FULL", "REAL", "BY", "FOR", "AT", "BE", "JD", "HR",
+            "USA", "CEO", "CTO", "CFO", "EEO", "EOE", "LLC", "INC", "LTD", "PTO", "NYC", "USD", "EUR", "GBP", "ASAP", "FAQ", "ALL", "NEW", "YOU", "ARE", "WILL", "ETC", "PM", "AM", "UK", "EU"
         }
         for acr in re.findall(r"\b[A-Z]{2,6}\b", cleaned_jd):
             if acr in common_stop:
@@ -437,7 +527,7 @@ def reconcile_skills_and_score(
 
     # If company KB has AI/ML capabilities (e.g. Computer Vision, Azure OpenAI, Machine Learning, DeepStream)
     # and job requires AI or Machine Learning, match it accurately.
-    kb_has_ai = any(kw in context_lower for kw in (" ai ", "artificial intelligence", "machine learning", "computer vision", "deepstream", "azure openai", "model"))
+    kb_has_ai = any(kw in context_lower for kw in (" ai ", "artificial intelligence", "machine learning", "computer vision", "deepstream", "azure openai"))
     if kb_has_ai:
         if "Machine Learning" in cleaned_missing:
             cleaned_missing.remove("Machine Learning")

@@ -31,6 +31,7 @@ class ScraperService:
         self._scraper: Optional[IndeedScraper] = None
         self._current_task: Optional[asyncio.Task] = None
         self._results: list[JobPosting] = []
+        self._rejected: list[JobPosting] = []  # scraped but rejected by the lead filter (never shown by default)
         self._current_session: Optional[ScraperSession] = None
         self._progress_callbacks: list[callable] = []
         self._last_broadcast_time: float = 0.0
@@ -63,6 +64,7 @@ class ScraperService:
 
         self._dedup_filter.reset()
         self._results = []
+        self._rejected = []
         self._email_sent = False
 
         session = ScraperSession(
@@ -121,6 +123,45 @@ class ScraperService:
     def get_results(self) -> list[JobPosting]:
         return list(self._results)
 
+    def get_rejected_results(self) -> list[JobPosting]:
+        return list(self._rejected)
+
+    def get_exportable(self, selected_ids=None) -> list[JobPosting]:
+        """What an export should contain. An explicit selection is honoured exactly - even rejected leads the
+        user picked from the Rejected view; with no selection, only useful (non-rejected) leads."""
+        if selected_ids:
+            ids = {str(i) for i in selected_ids}
+            return [j for j in self._results + self._rejected if str(j.id) in ids]
+        return self.get_visible_results()
+
+    def find_rejected(self, lead_id: str) -> Optional[JobPosting]:
+        for j in self._rejected + [r for r in self._results if r.lead_class == "Rejected"]:
+            if str(j.id) == str(lead_id):
+                return j
+        return None
+
+    def admit_promoted(self, job: JobPosting) -> None:
+        """Move a promoted lead out of the rejected pile and onto the dashboard."""
+        self._rejected = [j for j in self._rejected if j is not job]
+        if not any(j is job for j in self._results):
+            self._results.insert(0, job)
+        if self._scraper:
+            self._scraper.progress.jobs_found = len(self._results)
+
+    def get_visible_results(self) -> list[JobPosting]:
+        """Leads the user should act on: everything except jobs the lead filter rejected."""
+        return [j for j in self._results if getattr(j, "lead_class", "") != "Rejected"]
+
+    def _lead_filter_on(self) -> bool:
+        return bool(getattr(self._settings, "enable_lead_filter", False))
+
+    def _eligibility_on(self) -> bool:
+        return bool(getattr(self._settings, "enable_eligibility_filter", False))
+
+    def _gate_on(self) -> bool:
+        """True when scraped jobs must be evaluated before they may join the dashboard."""
+        return self._lead_filter_on() or self._eligibility_on()
+
     def get_session(self) -> Optional[ScraperSession]:
         return self._current_session
 
@@ -178,6 +219,16 @@ class ScraperService:
         if skip_match:
             return self._store_manual_job(job)
 
+        if self._lead_filter_on():
+            try:
+                from app.matching.lead_classifier import get_lead_classifier
+                await get_lead_classifier().apply(job)  # manual entries are shown whatever the verdict
+            except Exception as lead_err:
+                logger.error("Lead classification failed for manual job '{}': {}", job.job_title, lead_err)
+        if self._eligibility_on():
+            from app.filters.eligibility_filter import apply_eligibility
+            apply_eligibility(job)
+
         if self._match_service is None and self._settings.enable_kb_matching:
             self._match_service = MatchService()
 
@@ -221,6 +272,7 @@ class ScraperService:
     def clear_results(self) -> None:
         """Clear gathered results and reset deduplication filter."""
         self._results.clear()
+        self._rejected.clear()
         self._dedup_filter.reset()
         if self._scraper:
             self._scraper.progress.jobs_found = 0
@@ -236,9 +288,14 @@ class ScraperService:
     async def _run_pipeline(self, config: RunConfig) -> None:
         """Execute pipeline for a single run."""
         pipeline_error: Optional[str] = None
+        pending: list[asyncio.Task] = []
+        scored_jobs: list = []
         try:
             if self._match_service is None and self._settings.enable_kb_matching:
                 self._match_service = MatchService()
+            match_sem = asyncio.Semaphore(2)
+            if (self._match_service is not None or self._gate_on()) and self._scraper:
+                self._scraper.defer_completion = True
 
             async for job in self._scraper.scrape(config):
                 filtered = self._date_filter.filter([job])
@@ -249,14 +306,20 @@ class ScraperService:
                 if not deduped:
                     continue
 
-                if self._match_service is not None:
+                if self._match_service is not None or self._gate_on():
+                    # Score in the background (bounded) so a slow LLM never stalls scraping;
+                    # jobs are mutated in place and all scoring is awaited before export.
                     for matched_job in deduped:
-                        try:
-                            logger.info("Evaluating AI KB match for: '{}' at '{}'...", matched_job.job_title, matched_job.company)
-                            await self._match_service.evaluate_job(matched_job)
-                            logger.info("AI match verdict for '{}': Score={}/100 | Skills={}", matched_job.job_title, matched_job.match_score, matched_job.matched_skills)
-                        except Exception as match_err:
-                            logger.error("KB matching error for '{}': {}", matched_job.job_title, match_err)
+                        if self._scraper:
+                            self._scraper.progress.scoring_total += 1
+                        pending.append(asyncio.create_task(self._score_job(matched_job, match_sem)))
+                        scored_jobs.append(matched_job)
+
+                if self._gate_on():
+                    # Evaluate first: a job joins the dashboard only after the lead filter has accepted it
+                    # (see _score_job). Nothing is shown for a job that is still being evaluated.
+                    self._on_progress_update(self._scraper.progress)
+                    continue
 
                 self._results.extend(deduped)
                 logger.info("Added {} job(s) to live dashboard (Total leads: {})", len(deduped), len(self._results))
@@ -264,6 +327,9 @@ class ScraperService:
                 self._scraper.progress.jobs_found = len(self._results)
                 self._on_progress_update(self._scraper.progress)
 
+            if self._scraper:
+                self._scraper.progress.scrape_done = True
+                self._broadcast_progress(self._scraper.progress, force=True)
         except asyncio.CancelledError:
             logger.info("Pipeline task cancelled by user request.")
             if self._scraper:
@@ -282,6 +348,27 @@ class ScraperService:
             pipeline_error = None
         finally:
             try:
+                if self._scraper and pending and any(not t.done() for t in pending):
+                    self._scraper.progress.add_log(f"Finishing match scoring for {sum(not t.done() for t in pending)} job(s)...")
+                    self._broadcast_progress(self._scraper.progress, force=True)
+                # Score everything already scraped (also after Stop/error) so exports carry scores
+                await asyncio.gather(*pending, return_exceptions=True)
+                if self._match_service is not None and self._scraper:
+                    # One sequential retry pass for jobs the LLM endpoint failed on (timeouts / throttling)
+                    retry = [j for j in scored_jobs if j.match_score is None and j.lead_class != "Rejected" and (j.job_description or "").strip()]
+                    for j in retry:
+                        self._scraper.progress.add_log(f"Retrying match scoring: {j.job_title[:50]}")
+                        try:
+                            await self._match_service.evaluate_job(j)
+                        except Exception as retry_err:
+                            logger.error("Retry scoring failed for '{}': {}", j.job_title, retry_err)
+                    self._scraper.progress.jobs_scored = self._scraper.progress.scoring_total
+                    if self._scraper.progress.status == ScraperStatus.RUNNING and pipeline_error is None:
+                        self._scraper.progress.status = ScraperStatus.COMPLETED
+                    self._broadcast_progress(self._scraper.progress, force=True)
+            except Exception as drain_err:
+                logger.error("Error draining match tasks: {}", drain_err)
+            try:
                 await asyncio.shield(self._finalize_run(config, error_note=pipeline_error))
             except Exception as fin_err:
                 logger.error("Pipeline finalization error: {}", fin_err)
@@ -294,6 +381,41 @@ class ScraperService:
                 finally:
                     self._match_service = None
 
+    async def _score_job(self, job, sem: "asyncio.Semaphore") -> None:
+        """Lead-filter the job first (cheap), then KB-match only the leads worth matching."""
+        async with sem:
+            try:
+                if self._eligibility_on():
+                    from app.filters.eligibility_filter import apply_eligibility
+                    if apply_eligibility(job):
+                        logger.info("Eligibility reject for '{}': {}", job.job_title, job.lead_reason)
+                if self._lead_filter_on() and job.lead_class != "Rejected":  # restricted postings never reach the LLM
+                    from app.matching.lead_classifier import get_lead_classifier
+                    await get_lead_classifier().apply(job)
+                    logger.info("Lead verdict for '{}': {} ({}) - {}", job.job_title, job.lead_class, job.lead_score, job.lead_reason)
+                # Plain rejections skip the (more expensive) KB match. Everything else is KB-matched, and the lead class
+                # is cross-checked against the score (low match demotes a "lead"; a strong-stack internal hire is rescued).
+                from app.matching.lead_reconcile import match_and_reconcile
+                logger.info("Evaluating AI KB match for: '{}' at '{}'...", job.job_title, job.company)
+                await match_and_reconcile(job, self._match_service)
+                if job.match_score is not None:
+                    logger.info("AI match verdict for '{}': Score={}/100 | Lead={} | Skills={}", job.job_title, job.match_score, job.lead_class or "-", job.matched_skills)
+            except asyncio.CancelledError:
+                raise
+            except Exception as match_err:
+                logger.error("Lead/KB matching error for '{}': {}", job.job_title, match_err)
+            if self._gate_on():
+                if job.lead_class == "Rejected":
+                    self._rejected.append(job)
+                else:
+                    self._results.append(job)  # accepted (or unclassified -> needs a human look): now visible
+                    logger.info("Added '{}' to dashboard as {} (Total leads: {})", job.job_title, job.lead_class or "unclassified", len(self._results))
+            if self._scraper:
+                self._scraper.progress.jobs_scored += 1
+                if self._gate_on():
+                    self._scraper.progress.jobs_found = len(self._results)
+                self._on_progress_update(self._scraper.progress)
+
     async def _finalize_run(self, config: RunConfig, error_note: Optional[str] = None) -> None:
         """
         Guaranteed post-execution finalizer.
@@ -303,10 +425,10 @@ class ScraperService:
         """
         excel_path: Optional[str] = None
         active_cfg = self._current_session.run_config if self._current_session else config
-        if self._results:
+        if self.get_visible_results():
             try:
                 exported = self._exporter.export(
-                    self._results,
+                    self.get_visible_results(),
                     output_dir=self._settings.output_dir,
                     query=active_cfg.query if active_cfg else "",
                     countries=active_cfg.countries if active_cfg else [],
@@ -372,10 +494,7 @@ class ScraperService:
         """Export current session results to SharePoint List via Graph API."""
         from app.sharepoint.graph_exporter import GraphSharePointExporter
         sp_exporter = GraphSharePointExporter()
-        leads_to_export = self._results
-        if selected_ids is not None:
-            id_set = {str(i) for i in selected_ids}
-            leads_to_export = [j for j in self._results if str(j.id) in id_set]
+        leads_to_export = self.get_exportable(selected_ids)
         return await sp_exporter.export_jobs(leads_to_export, owner=owner)
 
     async def send_email_notification(
@@ -393,7 +512,7 @@ class ScraperService:
         from app.notifications.graph_mail import GraphMailNotifier
         notifier = GraphMailNotifier()
         sent = await notifier.send_report(
-            jobs=self._results,
+            jobs=self.get_visible_results(),
             excel_path=excel_path,
             query=query,
             queries=queries,

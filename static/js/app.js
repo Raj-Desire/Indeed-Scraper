@@ -63,6 +63,11 @@ function scoreBadgeClasses(score) {
     }
 }
 
+// Ids the user has ticked AND can currently see (respects the Lead Fit filter), so exports match the view.
+function getSelectedVisibleIds() {
+    return allLeads.filter(passesLeadFit).map(l => String(l.id)).filter(id => selectedLeadIds.has(id));
+}
+
 function toggleLeadSelection(leadId, isChecked) {
     const idStr = String(leadId);
     if (isChecked) {
@@ -75,7 +80,7 @@ function toggleLeadSelection(leadId, isChecked) {
 
 function toggleSelectAllLeads(isChecked) {
     if (isChecked) {
-        allLeads.forEach(l => selectedLeadIds.add(String(l.id)));
+        allLeads.filter(passesLeadFit).forEach(l => selectedLeadIds.add(String(l.id)));
     } else {
         selectedLeadIds.clear();
     }
@@ -87,8 +92,9 @@ function toggleSelectAllLeads(isChecked) {
 }
 
 function updateSelectedLeadsUI() {
-    const total = allLeads.length;
-    const selectedCount = allLeads.filter(l => selectedLeadIds.has(String(l.id))).length;
+    const visibleLeads = allLeads.filter(passesLeadFit);
+    const total = visibleLeads.length;
+    const selectedCount = visibleLeads.filter(l => selectedLeadIds.has(String(l.id))).length;
 
     // Update select-all checkbox state
     const selectAllCb = document.getElementById('select-all-leads');
@@ -677,7 +683,7 @@ function hideSkillsTooltip() {
 
 async function fetchLeads() {
     try {
-        const res = await fetch('/api/leads');
+        const res = await fetch('/api/leads?include_rejected=true');
         const data = await res.json();
         const incomingLeads = data.leads || [];
 
@@ -693,7 +699,7 @@ async function fetchLeads() {
         // Auto-select newly scraped leads if not already in selectedLeadIds
         incomingLeads.forEach(l => {
             const idStr = String(l.id);
-            if (!selectedLeadIds.has(idStr)) {
+            if (l.lead_class !== 'Rejected' && !selectedLeadIds.has(idStr)) {
                 selectedLeadIds.add(idStr);
             }
         });
@@ -709,7 +715,7 @@ async function fetchLeads() {
         allLeads = incomingLeads;
 
         // Check if data actually changed to prevent DOM blinking
-        const currentHash = JSON.stringify(allLeads.map(l => [l.id, l.match_score, l.job_title, l.company]));
+        const currentHash = JSON.stringify(allLeads.map(l => [l.id, l.match_score, l.job_title, l.company, l.lead_class, l.lead_score]));
         if (currentHash !== lastLeadsHash) {
             // Only update table if content changed AND user is not actively hovering skills popup
             if (!isUserHoveringSkills) {
@@ -739,9 +745,168 @@ async function fetchLeads() {
     }
 }
 
+// ---- Lead fit (B2B opportunity filter) -------------------------------------------------
+const LEAD_CLASS_STYLES = {
+    'High Priority': 'bg-emerald-50 text-emerald-800 border-emerald-300',
+    'Relevant': 'bg-blue-50 text-blue-800 border-blue-300',
+    'Needs Review': 'bg-amber-50 text-amber-800 border-amber-300',
+    'Rejected': 'bg-slate-100 text-slate-500 border-slate-300',
+};
+
+function leadFitFilterValue() {
+    return document.getElementById('lead-fit-filter')?.value || 'useful';
+}
+
+function passesLeadFit(l) {
+    const v = leadFitFilterValue();
+    const c = l.lead_class || '';
+    if (v === 'all') return true;
+    if (v === 'rejected') return c === 'Rejected';
+    if (v === 'high') return c === 'High Priority';
+    if (v === 'relevant') return c === 'High Priority' || c === 'Relevant';
+    if (v === 'review') return c === 'Needs Review';
+    return c !== 'Rejected'; // 'useful' (default): everything except rejected
+}
+
+function refreshLeadFitCounts() {
+    const sel = document.getElementById('lead-fit-filter');
+    if (!sel) return;
+    const n = (fn) => allLeads.filter(fn).length;
+    const labels = {
+        useful: `Useful leads (${n(l => (l.lead_class || '') !== 'Rejected')})`,
+        high: `High Priority (${n(l => l.lead_class === 'High Priority')})`,
+        relevant: `Relevant & above (${n(l => l.lead_class === 'High Priority' || l.lead_class === 'Relevant')})`,
+        review: `Needs Review (${n(l => l.lead_class === 'Needs Review')})`,
+        rejected: `Rejected (${n(l => l.lead_class === 'Rejected')})`,
+        all: `All (${allLeads.length})`,
+    };
+    Array.from(sel.options).forEach(o => { if (labels[o.value]) o.textContent = labels[o.value]; });
+}
+
+function onLeadFitFilterChange() {
+    lastLeadsHash = '';
+    filterTable();
+}
+
+async function promoteLead(leadId, btn) {
+    const original = btn ? btn.innerHTML : '';
+    if (btn) { btn.disabled = true; btn.innerHTML = 'Scoring...'; }
+    try {
+        const res = await fetch(`/api/leads/${encodeURIComponent(leadId)}/promote`, { method: 'POST' });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+            throw new Error(data.detail || 'Could not add this lead.');
+        }
+        const idx = allLeads.findIndex(x => String(x.id) === String(leadId));
+        if (idx >= 0) allLeads[idx] = data.lead; else allLeads.unshift(data.lead);
+        selectedLeadIds.add(String(leadId));
+        lastLeadsHash = '';
+        renderTable(allLeads);
+        const l = data.lead;
+        showAlertModal(
+            'Added to useful leads',
+            `"${l.job_title}" is now ${l.lead_class}` + (l.match_score !== null && l.match_score !== undefined ? ` with a KB match score of ${l.match_score}%.` : '. (KB score unavailable.)'),
+            'success'
+        );
+    } catch (e) {
+        if (btn) { btn.disabled = false; btn.innerHTML = original; }
+        showAlertModal('Could not add lead', e.message || String(e), 'warning');
+    }
+}
+window.promoteLead = promoteLead;
+
+async function promoteSelectedLeads() {
+    const ids = getSelectedVisibleIds().filter(id => {
+        const l = allLeads.find(x => String(x.id) === id);
+        return l && l.lead_class === 'Rejected';
+    });
+    if (ids.length === 0) {
+        showAlertModal('No Rejected Leads Selected', 'Tick the rejected leads you want to move into your useful leads, then click this button.', 'warning');
+        return;
+    }
+    const btn = document.getElementById('table-promote-selected-btn');
+    const label = document.getElementById('table-promote-selected-label');
+    const original = label ? label.textContent : '';
+    if (btn) btn.disabled = true;
+    let added = 0, failed = 0;
+    for (let i = 0; i < ids.length; i++) {
+        if (label) label.textContent = `Scoring ${i + 1}/${ids.length}...`;
+        try {
+            const res = await fetch(`/api/leads/${encodeURIComponent(ids[i])}/promote`, { method: 'POST' });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.detail || 'failed');
+            const idx = allLeads.findIndex(x => String(x.id) === ids[i]);
+            if (idx >= 0) allLeads[idx] = data.lead;
+            selectedLeadIds.add(ids[i]);
+            added++;
+        } catch (e) {
+            failed++;
+        }
+    }
+    if (btn) btn.disabled = false;
+    if (label) label.textContent = original;
+    lastLeadsHash = '';
+    renderTable(allLeads);
+    showAlertModal(
+        added ? 'Added to useful leads' : 'Nothing added',
+        `${added} lead(s) scored against the knowledge base and moved to your useful leads.` + (failed ? ` ${failed} could not be added.` : ''),
+        added ? 'success' : 'warning'
+    );
+}
+window.promoteSelectedLeads = promoteSelectedLeads;
+
+// The Reject Reason column is only relevant when rejected leads are on screen (Rejected / All views).
+function rejectColumnVisible() {
+    const v = leadFitFilterValue();
+    return v === 'rejected' || v === 'all';
+}
+
+// Rejected leads are not KB-scored, so their Match Score / Matched / Missing columns are empty: hide them to give
+// the remaining columns room.
+function kbColsHidden() {
+    return leadFitFilterValue() === 'rejected';
+}
+
+function applyRejectColumnVisibility() {
+    document.querySelectorAll('.col-kb').forEach(el => el.classList.toggle('hidden', kbColsHidden()));
+    const show = rejectColumnVisible();
+    document.querySelectorAll('.col-reject-reason').forEach(el => el.classList.toggle('hidden', !show));
+    const bulk = document.getElementById('table-promote-selected-btn');
+    if (bulk) bulk.classList.toggle('hidden', leadFitFilterValue() !== 'rejected');
+}
+
+function rejectReasonCell(l) {
+    if (l.lead_class !== 'Rejected') {
+        return '<span class="text-slate-400 text-[11px]">—</span>';
+    }
+    const short = (l.reject_reason || '').trim() || 'Not a fit for our IT services';
+    const detail = (l.lead_reason || '').trim();
+    return `<div class="inline-block max-w-[230px] px-2 py-1 rounded-lg border border-rose-200 bg-rose-50 text-rose-800 text-[11px] font-semibold leading-snug" title="${esc(detail || short)}">${esc(short)}</div>`;
+}
+
+function leadFitCell(l) {
+    if (!l.lead_class) {
+        return '<span class="text-slate-400 text-[11px] font-medium">—</span>';
+    }
+    const style = LEAD_CLASS_STYLES[l.lead_class] || LEAD_CLASS_STYLES['Needs Review'];
+    const score = (l.lead_score !== null && l.lead_score !== undefined) ? `${l.lead_score}` : '';
+    const reason = l.lead_reason || '';
+    const reasonShort = reason.length > 90 ? reason.slice(0, 90) + '...' : reason;
+    return `
+        <div class="flex flex-col gap-1 items-start" title="${esc(reason)}">
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold border ${style}">${esc(l.lead_class)}${score ? ` · ${esc(score)}` : ''}</span>
+            ${l.lead_category ? `<span class="text-[10px] font-semibold text-slate-600">${esc(l.lead_category)}</span>` : ''}
+            ${reasonShort && l.lead_class !== 'Rejected' ? `<span class="text-[10px] leading-snug text-slate-500 max-w-[200px]">${esc(reasonShort)}</span>` : ''}
+            ${l.lead_class === 'Rejected' ? `<button type="button" onclick="promoteLead('${esc(l.id)}', this)" class="mt-0.5 px-2 py-0.5 rounded-lg text-[10px] font-bold border border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors cursor-pointer">+ Add to useful leads</button>` : ''}
+        </div>`;
+}
+
 function renderTable(leads) {
     const tbody = document.getElementById('leads-body');
     const countEl = document.getElementById('leads-count');
+    refreshLeadFitCounts();
+    applyRejectColumnVisibility();
+    leads = (leads || []).filter(passesLeadFit);
     if (countEl) countEl.textContent = leads.length;
 
     if (!tbody) return;
@@ -749,7 +914,7 @@ function renderTable(leads) {
     if (!leads || leads.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="14" class="px-5 py-12 text-center text-slate-400 font-medium">
+                <td colspan="16" class="px-5 py-12 text-center text-slate-400 font-medium">
                     No leads found yet. Click <strong class="text-slate-700">"Search Jobs"</strong> above.
                 </td>
             </tr>`;
@@ -844,15 +1009,21 @@ function renderTable(leads) {
             <td class="px-5 py-3 text-xs text-slate-600">
                 ${esc(l.location_remote_type || l.location || l.remote_type || 'Not listed')}
             </td>
-            <td class="px-5 py-3 text-xs text-center">
+            <td class="px-5 py-3 text-xs">
+                ${leadFitCell(l)}
+            </td>
+            <td class="col-reject-reason ${rejectColumnVisible() ? '' : 'hidden'} px-5 py-3 text-xs">
+                ${rejectReasonCell(l)}
+            </td>
+            <td class="col-kb ${kbColsHidden() ? 'hidden' : ''} px-5 py-3 text-xs text-center">
                 ${matchScoreBadge}
             </td>
-            <td class="px-5 py-3 text-xs max-w-[180px]">
+            <td class="col-kb ${kbColsHidden() ? 'hidden' : ''} px-5 py-3 text-xs max-w-[180px]">
                 <div class="flex flex-wrap gap-1 items-center">
                     ${matchedSkillsHtml}
                 </div>
             </td>
-            <td class="px-5 py-3 text-xs max-w-[180px]">
+            <td class="col-kb ${kbColsHidden() ? 'hidden' : ''} px-5 py-3 text-xs max-w-[180px]">
                 <div class="flex flex-wrap gap-1 items-center">
                     ${missingSkillsHtml}
                 </div>
@@ -877,6 +1048,7 @@ function renderTable(leads) {
             </td>
             <td class="px-5 py-3 text-xs text-center">
                 <div class="flex items-center justify-center gap-2">
+                    ${l.lead_class === 'Rejected' ? `<button type="button" onclick="promoteLead('${esc(l.id)}', this)" class="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg text-xs transition-colors shadow-2xs whitespace-nowrap cursor-pointer">+ Add to leads</button>` : ''}
                     ${l.job_url ? `<a href="${esc(l.job_url)}" target="_blank" class="px-3 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-medium rounded-lg text-xs transition-colors flex items-center gap-1 shadow-2xs">Apply ↗</a>` : '—'}
                 </div>
             </td>
@@ -1170,6 +1342,8 @@ function updateProgressUI(p) {
     if (statusText) {
         if (isCooldown) {
             statusText.textContent = 'Anti-Bot Cooldown (60s)';
+        } else if (p.status === 'running' && p.scrape_done && p.scoring_total > 0) {
+            statusText.textContent = `Scoring leads (${p.jobs_scored || 0}/${p.scoring_total})`;
         } else if (p.status === 'running') {
             const kwStr = p.current_keyword ? ` • "${p.current_keyword}"` : '';
             statusText.textContent = `Running (${p.current_country || 'US'}${kwStr})`;
@@ -1272,7 +1446,7 @@ function connectWebSocket() {
 async function exportExcel(event) {
     if (event) event.preventDefault();
 
-    const selectedIdsArray = Array.from(selectedLeadIds);
+    const selectedIdsArray = getSelectedVisibleIds();
     if (allLeads.length > 0 && selectedIdsArray.length === 0) {
         showAlertModal('No Leads Selected', 'Please select at least one lead from the table to export.', 'warning');
         return;
@@ -1289,9 +1463,8 @@ async function exportExcel(event) {
     });
 
     try {
-        const payload = selectedIdsArray.length < allLeads.length
-            ? { selected_ids: selectedIdsArray }
-            : {};
+        // Always send the exact selection: the server exports precisely these leads (even rejected ones)
+        const payload = { selected_ids: selectedIdsArray };
 
         const exportUrl = currentAppMode === 'dice' ? '/api/dice/export/excel' : '/api/export/excel';
 
@@ -1343,7 +1516,7 @@ async function exportSharePoint() {
         return await exportDiceSharePoint();
     }
 
-    const selectedIdsArray = Array.from(selectedLeadIds);
+    const selectedIdsArray = getSelectedVisibleIds();
     if (allLeads.length > 0 && selectedIdsArray.length === 0) {
         showAlertModal('No Leads Selected', 'Please select at least one lead from the table to sync to SharePoint.', 'warning');
         return;
@@ -1360,9 +1533,8 @@ async function exportSharePoint() {
     });
 
     try {
-        const payload = selectedIdsArray.length < allLeads.length
-            ? { selected_ids: selectedIdsArray }
-            : {};
+        // Always send the exact selection: the server exports precisely these leads (even rejected ones)
+        const payload = { selected_ids: selectedIdsArray };
 
         const ownerEl = document.getElementById('leads-owner');
         if (ownerEl && ownerEl.value) {
@@ -1391,15 +1563,13 @@ async function exportSharePoint() {
 }
 
 async function generateOutreachForSelectedLeads() {
-    const selectedIdsArray = Array.from(selectedLeadIds);
+    const selectedIdsArray = getSelectedVisibleIds();
     if (allLeads.length > 0 && selectedIdsArray.length === 0) {
         showAlertModal('No Leads Selected', 'Please select at least one lead from the table to generate outreach for.', 'warning');
         return;
     }
 
-    const leadIds = selectedIdsArray.length < allLeads.length
-        ? selectedIdsArray
-        : allLeads.map(l => String(l.id));
+    const leadIds = selectedIdsArray;
 
     const btn = document.getElementById('table-generate-outreach-btn');
     const label = document.getElementById('table-generate-outreach-label');
@@ -1604,7 +1774,7 @@ async function hydrateDiceTable() {
     const tblDl = document.getElementById('table-download-btn');
     const tblClr = document.getElementById('table-clear-btn');
     try {
-        const res = await fetch('/api/dice/results');
+        const res = await fetch('/api/dice/results?include_rejected=true');
         const data = await res.json();
 
         // allLeads/selectedLeadIds/the table and its buttons are shared, mode-owned state.
@@ -1615,7 +1785,7 @@ async function hydrateDiceTable() {
         }
 
         allLeads = data.leads || [];
-        selectedLeadIds = new Set(allLeads.map(l => String(l.id)));
+        selectedLeadIds = new Set(allLeads.filter(l => l.lead_class !== 'Rejected').map(l => String(l.id)));
         lastLeadsHash = '';
         renderTable(allLeads);
     } catch (e) {
@@ -1808,7 +1978,7 @@ async function searchDice(event) {
 }
 
 async function exportDiceSharePoint() {
-    const selectedIdsArray = Array.from(selectedLeadIds);
+    const selectedIdsArray = getSelectedVisibleIds();
     if (allLeads.length > 0 && selectedIdsArray.length === 0) {
         showAlertModal('No Leads Selected', 'Please select at least one lead from the table to sync to SharePoint.', 'warning');
         return;
@@ -1821,9 +1991,8 @@ async function exportDiceSharePoint() {
     });
 
     try {
-        const payload = selectedIdsArray.length < allLeads.length
-            ? { selected_ids: selectedIdsArray }
-            : {};
+        // Always send the exact selection: the server exports precisely these leads (even rejected ones)
+        const payload = { selected_ids: selectedIdsArray };
 
         const ownerEl = document.getElementById('leads-owner');
         if (ownerEl && ownerEl.value) {
@@ -3189,6 +3358,7 @@ window.handleKeywordInputKey = handleKeywordInputKey;
 window.startSearch = startSearch;
 window.stopSearch = stopSearch;
 window.filterTable = filterTable;
+window.onLeadFitFilterChange = onLeadFitFilterChange;
 window.exportExcel = exportExcel;
 window.exportSharePoint = exportSharePoint;
 window.generateOutreachForSelectedLeads = generateOutreachForSelectedLeads;

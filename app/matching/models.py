@@ -15,3 +15,7 @@ class MatchResult(BaseModel):
     missing_skills: list[str] = Field(default_factory=list, description="Skills/technologies the job requires but the KB shows no evidence of")
     match_reason: str = Field(default="", description="Short explanation of the score")
     job_summary: str = Field(default="", description="Concise summary of the job description")
+    match_status: str = Field(
+        default="scored",
+        description="'scored', 'low_confidence' (thin JD / few requirements) or 'unscored' (KB or LLM failure)",
+    )

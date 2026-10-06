@@ -163,7 +163,8 @@ def test_evaluate_swallows_client_errors():
             pass
 
     matcher = LLMMatcher(client=_BoomClient(), enabled=True, deployment="test-deployment")
-    result = asyncio.run(matcher.evaluate("some job description", []))
+    chunks = [RetrievedChunk(chunk_id="c1", parent_id="p1", title="T", chunk="SharePoint work", score=0.5)]
+    result = asyncio.run(matcher.evaluate("some job description", chunks))
     assert result.match_score is None
     assert "failed" in result.match_reason.lower() or "rate limited" in result.match_reason.lower()
 
@@ -175,3 +176,9 @@ if __name__ == "__main__":
     test_evaluate_returns_disabled_default_when_not_configured()
     test_evaluate_swallows_client_errors()
     print("OK")
+
+
+def test_evaluate_without_kb_chunks_is_unscored_not_defaulted():
+    matcher = LLMMatcher(client=_FakeAzureOpenAIClient('{"match_score": 90}'), enabled=True, deployment="d")
+    result = asyncio.run(matcher.evaluate("some job description", []))
+    assert result.match_score is None and result.match_status == "unscored"

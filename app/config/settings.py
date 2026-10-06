@@ -127,6 +127,27 @@ class Settings(BaseSettings):
     azure_search_api_key: str = Field(default="", description="Azure AI Search admin/query API key")
     azure_search_top_k: int = Field(default=5, description="Number of KB chunks to retrieve per job")
 
+    azure_search_semantic_config: str = Field(
+        default="", description="Azure AI Search semantic configuration name; when set, retrieval uses the semantic reranker"
+    )
+    azure_search_min_score: float = Field(
+        default=0.0, description="Drop retrieved chunks scoring below this (0 disables). Scale depends on ranker in use"
+    )
+
+    # Match engine: 'v2' = requirement-level evidence scoring, 'legacy' = single holistic LLM score
+    match_engine: str = Field(default="v2", description="Match scoring engine: 'v2' or 'legacy'")
+    match_max_requirements: int = Field(default=14, description="Max JD requirements judged per job by the v2 engine")
+
+    # Eligibility filter: reject postings that make citizenship / residency / work authorization / visa /
+    # security clearance (any country) mandatory. Deterministic rules, no LLM.
+    enable_eligibility_filter: bool = Field(default=True, description="Reject jobs with mandatory country-specific eligibility requirements")
+
+    # Lead filter: keep only B2B IT-services opportunities (not ordinary job vacancies)
+    enable_lead_filter: bool = Field(default=True, description="Classify scraped jobs as B2B leads and hide rejected ones")
+    lead_high_threshold: int = Field(default=75, description="Lead score >= this -> High Priority")
+    lead_relevant_threshold: int = Field(default=55, description="Lead score >= this -> Relevant")
+    lead_review_threshold: int = Field(default=35, description="Lead score >= this -> Needs Review; below -> Rejected")
+
     # LLM Settings (Azure OpenAI / Azure AI Foundry)
     llm_provider: str = Field(default="azure", description="LLM provider ('azure')")
     azure_openai_endpoint: str = Field(default="", description="Azure OpenAI endpoint URL")

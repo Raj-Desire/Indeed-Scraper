@@ -15,6 +15,7 @@ def test_azure_kb_settings_have_safe_defaults(monkeypatch):
         "AZURE_OPENAI_ENDPOINT",
         "AZURE_OPENAI_API_KEY",
         "AZURE_OPENAI_CHAT_DEPLOYMENT",
+        "AZURE_OPENAI_API_VERSION",
     ]:
         monkeypatch.delenv(var, raising=False)
     s = Settings(_env_file=None)  # ignore local .env so defaults are exercised

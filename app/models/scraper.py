@@ -32,6 +32,9 @@ class ScraperProgress(BaseModel):
     current_page: int = Field(default=0)
     max_pages: int = Field(default=3)
     jobs_found: int = Field(default=0)
+    scoring_total: int = Field(default=0, description="Jobs queued for KB match scoring")
+    jobs_scored: int = Field(default=0, description="Jobs whose match scoring has finished")
+    scrape_done: bool = Field(default=False, description="True once scraping finished (scoring may continue)")
     started_at: Optional[datetime] = Field(default=None)
     elapsed_seconds: float = Field(default=0.0)
     log_messages: list[str] = Field(default_factory=list)
@@ -55,14 +58,20 @@ class ScraperProgress(BaseModel):
         base_pct = completed_pages * page_weight
 
         active_page_ratio = 0.25
-        if self.jobs_found > 0:
-            jobs_on_page = self.jobs_found % 15
+        seen = max(self.jobs_found, self.scoring_total)  # jobs held back for evaluation still count
+        if seen > 0:
+            jobs_on_page = seen % 15
             if jobs_on_page == 0:
                 jobs_on_page = 15
             active_page_ratio += min(0.65, (jobs_on_page / 15.0) * 0.65)
 
-        total_pct = base_pct + (page_weight * active_page_ratio)
-        return round(min(99.0, max(0.0, total_pct)), 1)
+        total_pct = min(99.0, max(0.0, base_pct + (page_weight * active_page_ratio)))
+        if self.scoring_total > 0:
+            # 60% = scraping, 40% = match scoring; 100% only when the run is completed
+            scrape_part = 100.0 if self.scrape_done else total_pct
+            score_part = 100.0 * min(1.0, self.jobs_scored / self.scoring_total)
+            return round(min(99.0, 0.6 * scrape_part + 0.4 * score_part), 1)
+        return round(total_pct, 1)
 
     def add_log(self, message: str, max_messages: int = 50) -> None:
         """Append log message using O(1) deque eviction."""

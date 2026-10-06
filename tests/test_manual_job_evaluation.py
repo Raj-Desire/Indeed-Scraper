@@ -19,6 +19,21 @@ def cleanup_service():
     service.clear_results()
 
 
+@pytest.fixture(autouse=True)
+def legacy_scoring_path(monkeypatch):
+    """These tests mock the legacy consolidated parse call; keep them off real Azure services."""
+    monkeypatch.setattr("app.matching.engine.MatchEngine.available", lambda self: False)
+
+    async def _no_outreach(*a, **k):
+        return {}
+
+    async def _no_kb(self, *a, **k):
+        return []
+
+    monkeypatch.setattr("app.matching.outreach_generator.generate_outreach", _no_outreach)
+    monkeypatch.setattr("app.knowledge_base.azure_search.AzureSearchKnowledgeBase.search", _no_kb)
+
+
 def test_manual_evaluate_validation():
     client = TestClient(app)
     # Missing description
@@ -133,7 +148,12 @@ Contact
 9287292870
 """
 
-    with patch("app.matching.match_service.MatchService.evaluate_job") as mock_eval:
+    from app.matching.jd_parser import parse_job_description
+
+    async def _offline_parse(text, kb_chunks=None):
+        return parse_job_description(text)
+
+    with patch("app.matching.match_service.MatchService.evaluate_job") as mock_eval,          patch("app.matching.jd_parser.parse_job_description_with_ai", new=_offline_parse),          patch("app.matching.outreach_generator.generate_outreach", new_callable=AsyncMock, return_value={}),          patch("app.knowledge_base.azure_search.AzureSearchKnowledgeBase.search", new_callable=AsyncMock, return_value=[]):
         async def side_effect(job):
             job.match_score = 80
             job.matched_skills = ["SharePoint", "Power Apps", "Project Management"]
@@ -183,13 +203,19 @@ Need 7+ years of experience with SharePoint Online, Azure, and Power Platform.
 Requires legacy Cobol and Ruby on Rails.
 """
 
-    resp = client.post(
-        "/api/jobs/manual-evaluate",
-        json={
-            "job_title": "",
-            "job_description": user_jd,
-        },
-    )
+    from app.matching.jd_parser import parse_job_description
+
+    async def _offline_parse(text, kb_chunks=None):  # deterministic heuristic path, no live LLM
+        return parse_job_description(text)
+
+    with patch("app.matching.jd_parser.parse_job_description_with_ai", new=_offline_parse),          patch("app.matching.outreach_generator.generate_outreach", new_callable=AsyncMock, return_value={}),          patch("app.knowledge_base.azure_search.AzureSearchKnowledgeBase.search", new_callable=AsyncMock, return_value=[]):
+        resp = client.post(
+            "/api/jobs/manual-evaluate",
+            json={
+                "job_title": "",
+                "job_description": user_jd,
+            },
+        )
 
     assert resp.status_code == 200
     data = resp.json()
