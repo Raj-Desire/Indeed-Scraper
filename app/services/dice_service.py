@@ -231,6 +231,12 @@ class DiceService:
         if not any(j is job for j in self._results):
             self._results.insert(0, job)
 
+    def export_useful_for_email(self) -> Optional[str]:
+        """Workbook with ALL useful Dice leads for the email attachment (own filename; never rejected leads)."""
+        if not self.get_visible_results():
+            return None
+        return str(self.export_excel(selected_ids=None, filename_prefix="Dice_Useful_Leads_Email"))
+
     def get_visible_results(self) -> list[JobPosting]:
         """Everything except jobs the lead filter rejected."""
         return [j for j in self._results if getattr(j, "lead_class", "") != "Rejected"]
@@ -257,7 +263,7 @@ class DiceService:
         from app.notifications.graph_mail import GraphMailNotifier
         notifier = GraphMailNotifier()
         sent = await notifier.send_report(
-            jobs=self._results,
+            jobs=self.get_visible_results(),  # the email only ever carries useful leads
             excel_path=excel_path,
             query=query,
             queries=queries,
@@ -284,6 +290,7 @@ class DiceService:
         self,
         selected_ids: Optional[list[str]] = None,
         output_dir: Optional[str] = None,
+        filename_prefix: str = "Dice_Job_Leads",
     ):
         """Export current (or selected) Dice results to a clean, styled Excel workbook."""
         from pathlib import Path
@@ -310,7 +317,7 @@ class DiceService:
             fromage=posted_date or "all",
             location_type=location_type,
             source="Dice",
-            filename_prefix="Dice_Job_Leads",
+            filename_prefix=filename_prefix,
         )
 
     async def export_sharepoint(self, selected_ids: Optional[list[str]] = None, owner: Optional[str] = None) -> int:

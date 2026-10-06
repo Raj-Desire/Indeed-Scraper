@@ -762,10 +762,7 @@ function passesLeadFit(l) {
     const c = l.lead_class || '';
     if (v === 'all') return true;
     if (v === 'rejected') return c === 'Rejected';
-    if (v === 'high') return c === 'High Priority';
-    if (v === 'relevant') return c === 'High Priority' || c === 'Relevant';
-    if (v === 'review') return c === 'Needs Review';
-    return c !== 'Rejected'; // 'useful' (default): everything except rejected
+    return c !== 'Rejected'; // 'useful' (default): High Priority, Relevant and Needs Review
 }
 
 function refreshLeadFitCounts() {
@@ -773,12 +770,9 @@ function refreshLeadFitCounts() {
     if (!sel) return;
     const n = (fn) => allLeads.filter(fn).length;
     const labels = {
-        useful: `Useful leads (${n(l => (l.lead_class || '') !== 'Rejected')})`,
-        high: `High Priority (${n(l => l.lead_class === 'High Priority')})`,
-        relevant: `Relevant & above (${n(l => l.lead_class === 'High Priority' || l.lead_class === 'Relevant')})`,
-        review: `Needs Review (${n(l => l.lead_class === 'Needs Review')})`,
-        rejected: `Rejected (${n(l => l.lead_class === 'Rejected')})`,
         all: `All (${allLeads.length})`,
+        rejected: `Rejected (${n(l => l.lead_class === 'Rejected')})`,
+        useful: `Useful leads (${n(l => (l.lead_class || '') !== 'Rejected')})`,
     };
     Array.from(sel.options).forEach(o => { if (labels[o.value]) o.textContent = labels[o.value]; });
 }
@@ -790,7 +784,7 @@ function onLeadFitFilterChange() {
 
 async function promoteLead(leadId, btn) {
     const original = btn ? btn.innerHTML : '';
-    if (btn) { btn.disabled = true; btn.innerHTML = 'Scoring...'; }
+    if (btn) { btn.disabled = true; btn.innerHTML = 'Adding...'; }
     try {
         const res = await fetch(`/api/leads/${encodeURIComponent(leadId)}/promote`, { method: 'POST' });
         const data = await res.json().catch(() => ({}));
@@ -805,7 +799,7 @@ async function promoteLead(leadId, btn) {
         const l = data.lead;
         showAlertModal(
             'Added to useful leads',
-            `"${l.job_title}" is now ${l.lead_class}` + (l.match_score !== null && l.match_score !== undefined ? ` with a KB match score of ${l.match_score}%.` : '. (KB score unavailable.)'),
+            `"${l.job_title}" was moved to your useful leads as ${l.lead_class}` + (l.lead_score !== null && l.lead_score !== undefined ? ` (lead score ${l.lead_score}).` : '.'),
             'success'
         );
     } catch (e) {
@@ -828,9 +822,9 @@ async function promoteSelectedLeads() {
     const label = document.getElementById('table-promote-selected-label');
     const original = label ? label.textContent : '';
     if (btn) btn.disabled = true;
-    let added = 0, failed = 0;
+    let added = 0, failed = 0, firstError = '';
     for (let i = 0; i < ids.length; i++) {
-        if (label) label.textContent = `Scoring ${i + 1}/${ids.length}...`;
+        if (label) label.textContent = `Adding ${i + 1}/${ids.length}...`;
         try {
             const res = await fetch(`/api/leads/${encodeURIComponent(ids[i])}/promote`, { method: 'POST' });
             const data = await res.json().catch(() => ({}));
@@ -841,6 +835,7 @@ async function promoteSelectedLeads() {
             added++;
         } catch (e) {
             failed++;
+            if (!firstError) firstError = (e && e.message) ? e.message : String(e);
         }
     }
     if (btn) btn.disabled = false;
@@ -849,7 +844,7 @@ async function promoteSelectedLeads() {
     renderTable(allLeads);
     showAlertModal(
         added ? 'Added to useful leads' : 'Nothing added',
-        `${added} lead(s) scored against the knowledge base and moved to your useful leads.` + (failed ? ` ${failed} could not be added.` : ''),
+        `${added} lead(s) moved to your useful leads.` + (failed ? ` ${failed} could not be added (${firstError}).` : ''),
         added ? 'success' : 'warning'
     );
 }

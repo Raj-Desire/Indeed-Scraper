@@ -162,6 +162,24 @@ class ScraperService:
         """True when scraped jobs must be evaluated before they may join the dashboard."""
         return self._lead_filter_on() or self._eligibility_on()
 
+    def export_useful_for_email(self) -> Optional[str]:
+        """Workbook with ALL useful leads (never rejected ones, never the user's own selection) for the email
+        attachment. Uses its own filename so it can neither contain nor overwrite what the user downloads."""
+        leads = self.get_visible_results()
+        if not leads:
+            return None
+        cfg = self._current_session.run_config if self._current_session else None
+        path = self._exporter.export(
+            leads,
+            output_dir=self._settings.output_dir,
+            query=cfg.query if cfg else "",
+            countries=cfg.countries if cfg else [],
+            fromage=cfg.fromage if cfg else "all",
+            location_type=cfg.location_type if cfg else "all",
+            filename_prefix="Useful_Leads_Email",
+        )
+        return str(path)
+
     def get_session(self) -> Optional[ScraperSession]:
         return self._current_session
 

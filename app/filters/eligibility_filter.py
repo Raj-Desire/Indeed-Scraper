@@ -98,7 +98,16 @@ _p("export control", "export-control citizenship", r"\b(?:ITAR|EAR|export[- ]con
 
 # --- security clearance (US/UK/CA/AU/EU variants)
 _p("security clearance", "security clearance", r"\b(?:security|government|DoD|federal|national)\s+clearance\b", False)
-_p("security clearance", "security clearance", r"\b(?:TS\s*/\s*SCI|TS-SCI|top[- ]secret(?:\s+clearance)?|secret\s+clearance|public\s+trust|full[- ]scope\s+poly(?:graph)?|counter[- ]intelligence\s+poly(?:graph)?|CI\s+poly(?:graph)?|polygraph|Q\s+clearance|L\s+clearance)\b", False)
+# Jargon that only ever means a clearance: counts on its own (title or body), unless softened ("a plus", "preferred")
+_p("security clearance", "security clearance", r"\b(?:TS\s*/\s*SCI|TS\s*-\s*SCI|SCI\s+(?:clearance|eligib\w*)|top[- ]secret\s*(?:/\s*SCI|clearance|cleared|level|eligib\w*|security)|secret[- ]?(?:clearance|cleared)|secret[- ]level\s+(?:clearance|cleared|access|eligib\w*)|TS\s+(?:clearance|cleared)|(?:Q|L)\s+clearance|(?:active|current|valid|federal|DoD|FEMA)\s+public\s+trust|public\s+trust\s+(?:clearance|position|designation|eligib\w*|background|investigation|level|determination)|poly(?:graph)?\s+(?:required|clearance|exam)|(?:full[- ]scope|counter[- ]intelligence|CI|lifestyle)\s+poly(?:graph)?)\b", True)
+# "Clearance: TS/SCI", "Security Clearance: Top Secret", "Clearance Level - Secret"
+_p("security clearance", "security clearance", r"\bclearance(?:\s+(?:level|required|needed|type|status))?\s*[:\-–]\s*(?:TS\s*/?\s*SCI|top[- ]secret|secret|TS|public\s+trust|confidential|DoD|active|current|yes)\b", True)
+# weaker wording: needs a "must / required / only / needed / minimum" in the same sentence
+_p("security clearance", "security clearance", r"\b(?:security|government|DoD|federal|national|U\.?S\.?\s+government)\s+clearance\b", False)
+_p("security clearance", "security clearance", r"\bclearable\b", False)
+_p("security clearance", "security clearance", r"\b(?:cleared|clearance[- ]holding)\s+(?:candidates?|personnel|professionals?|engineers?|developers?|applicants?|individuals|resources?|staff|talent)\b", False)
+_p("security clearance", "security clearance", r"\bmust\s+(?:be|have\s+been)\s+(?:a\s+)?cleared\b", True)
+_p("security clearance", "security clearance", r"\b(?:minimum|at\s+least)\s+(?:an?\s+)?(?:active\s+)?(?:secret|ts|top[- ]secret|public\s+trust)\b", True)
 _p("security clearance", "security clearance", r"\b(?:SC|DV|eDV|CTC|BPSS|NPPV\s*[123]?|NV\s*[12])\s+(?:clearance|cleared|vetting|level|security)\b", False, 0)
 _p("security clearance", "security clearance", r"\b(?:security\s+vetting|reliability\s+status|enhanced\s+reliability|secret\s+level|baseline\s+clearance|AGSVA)\b", False)
 _p("security clearance", "security clearance", r"\b(?:active|current|valid|existing|up[- ]to[- ]date)\s+(?:[\w/\-]+\s+){0,2}?(?:clearance|secret|top[- ]secret)\b", True)
@@ -122,7 +131,7 @@ _p("residency", "country-based contract", rf"(?<![\w])(?:{C}|{D})[- ]based\s+(?:
 # ------------------------------------------------------------------ context markers
 _MANDATORY = re.compile(
     r"\b(?:must|required|requires?|requirement|mandatory|only|need\s+to|needs\s+to|have\s+to|essential|"
-    r"eligib\w*|cannot|can't|unable|shall|necessary|prerequisite|to\s+be\s+considered|not\s+(?:able|eligible)|"
+    r"eligib\w*|cannot|can't|unable|shall|necessary|needed|need|minimum|prerequisite|to\s+be\s+considered|not\s+(?:able|eligible)|"
     r"no\s+exceptions|will\s+be\s+required)\b", _I)
 
 _OPTIONAL = re.compile(

@@ -605,6 +605,16 @@ async def api_get_leads(
     }
 
 
+def _useful_email_attachment(service) -> Optional[str]:
+    """Excel path for the email: all USEFUL leads only, independent of what the user selected to download."""
+    fn = getattr(service, "export_useful_for_email", None)
+    try:
+        return fn() if fn else None
+    except Exception as exc:
+        logger.warning("Could not build the useful-leads email attachment: {}", exc)
+        return None
+
+
 @router.get("/api/export/excel")
 async def api_export_excel(selected_ids: Optional[str] = Query(default=None)):
     """Download clean Excel workbook. Supports filtering by selected_ids comma-separated string."""
@@ -635,11 +645,11 @@ async def api_export_excel(selected_ids: Optional[str] = Query(default=None)):
     )
 
     # Check if email notification was already sent for this batch; if not, dispatch now
-    if not service.is_email_sent():
+    if not service.is_email_sent() and service.get_visible_results():
         logger.info("Download Excel clicked: Email has not been sent yet. Dispatching email report to sender and recipients...")
         try:
             sent = await service.send_email_notification(
-                excel_path=str(output_path),
+                excel_path=_useful_email_attachment(service),  # useful leads only, not the user's selection
                 query=cfg.query if cfg else "",
                 queries=getattr(cfg, "queries", None) if cfg else None,
                 countries=cfg.countries if cfg else [],
@@ -884,16 +894,31 @@ async def api_export_sharepoint(request: Request):
 
 @router.post("/api/leads/{lead_id}/promote")
 async def api_promote_lead(lead_id: str):
-    """Add a lead the lead filter rejected to the useful leads: score it against the KB and re-classify it."""
+    """Add a lead the lead filter rejected to the useful leads. Instant: it keeps the scores it already has."""
     from app.matching.promotion import promote_job
 
-    for service in (get_scraper_service(), get_dice_service()):
+    def _services():
+        yield get_scraper_service()
+        try:  # Dice may be unconfigured on this machine; that must never break promoting an Indeed lead
+            yield get_dice_service()
+        except Exception as exc:
+            logger.debug("Dice service unavailable while promoting a lead: {}", exc)
+
+    for service in _services():
         job = service.find_rejected(lead_id)
         if job is None:
+            # already promoted (double click / second tab): report it as done instead of an error
+            done = next((j for j in service.get_results() if str(j.id) == str(lead_id)), None)
+            if done is not None and done.lead_class != "Rejected":
+                return {"status": "success", "lead": _serialize_job(done)}
             continue
-        await promote_job(job)
-        service.admit_promoted(job)
-        logger.info("Lead '{}' promoted from Rejected: {} (match {})", job.job_title, job.lead_class, job.match_score)
+        try:
+            await promote_job(job)
+            service.admit_promoted(job)
+        except Exception as exc:
+            logger.exception("Promoting lead '{}' failed", getattr(job, "job_title", lead_id))
+            raise HTTPException(status_code=500, detail=f"Could not add this lead: {exc}")
+        logger.info("Lead '{}' promoted from Rejected: {} (lead score {}, match {})", job.job_title, job.lead_class, job.lead_score, job.match_score)
         return {"status": "success", "lead": _serialize_job(job)}
     raise HTTPException(status_code=404, detail="Rejected lead not found (it may have been cleared).")
 
@@ -1163,7 +1188,7 @@ async def api_dice_export_excel(selected_ids: Optional[str] = Query(default=None
         output_path = service.export_excel(selected_ids=id_list)
 
         # Check if email notification was already sent for this Dice run; if not, dispatch now
-        if settings.email_notifications_enabled and not service.is_email_sent():
+        if settings.email_notifications_enabled and not service.is_email_sent() and service.get_visible_results():
             logger.info("Dice Download Excel clicked: Email has not been sent yet. Dispatching email report to sender and recipients...")
             try:
                 params = service._last_search_params
@@ -1172,7 +1197,7 @@ async def api_dice_export_excel(selected_ids: Optional[str] = Query(default=None
                 posted_date = params.get("posted_date", "all")
                 workplace_types = params.get("workplace_types", ["Remote"])
                 sent = await service.send_email_notification(
-                    excel_path=str(output_path),
+                    excel_path=_useful_email_attachment(service),  # useful leads only, not the user's selection
                     query=", ".join(kws) if kws else "",
                     queries=kws,
                     countries=countries,
@@ -1217,7 +1242,7 @@ async def api_dice_export_excel_post(request: Request):
         output_path = service.export_excel(selected_ids=selected_ids)
 
         # Check if email notification was already sent for this Dice run; if not, dispatch now
-        if settings.email_notifications_enabled and not service.is_email_sent():
+        if settings.email_notifications_enabled and not service.is_email_sent() and service.get_visible_results():
             logger.info("Dice Download Excel POST clicked: Email has not been sent yet. Dispatching email report...")
             try:
                 params = service._last_search_params
@@ -1226,7 +1251,7 @@ async def api_dice_export_excel_post(request: Request):
                 posted_date = params.get("posted_date", "all")
                 workplace_types = params.get("workplace_types", ["Remote"])
                 sent = await service.send_email_notification(
-                    excel_path=str(output_path),
+                    excel_path=_useful_email_attachment(service),  # useful leads only, not the user's selection
                     query=", ".join(kws) if kws else "",
                     queries=kws,
                     countries=countries,
