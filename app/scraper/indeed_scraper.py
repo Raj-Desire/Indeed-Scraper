@@ -10,7 +10,9 @@ from pathlib import Path
 import random
 import time
 from collections.abc import Callable, AsyncIterator
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from enum import Enum
 from typing import Optional
 
 from playwright.async_api import (
@@ -59,6 +61,32 @@ USER_AGENTS = [
 ]
 
 
+class PageStatus(str, Enum):
+    """Outcome of fetching one search-results page."""
+    OK = "ok"                  # job cards parsed
+    NO_RESULTS = "no_results"  # Indeed rendered a genuine empty page (end of results)
+    BLOCKED = "blocked"        # bot check / verification
+    ERROR = "error"            # timeout, navigation failure, or unrecognised page
+
+
+@dataclass
+class PageResult:
+    jobs: list[JobPosting] = field(default_factory=list)
+    status: PageStatus = PageStatus.ERROR
+
+
+# Markers Indeed renders on a valid search that matched nothing
+NO_RESULTS_SELECTOR = ".jobsearch-NoResult, [data-testid='no-results'], #jobsearch-NoResults, .no_results"
+NO_RESULTS_PHRASES = (
+    "did not match any jobs",
+    "no jobs found",
+    "0 jobs",
+    "no results found",
+    "try adjusting your search",
+)
+RESULTS_SELECTOR = "[data-jk], .job_seen_beacon, .jobsearch-ResultsList li"
+
+
 class IndeedScraper:
     """Playwright-based scraper for user-defined Indeed job searches."""
 
@@ -73,6 +101,7 @@ class IndeedScraper:
         self._last_emit_time: float = 0.0
         self._consecutive_blocks: int = 0
         self._max_consecutive_blocks: int = 3
+        self._page_timeout_secs: float = 150.0  # hard ceiling for one page incl. enrichment
 
         self._pause_event = asyncio.Event()
         self._pause_event.set()
@@ -147,6 +176,8 @@ class IndeedScraper:
 
                     # Reset consecutive blocks counter for each country independently
                     self._consecutive_blocks = 0
+                    blocked_keywords_in_row = 0
+                    country_aborted = False
                     self._progress.current_country = country
                     self._progress.add_log(f"🌍 Country {c_idx+1}/{len(countries)}: Starting {country}...")
                     self._emit_progress(force=True)
@@ -169,6 +200,19 @@ class IndeedScraper:
                             if self._stop_event.is_set():
                                 break
 
+                            if country_aborted:
+                                remaining_kw = len(queries) - q_idx
+                                processed_pages_count += remaining_kw * max_pages_per_keyword
+                                self._progress.current_page = processed_pages_count
+                                self._progress.add_log(
+                                    f"🛑 {country} blocked on {self._max_consecutive_blocks} keywords in a row. "
+                                    f"Skipping the remaining {remaining_kw} keyword(s) for this country."
+                                )
+                                self._emit_progress(force=True)
+                                break
+
+                            # Block state is per keyword: never let one keyword's block leak into the next
+                            self._consecutive_blocks = 0
                             self._progress.current_keyword = query
                             self._progress.add_log(f"🔍 Keyword {q_idx+1}/{len(queries)}: Searching '{query}' in {country}...")
                             self._emit_progress(force=True)
@@ -195,71 +239,27 @@ class IndeedScraper:
                                 self._progress.add_log(log_msg)
                                 self._emit_progress()
 
-                                jobs = await self._scrape_page(
-                                    country_context, country_page, url, country, query
+                                country_page, country_context, result = await self._fetch_page_with_recovery(
+                                    browser, country_context, country_page, url, country, query, proxy_url
                                 )
+                                jobs = result.jobs
 
                                 if not jobs:
-                                    is_blocked = self._consecutive_blocks > 0
-                                    if is_blocked:
-                                        # 60-second cooldown break to let Indeed anti-bot trust score recover
-                                        cooldown_secs = 60
-                                        logger.warning(
-                                            "Indeed verification detected for {} on Page {}. Pausing for {}s cooldown before retrying...",
-                                            country, page_num + 1, cooldown_secs
-                                        )
+                                    if result.status == PageStatus.NO_RESULTS:
+                                        # Genuine end of results: not a failure, so no retry and no cooldown
                                         self._progress.add_log(
-                                            f"⚠️ Bot verification on {country}. Pausing {cooldown_secs}s cooldown to reset trust..."
+                                            f"No more results for '{query}' in {country} (Page {page_num + 1}); moving to next keyword."
                                         )
-                                        self._emit_progress(force=True)
-
-                                        for remaining in range(cooldown_secs, 0, -15):
-                                            if self._stop_event.is_set():
-                                                break
-                                            await asyncio.sleep(min(15.0, remaining))
-                                            if remaining > 15 and not self._stop_event.is_set():
-                                                self._progress.add_log(
-                                                    f"Cooldown active for {country}: retrying in {remaining - 15}s..."
-                                                )
-                                                self._emit_progress(force=True)
-
-                                        if not self._stop_event.is_set():
-                                            self._progress.add_log(
-                                                f"🔄 Cooldown complete. Retrying {country} with fresh session..."
-                                            )
-                                            self._emit_progress(force=True)
-                                            country_page, country_context = await self._recycle_context(
-                                                browser, country_context, country, proxy_url=proxy_url
-                                            )
-                                            self._consecutive_blocks = 0
-                                            jobs = await self._scrape_page(
-                                                country_context, country_page, url, country, query
-                                            )
-                                            if jobs:
-                                                self._progress.add_log(
-                                                    f"✅ Cooldown retry succeeded! Captured {len(jobs)} jobs for {country}."
-                                                )
-                                                self._emit_progress(force=True)
+                                        blocked_keywords_in_row = 0
+                                        delay_status = "success"
                                     else:
-                                        # Zero results on clean search: recycle context once and retry
-                                        logger.info(
-                                            "Page {} ({}) returned 0 jobs for '{}'. Recalibrating session with fresh context...",
-                                            page_num + 1, country, query
-                                        )
-                                        country_page, country_context = await self._recycle_context(
-                                            browser, country_context, country, proxy_url=proxy_url
-                                        )
-                                        jobs = await self._scrape_page(
-                                            country_context, country_page, url, country, query
-                                        )
-
-                                if not jobs:
-                                    if self._consecutive_blocks > 0:
                                         self._progress.add_log(
-                                            f"⚠️ {country} still restricted after cooldown for '{query}'. Preserving {self._progress.jobs_found} leads; moving forward..."
+                                            f"⚠️ '{query}' in {country} failed ({result.status.value}) on Page {page_num + 1}. "
+                                            f"Preserving {self._progress.jobs_found} leads; skipping to next keyword."
                                         )
-                                    else:
-                                        self._progress.add_log(f"No more results found for '{query}' on {country} (Page {page_num + 1})")
+                                        if result.status == PageStatus.BLOCKED:
+                                            blocked_keywords_in_row += 1
+                                        delay_status = "zero_results"
 
                                     # Advance progress counter for remaining pages of this keyword so progress doesn't stall
                                     remaining_pages_kw = max_pages_per_keyword - (page_num + 1)
@@ -267,8 +267,14 @@ class IndeedScraper:
                                         processed_pages_count += remaining_pages_kw
                                         self._progress.current_page = processed_pages_count
                                     self._emit_progress(force=True)
-                                    await self._adaptive_delay(status="zero_results", page_num=page_num)
+
+                                    if blocked_keywords_in_row >= self._max_consecutive_blocks:
+                                        country_aborted = True
+                                    else:
+                                        await self._adaptive_delay(status=delay_status, page_num=page_num)
                                     break
+
+                                blocked_keywords_in_row = 0
 
                                 # Phase 3.3: Save successful session state for country
                                 await self._save_session_state(country_context, country)
@@ -570,7 +576,7 @@ class IndeedScraper:
         url: str,
         country: str,
         query: str,
-    ) -> list[JobPosting]:
+    ) -> PageResult:
         """
         Navigate to a single search results page and return parsed job postings.
 
@@ -578,12 +584,14 @@ class IndeedScraper:
         This method never creates or closes a BrowserContext — it only uses the
         context to open detail pages (new_page) for description enrichment.
 
-        Returns an empty list on any unrecoverable failure so the caller can
-        decide whether to recycle the context and retry.
+        Returns a PageResult whose status tells the caller *why* there are no jobs
+        (NO_RESULTS = genuine empty page, BLOCKED, ERROR) so it can decide whether
+        retrying makes sense. A genuine empty page is returned immediately.
         """
+        last_status = PageStatus.ERROR
         for attempt in range(self._settings.scraper_retry_attempts):
             if self._stop_event.is_set():
-                return []
+                return PageResult([], PageStatus.ERROR)
             try:
                 await page.goto(url, wait_until="domcontentloaded", timeout=30000)
 
@@ -591,7 +599,7 @@ class IndeedScraper:
                 # If page title indicates a security check or challenge, give it a few seconds to auto-resolve
                 for _ in range(3):
                     if self._stop_event.is_set():
-                        return []
+                        return PageResult([], PageStatus.ERROR)
                     t_title = (await page.title()).lower()
                     if any(t in t_title for t in ["security check", "just a moment", "verify you are human", "attention required"]):
                         logger.debug("Transient challenge detected (title: '{}'), waiting for settlement...", t_title)
@@ -600,7 +608,7 @@ class IndeedScraper:
                         break
 
                 if self._stop_event.is_set():
-                    return []
+                    return PageResult([], PageStatus.ERROR)
 
                 if await self._is_blocked(page):
                     self._consecutive_blocks += 1
@@ -608,23 +616,24 @@ class IndeedScraper:
                         "Indeed bot check on attempt {} for URL: {} (consecutive blocks: {}).",
                         attempt + 1, url, self._consecutive_blocks,
                     )
+                    last_status = PageStatus.BLOCKED
                     await self._adaptive_delay(status="blocked")
                     if attempt < self._settings.scraper_retry_attempts - 1:
                         continue
-                    return []
+                    return PageResult([], PageStatus.BLOCKED)
 
-                try:
-                    await page.wait_for_selector(
-                        '[data-jk], .job_seen_beacon, .jobsearch-ResultsList li',
-                        timeout=10000
-                    )
-                except PlaywrightTimeout:
+                outcome = await self._wait_for_results_or_empty(page)
+                if outcome == "empty":
+                    logger.info("Genuine zero-results page for '{}' ({}): {}", query, country, url)
+                    return PageResult([], PageStatus.NO_RESULTS)
+                if outcome == "timeout":
                     if self._stop_event.is_set():
-                        return []
+                        return PageResult([], PageStatus.ERROR)
+                    last_status = PageStatus.ERROR
                     if attempt < self._settings.scraper_retry_attempts - 1:
                         await asyncio.sleep(2.0)
                         continue
-                    return []
+                    return PageResult([], PageStatus.ERROR)
 
                 # Phase 3.2: Human-like reading scroll with micro-pauses
                 await self._human_scroll(page)
@@ -767,14 +776,94 @@ class IndeedScraper:
                     except (asyncio.TimeoutError, Exception) as s2_err:
                         logger.debug("Strategy 2 enrichment window ended: {}", s2_err)
 
-                return jobs
+                return PageResult(jobs, PageStatus.OK if jobs else PageStatus.ERROR)
 
             except Exception as exc:
                 logger.error("Error scraping page on attempt {}: {}", attempt + 1, exc)
                 if attempt < self._settings.scraper_retry_attempts - 1:
                     await asyncio.sleep(2.0)
 
-        return []
+        return PageResult([], last_status)
+
+    async def _scrape_page_guarded(
+        self, context: BrowserContext, page: Page, url: str, country: str, query: str
+    ) -> PageResult:
+        """Watchdog: whatever goes wrong inside a page, it becomes an ERROR result instead of a silent hang."""
+        try:
+            return await asyncio.wait_for(
+                self._scrape_page(context, page, url, country, query),
+                timeout=self._page_timeout_secs,
+            )
+        except asyncio.TimeoutError:
+            logger.error("Page watchdog fired after {}s for '{}' ({}): {}", self._page_timeout_secs, query, country, url)
+            self._progress.add_log(f"⏱ Page for '{query}' ({country}) exceeded {int(self._page_timeout_secs)}s; abandoning it.")
+            return PageResult([], PageStatus.ERROR)
+
+    async def _wait_for_results_or_empty(self, page: Page, timeout_ms: int = 10000) -> str:
+        """
+        Race job cards against Indeed's no-results markers.
+        Returns "jobs", "empty" (genuine zero-results page) or "timeout".
+        A genuine empty page resolves in about a second instead of burning the full timeout.
+        """
+        deadline = time.monotonic() + timeout_ms / 1000
+        while time.monotonic() < deadline:
+            if self._stop_event.is_set():
+                return "timeout"
+            try:
+                if await page.query_selector(RESULTS_SELECTOR):
+                    return "jobs"
+                if await page.query_selector(NO_RESULTS_SELECTOR):
+                    return "empty"
+                body = (await page.inner_text("body")).lower()[:3000]
+                if any(phrase in body for phrase in NO_RESULTS_PHRASES) and "data-jk" not in body:
+                    # Re-check cards once to avoid matching a banner on a populated page
+                    if not await page.query_selector(RESULTS_SELECTOR):
+                        return "empty"
+            except Exception:
+                pass
+            await asyncio.sleep(0.5)
+        return "timeout"
+
+    async def _fetch_page_with_recovery(
+        self,
+        browser: Browser,
+        context: BrowserContext,
+        page: Page,
+        url: str,
+        country: str,
+        query: str,
+        proxy_url: Optional[str],
+    ) -> tuple[Page, BrowserContext, PageResult]:
+        """
+        Fetch one page and recover at most once, depending on *why* it was empty:
+        - OK / NO_RESULTS: return immediately (an empty page is not a failure)
+        - BLOCKED: cooldown, fresh context, one retry
+        - ERROR: fresh context, one retry
+        """
+        result = await self._scrape_page_guarded(context, page, url, country, query)
+        if result.status in (PageStatus.OK, PageStatus.NO_RESULTS) or self._stop_event.is_set():
+            return page, context, result
+
+        if result.status == PageStatus.BLOCKED:
+            cooldown_secs = 60
+            self._progress.add_log(
+                f"⚠️ Bot verification on {country}. Cooling down {cooldown_secs}s before one retry..."
+            )
+            self._emit_progress(force=True)
+            await self._interruptible_sleep(cooldown_secs)
+            if self._stop_event.is_set():
+                return page, context, result
+        else:
+            self._progress.add_log(f"Page failed for '{query}' ({country}). Retrying once with a fresh session...")
+            self._emit_progress(force=True)
+
+        page, context = await self._recycle_context(browser, context, country, proxy_url=proxy_url)
+        self._consecutive_blocks = 0
+        result = await self._scrape_page_guarded(context, page, url, country, query)
+        if result.jobs:
+            self._progress.add_log(f"✅ Retry succeeded! Captured {len(result.jobs)} jobs for {country}.")
+            self._emit_progress(force=True)
+        return page, context, result
 
     async def _human_click(self, page: Page, element) -> None:
         """
@@ -820,7 +909,7 @@ class IndeedScraper:
             if not total_height or total_height < 400:
                 return
 
-            target_max = min(total_height * 0.75, 2000)
+            target_max = int(min(total_height * 0.75, 2000))
             current = 0
             while current < target_max:
                 if self._stop_event.is_set():

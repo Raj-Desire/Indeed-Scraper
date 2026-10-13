@@ -295,7 +295,7 @@ def check_text(text: str, title: str = "") -> EligibilityVerdict:
 
     for seg, in_opt, in_req in _segments(body):
         seg_optional = bool(_OPTIONAL.search(seg))
-        seg_mandatory = bool(_MANDATORY.search(seg)) or in_req  # inside a requirements section every line is required
+        seg_has_must = bool(_MANDATORY.search(seg))  # per-pattern check below ignores the matched words themselves
         for category, label, rx, inherent in _PATTERNS:
             m = rx.search(seg)
             if not m:
@@ -309,7 +309,10 @@ def check_text(text: str, title: str = "") -> EligibilityVerdict:
                 continue
             if negative_sponsorship and _OPTIONAL.search(seg) and re.search(r"regardless|without\s+regard|equal\s+opportunity|discriminat", seg, _I):
                 continue
-            if not inherent and not seg_mandatory:
+            # inside a Requirements section a bare citizenship / clearance / residency bullet is a requirement;
+            # generic wording (work eligibility, visa...) still needs an explicit "must / required" in the sentence
+            must_elsewhere = seg_has_must and bool(_MANDATORY.search(seg[:m.start()] + " " + seg[m.end():]))  # "work eligibility" must not count as its own "must"
+            if not inherent and not (must_elsewhere or (in_req and category in ("citizenship", "security clearance", "permanent residency"))):
                 continue  # a bare mention is not an explicit requirement
             if category in _SOFT_CATEGORIES_NEUTRALISED_BY_SPONSORSHIP and sponsorship_offered and not negative_sponsorship:
                 continue

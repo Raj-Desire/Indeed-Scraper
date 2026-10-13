@@ -26,7 +26,14 @@ class DedupFilter:
     def __init__(self) -> None:
         self._seen_job_ids: set[str] = set()
         self._seen_fingerprints: set[str] = set()
+        self._engagement_kind: dict[str, str] = {}  # fingerprint -> "contract" | "other" (rule I1)
         self._total_filtered = 0
+
+    @staticmethod
+    def _kind(job: JobPosting) -> str:
+        """'contract' when the post states contract / C2C / 1099 / hourly / fixed-duration terms, else 'other'."""
+        from app.filters.rulebook import _ENGAGEMENT_EVIDENCE
+        return "contract" if _ENGAGEMENT_EVIDENCE.search(f"{job.job_title}\n{job.job_description}\n{job.salary_range}") else "other"
 
     def filter(self, jobs: list[JobPosting]) -> list[JobPosting]:
         """
@@ -66,18 +73,26 @@ class DedupFilter:
         # Secondary: title + company fingerprint
         fingerprint = generate_job_fingerprint(job.job_title, job.company)
         if fingerprint in self._seen_fingerprints:
+            # Rule I1: the same post is skipped, UNLESS its engagement terms changed (it now says Contract):
+            # let it through once, flagged UPDATED, so the new terms get evaluated.
+            if self._engagement_kind.get(fingerprint) != "contract" and self._kind(job) == "contract":
+                self._engagement_kind[fingerprint] = "contract"
+                job.lead_flag = "UPDATED"
+                return True
             return False
 
         # Register as seen
         if job.indeed_job_id:
             self._seen_job_ids.add(job.indeed_job_id)
         self._seen_fingerprints.add(fingerprint)
+        self._engagement_kind[fingerprint] = self._kind(job)
         return True
 
     def reset(self) -> None:
         """Reset the filter state for a new session."""
         self._seen_job_ids.clear()
         self._seen_fingerprints.clear()
+        self._engagement_kind.clear()
         self._total_filtered = 0
 
     @property

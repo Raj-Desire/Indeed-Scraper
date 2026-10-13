@@ -41,6 +41,8 @@ class ScraperProgress(BaseModel):
     last_error: str = Field(default="")
 
     _log_deque: deque = PrivateAttr(default_factory=lambda: deque(maxlen=50))
+    _last_log_message: str = PrivateAttr(default="")
+    _last_log_repeat: int = PrivateAttr(default=0)
 
     @computed_field
     @property
@@ -78,7 +80,14 @@ class ScraperProgress(BaseModel):
         timestamp = datetime.now(tz=IST).strftime("%I:%M:%S %p IST")
         if self._log_deque.maxlen != max_messages:
             self._log_deque = deque(self._log_deque, maxlen=max_messages)
-        self._log_deque.append(f"[{timestamp}] {message}")
+        # Collapse identical consecutive messages into one line with a repeat counter
+        if self._log_deque and message == self._last_log_message:
+            self._last_log_repeat += 1
+            self._log_deque[-1] = f"[{timestamp}] {message} (x{self._last_log_repeat})"
+        else:
+            self._last_log_message = message
+            self._last_log_repeat = 1
+            self._log_deque.append(f"[{timestamp}] {message}")
         self.log_messages = list(self._log_deque)
 
     model_config = {"use_enum_values": True}

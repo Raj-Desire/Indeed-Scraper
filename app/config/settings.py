@@ -138,6 +138,11 @@ class Settings(BaseSettings):
     match_engine: str = Field(default="v2", description="Match scoring engine: 'v2' or 'legacy'")
     match_max_requirements: int = Field(default=14, description="Max JD requirements judged per job by the v2 engine")
 
+    # Rulebook (Desire Infoweb rules A-I): deterministic NOT RELEVANT / MAYBE / RELEVANT decisions with rule ids.
+    enable_rulebook: bool = Field(default=True, description="Apply the written filtering rulebook before the LLM stage")
+    rulebook_rate_min: float = Field(default=20.0, description="Hourly rate (USD) below this is flagged MAYBE (H8)")
+    rulebook_rate_max: float = Field(default=150.0, description="Hourly rate (USD) above this is flagged MAYBE (H8)")
+
     # Eligibility filter: reject postings that make citizenship / residency / work authorization / visa /
     # security clearance (any country) mandatory. Deterministic rules, no LLM.
     enable_eligibility_filter: bool = Field(default=True, description="Reject jobs with mandatory country-specific eligibility requirements")

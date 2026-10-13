@@ -158,9 +158,12 @@ class ScraperService:
     def _eligibility_on(self) -> bool:
         return bool(getattr(self._settings, "enable_eligibility_filter", False))
 
+    def _rulebook_on(self) -> bool:
+        return bool(getattr(self._settings, "enable_rulebook", False))
+
     def _gate_on(self) -> bool:
         """True when scraped jobs must be evaluated before they may join the dashboard."""
-        return self._lead_filter_on() or self._eligibility_on()
+        return self._lead_filter_on() or self._eligibility_on() or self._rulebook_on()
 
     def export_useful_for_email(self) -> Optional[str]:
         """Workbook with ALL useful leads (never rejected ones, never the user's own selection) for the email
@@ -243,9 +246,9 @@ class ScraperService:
                 await get_lead_classifier().apply(job)  # manual entries are shown whatever the verdict
             except Exception as lead_err:
                 logger.error("Lead classification failed for manual job '{}': {}", job.job_title, lead_err)
-        if self._eligibility_on():
-            from app.filters.eligibility_filter import apply_eligibility
-            apply_eligibility(job)
+        if self._rulebook_on() or self._eligibility_on():
+            from app.filters.rulebook import apply_rules_stage, finalize_rulebook
+            finalize_rulebook(job, apply_rules_stage(job, self._rulebook_on(), self._eligibility_on()))
 
         if self._match_service is None and self._settings.enable_kb_matching:
             self._match_service = MatchService()
@@ -403,10 +406,11 @@ class ScraperService:
         """Lead-filter the job first (cheap), then KB-match only the leads worth matching."""
         async with sem:
             try:
-                if self._eligibility_on():
-                    from app.filters.eligibility_filter import apply_eligibility
-                    if apply_eligibility(job):
-                        logger.info("Eligibility reject for '{}': {}", job.job_title, job.lead_reason)
+                # Rules first (free, deterministic): a NOT RELEVANT posting never reaches the LLM or the KB
+                from app.filters.rulebook import apply_rules_stage, finalize_rulebook
+                outcome = apply_rules_stage(job, self._rulebook_on(), self._eligibility_on())
+                if job.lead_class == "Rejected":
+                    logger.info("Rule reject for '{}': {}", job.job_title, job.lead_reason)
                 if self._lead_filter_on() and job.lead_class != "Rejected":  # restricted postings never reach the LLM
                     from app.matching.lead_classifier import get_lead_classifier
                     await get_lead_classifier().apply(job)
@@ -416,6 +420,7 @@ class ScraperService:
                 from app.matching.lead_reconcile import match_and_reconcile
                 logger.info("Evaluating AI KB match for: '{}' at '{}'...", job.job_title, job.company)
                 await match_and_reconcile(job, self._match_service)
+                finalize_rulebook(job, outcome)  # MAYBE rules cap the lead at Needs Review (manual review)
                 if job.match_score is not None:
                     logger.info("AI match verdict for '{}': Score={}/100 | Lead={} | Skills={}", job.job_title, job.match_score, job.lead_class or "-", job.matched_skills)
             except asyncio.CancelledError:

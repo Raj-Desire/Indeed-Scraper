@@ -143,6 +143,9 @@ def _serialize_job(j):
         "lead_category": j.lead_category or "",
         "lead_reason": j.lead_reason or "",
         "reject_reason": j.reject_reason or "",
+        "lead_rule": j.lead_rule or "",
+        "rule_flags": list(j.rule_flags or []),
+        "lead_flag": j.lead_flag or "",
         "engagement_type": j.engagement_type or "",
         "job_summary": j.summary,
         "summary": j.summary,
@@ -207,10 +210,26 @@ async def api_manual_evaluate(request: Request):
             return MatchResult(match_status="unscored")
         return await engine.evaluate(job_description, (body.get("job_title") or "").strip())
 
+    rb: dict = {}  # filled by _lead_verdict with the rulebook outcome (used to cap MAYBE leads)
+
     async def _lead_verdict():
         """Lead filter verdict for the pasted JD; shown to the user but never blocks a manual evaluation."""
         elig_hit = None
-        if get_settings().enable_eligibility_filter:
+        if get_settings().enable_rulebook:
+            # Desire Infoweb rulebook (A-I): NOT RELEVANT is shown as Rejected with the rule id; MAYBE caps the lead
+            from app.filters.rulebook import NOT_RELEVANT, RULE_GROUP, evaluate
+            rb_outcome = evaluate((body.get("job_title") or "").strip(), job_description,
+                                  (body.get("salary_range") or "").strip(), (body.get("location") or "").strip())
+            rb["outcome"] = rb_outcome
+            if rb_outcome.decision == NOT_RELEVANT:
+                from app.matching.lead_classifier import LeadVerdict
+                return LeadVerdict(
+                    lead_class="Rejected", lead_score=0, category=RULE_GROUP.get(rb_outcome.rule[:1], "Rule"),
+                    engagement="eligibility_restricted" if rb_outcome.rule.startswith("D") else "rule_rejected",
+                    reason=f"[{rb_outcome.rule}] {rb_outcome.reason}", short_reason=f"[{rb_outcome.rule}] {rb_outcome.reason}",
+                    rule=rb_outcome.rule,
+                )
+        elif get_settings().enable_eligibility_filter:
             from app.filters.eligibility_filter import check_text
             verdict = check_text(job_description, (body.get("job_title") or "").strip())
             if verdict.restricted:
@@ -310,6 +329,12 @@ async def api_manual_evaluate(request: Request):
             job.lead_tech_fit = getattr(lead_v, "tech_fit", None)
             from app.matching.lead_reconcile import reconcile_lead_with_match
             reconcile_lead_with_match(job)  # cross-check the verdict with the KB score computed above
+            if lead_v.rule:
+                job.lead_rule = lead_v.rule
+        if rb.get("outcome") is not None:
+            from app.filters.rulebook import finalize_rulebook
+            job.rule_flags = list(rb["outcome"].flags)
+            finalize_rulebook(job, rb["outcome"])  # MAYBE rules cap the lead at Needs Review
         if v2.job_summary:
             job.job_summary = v2.job_summary
 

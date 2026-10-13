@@ -70,20 +70,21 @@ class DiceService:
 
         lead_on = bool(getattr(self._settings, "enable_lead_filter", False))
         elig_on = bool(getattr(self._settings, "enable_eligibility_filter", False))
-        if self._match_service is not None or lead_on or elig_on:
+        rules_on = bool(getattr(self._settings, "enable_rulebook", False))
+        if self._match_service is not None or lead_on or elig_on or rules_on:
             sem = asyncio.Semaphore(3)
 
             async def _score(job: JobPosting) -> None:
                 async with sem:
                     try:
-                        if elig_on:
-                            from app.filters.eligibility_filter import apply_eligibility
-                            apply_eligibility(job)  # mandatory citizenship/visa/clearance/residency -> Rejected, no LLM
+                        from app.filters.rulebook import apply_rules_stage, finalize_rulebook
+                        outcome = apply_rules_stage(job, rules_on, elig_on)  # NOT RELEVANT -> Rejected, no LLM / KB spend
                         if lead_on and job.lead_class != "Rejected":
                             from app.matching.lead_classifier import get_lead_classifier
                             await get_lead_classifier().apply(job)
                         from app.matching.lead_reconcile import match_and_reconcile
                         await match_and_reconcile(job, self._match_service)  # skips plain rejections; reconciles the rest
+                        finalize_rulebook(job, outcome)  # MAYBE rules cap the lead at Needs Review
                     except Exception as match_err:
                         logger.error("Dice job matching error for '{}': {}", job.job_title, match_err)
 

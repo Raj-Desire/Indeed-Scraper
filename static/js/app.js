@@ -890,6 +890,7 @@ function leadFitCell(l) {
     return `
         <div class="flex flex-col gap-1 items-start" title="${esc(reason)}">
             <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold border ${style}">${esc(l.lead_class)}${score ? ` · ${esc(score)}` : ''}</span>
+            ${l.lead_flag === 'UPDATED' ? '<span class="px-1.5 py-0.5 rounded-md text-[10px] font-extrabold bg-violet-100 text-violet-700 border border-violet-300" title="This post came back with different engagement terms">UPDATED</span>' : ''}
             ${l.lead_category ? `<span class="text-[10px] font-semibold text-slate-600">${esc(l.lead_category)}</span>` : ''}
             ${reasonShort && l.lead_class !== 'Rejected' ? `<span class="text-[10px] leading-snug text-slate-500 max-w-[200px]">${esc(reasonShort)}</span>` : ''}
             ${l.lead_class === 'Rejected' ? `<button type="button" onclick="promoteLead('${esc(l.id)}', this)" class="mt-0.5 px-2 py-0.5 rounded-lg text-[10px] font-bold border border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors cursor-pointer">+ Add to useful leads</button>` : ''}
