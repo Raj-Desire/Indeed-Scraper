@@ -4,7 +4,7 @@ Job Description Intelligent Parser & Parameter Extractor
 Extracts structured Opportunity Tracker parameters from job descriptions:
 - Uses dynamic LLM extraction with specialized prompt for high-accuracy parsing
 - Extracts: Title, Country (ISO code), Website, Salary Range, Estimated Value, Currency,
-  Experience Criteria, Owner (Meet/Sizan/Chetan), Lead Source, Industry, Priority, Status,
+  Experience Criteria, Owner (Payal/Sizan/Chetan), Lead Source, Industry, Priority, Status,
   Contact Name, Email, Phone, Technology pills, Matched Skills, Missing Skills, Match Score, Notes.
 - Provides a robust heuristic regex fallback if LLM is offline.
 """
@@ -36,7 +36,7 @@ COUNTRY_NAME_TO_CODE: dict[str, str] = {
     "india": "IN", "in": "IN", "bangalore": "IN", "mumbai": "IN", "delhi": "IN", "hyderabad": "IN", "pune": "IN",
 }
 
-VALID_OWNERS = ["Meet", "Sizan", "Chetan"]
+VALID_OWNERS = ["Payal", "Sizan", "Chetan"]
 VALID_INDUSTRIES = ["IT", "Construction", "Legal", "Healthcare", "Logistics"]
 VALID_CURRENCIES = ["USD", "EUR", "INR", "GBP", "CAD"]
 VALID_PRIORITIES = ["High", "Medium", "Low"]
@@ -107,7 +107,7 @@ async def _extract_with_llm(matcher: Any, raw_text: str, kb_chunks: Optional[lis
         f"4. 'estimated_value': Numeric budget/value extracted ONLY if a specific salary/budget number is stated in the JD (e.g. 15000). If NO salary/budget is mentioned, return null. Do NOT guess.\n"
         f"5. 'currency_code': Inferred currency from symbols/country (one of ['USD', 'EUR', 'INR', 'GBP', 'CAD']). Default 'USD'.\n"
         f"6. 'experience': Years of experience required explicitly stated in the JD (e.g. '5+ years'). If NO experience is mentioned in the JD, return \"\". Do NOT guess.\n"
-        f"7. 'owner': Assigned owner strictly from ['Meet', 'Sizan', 'Chetan']. If 'sizan' is mentioned, pick 'Sizan'. If 'chetan', pick 'Chetan'. Default 'Meet'.\n"
+        f"7. 'owner': Assigned owner strictly from ['Payal', 'Sizan', 'Chetan']. If 'sizan' is mentioned, pick 'Sizan'. If 'chetan', pick 'Chetan'. Default 'Payal'.\n"
         f"8. 'lead_source': One of ['Indeed', 'LinkedIn', 'Upwork', 'People Per Hour', 'Dice', 'Referral', 'Website Inquiry', 'Cold Outreach', 'Other']. Default 'Indeed'.\n"
         f"9. 'industry': One of ['IT', 'Construction', 'Legal', 'Healthcare', 'Logistics']. Default 'IT'.\n"
         f"10. 'priority': 'High', 'Medium', or 'Low' (set High if match score >= 70 or senior role).\n"
@@ -131,7 +131,7 @@ async def _extract_with_llm(matcher: Any, raw_text: str, kb_chunks: Optional[lis
         f'  "estimated_value": null,\n'
         f'  "currency_code": "USD",\n'
         f'  "experience": "",\n'
-        f'  "owner": "Meet",\n'
+        f'  "owner": "Payal",\n'
         f'  "lead_source": "Indeed",\n'
         f'  "industry": "IT",\n'
         f'  "priority": "Medium",\n'
@@ -185,8 +185,10 @@ async def _extract_with_llm(matcher: Any, raw_text: str, kb_chunks: Optional[lis
             owner_val = "Sizan"
         elif "chetan" in raw_lower:
             owner_val = "Chetan"
+        elif "payal" in raw_lower:
+            owner_val = "Payal"
         else:
-            owner_val = heuristic.get("owner", "Meet")
+            owner_val = heuristic.get("owner", "Payal")
 
     currency_val = str(data.get("currency_code", "")).strip().upper()
     if currency_val not in VALID_CURRENCIES:
@@ -282,7 +284,7 @@ def parse_job_description(text: str) -> dict[str, Any]:
             "estimated_value": None,
             "currency_code": "USD",
             "experience": "",
-            "owner": "Meet",
+            "owner": "Payal",
             "lead_source": "Indeed",
             "industry": "IT",
             "priority": "Medium",
@@ -316,7 +318,7 @@ def parse_job_description(text: str) -> dict[str, Any]:
         "estimated_value": None,
         "currency_code": "USD",
         "experience": "",
-        "owner": "Meet",
+        "owner": "Payal",
         "lead_source": "Indeed",
         "industry": "IT",
         "priority": "Medium",
@@ -402,8 +404,8 @@ def parse_job_description(text: str) -> dict[str, Any]:
         extracted["owner"] = "Sizan"
     elif "chetan" in raw_lower:
         extracted["owner"] = "Chetan"
-    elif "meet" in raw_lower:
-        extracted["owner"] = "Meet"
+    elif "payal" in raw_lower:
+        extracted["owner"] = "Payal"
 
     # Detect Country
     detected_country = None

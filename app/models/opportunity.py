@@ -21,7 +21,7 @@ class OpportunityPayload(BaseModel):
     country: Optional[str] = Field(default="US", description="Country choice (US, South Africa, UK, etc.)")
     industry: Optional[str] = Field(default="IT", description="Industry choice (IT, Construction, Legal, Healthcare, Logistics)")
     lead_source: Optional[str] = Field(default="Indeed", description="Lead Source choice")
-    owner: Optional[str] = Field(default="Meet", description="Owner choice (Sizan, Meet, Chetan)")
+    owner: Optional[str] = Field(default="Payal", description="Owner choice (Sizan, Chetan, Payal)")
     priority: Optional[str] = Field(default="Medium", description="Priority choice (High, Medium, Low)")
     date_added: Optional[str] = Field(default=None, description="Date Added (YYYY-MM-DD)")
     status: Optional[str] = Field(default="New", description="Status choice")

@@ -21,7 +21,7 @@ function getSelectedOwner() {
     const leadsOwnerEl = document.getElementById('leads-owner');
     if (manualOwnerEl && manualOwnerEl.value) return manualOwnerEl.value;
     if (leadsOwnerEl && leadsOwnerEl.value) return leadsOwnerEl.value;
-    return 'Meet';
+    return 'Payal';
 }
 
 function setSelectedOwner(val) {
@@ -2539,7 +2539,7 @@ function populateManualForm(opp) {
     setVal('manual-country', opp.country || 'US');
     setVal('manual-industry', opp.industry || 'IT');
     setVal('manual-job-url', opp.website);
-    setSelectedOwner(opp.owner || 'Meet');
+    setSelectedOwner(opp.owner || 'Payal');
     setVal('manual-lead-source', opp.lead_source || 'Indeed');
     setVal('manual-priority', opp.priority || 'Medium');
     setVal('manual-status', opp.status || 'New');
@@ -2607,7 +2607,7 @@ function resetManualFormOnly() {
 
     const countryEl = document.getElementById('manual-country');
     if (countryEl) countryEl.value = 'US';
-    setSelectedOwner('Meet');
+    setSelectedOwner('Payal');
     const leadSourceEl = document.getElementById('manual-lead-source');
     if (leadSourceEl) leadSourceEl.value = 'Indeed';
     const industryEl = document.getElementById('manual-industry');
@@ -3142,7 +3142,7 @@ async function executeResetPage() {
 
     const countryEl = document.getElementById('manual-country');
     if (countryEl) countryEl.value = 'US';
-    setSelectedOwner('Meet');
+    setSelectedOwner('Payal');
     const leadSourceEl = document.getElementById('manual-lead-source');
     if (leadSourceEl) leadSourceEl.value = 'Indeed';
     const industryEl = document.getElementById('manual-industry');

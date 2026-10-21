@@ -522,7 +522,7 @@ class GraphSharePointExporter:
         Maps all available job and AI evaluation fields into the list schema.
 
         Args:
-            owner: Optional Owner choice (Sizan/Meet/Chetan) selected in the UI,
+            owner: Optional Owner choice (Sizan/Chetan/Payal) selected in the UI,
                 applied to every job in this batch.
         """
         if not jobs:

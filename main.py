@@ -19,7 +19,21 @@ from app.dashboard.router import router
 from app.utils.logger import setup_logging, logger
 
 
+import logging
 import os
+
+
+class _QuietPollingFilter(logging.Filter):
+    """Hide the dashboard's once-a-second status polling from the console access log."""
+    _NOISY = ("/api/scraper/progress", "/api/leads")
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        msg = record.getMessage()
+        return not (" 200 " in msg and any(path in msg for path in self._NOISY))
+
+
+logging.getLogger("uvicorn.access").addFilter(_QuietPollingFilter())
+
 
 async def _open_browser_later(url: str):
     # Skip automatic browser launch in cloud/headless container environments

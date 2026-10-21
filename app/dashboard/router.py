@@ -364,7 +364,7 @@ async def api_manual_evaluate(request: Request):
                 "estimated_value": parsed.get("estimated_value") if parsed.get("estimated_value") is not None else "",
                 "currency_code": parsed.get("currency_code") or "USD",
                 "experience": experience,
-                "owner": parsed.get("owner") or "Meet",
+                "owner": parsed.get("owner") or "Payal",
                 "lead_source": parsed.get("lead_source") or "Indeed",
                 "industry": parsed.get("industry") or "IT",
                 "priority": parsed.get("priority") or "Medium",
